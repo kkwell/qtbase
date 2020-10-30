@@ -283,7 +283,6 @@ QT_BEGIN_NAMESPACE
     \omitvalue ApplicationDeactivate
     \omitvalue ApplicationDeactivated
     \omitvalue MacGLWindowChange
-    \omitvalue MacGLClearDrawable
     \omitvalue NetworkReplyUpdated
     \omitvalue FutureCallOut
     \omitvalue NativeGesture
@@ -302,14 +301,11 @@ QEvent::QEvent(Type type)
 
 /*!
     \internal
-    Attempts to copy the \a other event.
-
-    Copying events is a bad idea, yet some Qt 4 code does it (notably,
-    QApplication and the state machine).
- */
+    Copies the \a other event.
+*/
 QEvent::QEvent(const QEvent &other)
     : d(other.d), t(other.t), posted(other.posted), spont(other.spont),
-      m_accept(other.m_accept)
+      m_accept(other.m_accept), m_inputEvent(other.m_inputEvent), m_pointerEvent(other.m_pointerEvent)
 {
     Q_TRACE(QEvent_ctor, this, t);
     // if QEventPrivate becomes available, make sure to implement a
@@ -379,6 +375,10 @@ QEvent::~QEvent()
 
     For convenience, the accept flag can also be set with accept(),
     and cleared with ignore().
+
+    \note Accepting a QPointerEvent implicitly
+    \l {QEventPoint::setAccepted()}{accepts} all the
+    \l {QPointerEvent::points()}{points} that the event carries.
 */
 
 /*!

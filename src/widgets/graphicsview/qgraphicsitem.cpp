@@ -429,16 +429,12 @@
     in Qt 4.5.
 
     \value ItemUsesExtendedStyleOption The item makes use of either
-    \l{QStyleOptionGraphicsItem::} {exposedRect} or
-    \l{QStyleOptionGraphicsItem::} {matrix} in
+    \l{QStyleOptionGraphicsItem::} {exposedRect} in
     QStyleOptionGraphicsItem. By default, the
     \l{QStyleOptionGraphicsItem::} {exposedRect} is initialized to the
-    item's boundingRect() and the
-    \l{QStyleOptionGraphicsItem::}{matrix} is untransformed.  You can
+    item's boundingRect(). You can
     enable this flag for the style options to be set up with more
-    fine-grained values.  Note that
-    QStyleOptionGraphicsItem::levelOfDetail is unaffected by this flag
-    and always initialized to 1. Use
+    fine-grained values. Use
     QStyleOptionGraphicsItem::levelOfDetailFromTransform() if you need
     a higher value. This flag was introduced in Qt 4.6.
 
@@ -1476,7 +1472,6 @@ void QGraphicsItemPrivate::initStyleOption(QStyleOptionGraphicsItem *option, con
     const QRectF brect = q->boundingRect();
     option->state = QStyle::State_None;
     option->rect = brect.toRect();
-    option->levelOfDetail = 1;
     option->exposedRect = brect;
 
     // Style animations require a QObject-based animation target.
@@ -1501,9 +1496,6 @@ void QGraphicsItemPrivate::initStyleOption(QStyleOptionGraphicsItem *option, con
 
     if (!(flags & QGraphicsItem::ItemUsesExtendedStyleOption))
         return;
-
-    // Initialize QStyleOptionGraphicsItem specific values (matrix, exposedRect).
-    option->matrix = worldTransform; //### discards perspective
 
     if (!allItems) {
         // Determine the item's exposed area
@@ -5302,7 +5294,7 @@ void QGraphicsItem::setBoundingRegionGranularity(qreal granularity)
 
 /*!
     \fn virtual void QGraphicsItem::paint(QPainter *painter, const
-    QStyleOptionGraphicsItem *option, QWidget *widget = 0) = 0
+    QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) = 0
 
     This function, which is usually called by QGraphicsView, paints the
     contents of an item in local coordinates.
@@ -11202,7 +11194,7 @@ QPixmap QGraphicsItemEffectSourcePrivate::pixmap(Qt::CoordinateSystem system, QP
     if (effectRect.isEmpty())
         return QPixmap();
 
-    const auto dpr = info ? info->painter->device()->devicePixelRatioF() : 1.0;
+    const auto dpr = info ? info->painter->device()->devicePixelRatio() : 1.0;
     QPixmap pixmap(QRectF(effectRectF.topLeft(), effectRectF.size() * dpr).toAlignedRect().size());
     pixmap.setDevicePixelRatio(dpr);
     pixmap.fill(Qt::transparent);

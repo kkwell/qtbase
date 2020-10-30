@@ -372,11 +372,11 @@ void tst_QWizard::setButton()
     QVERIFY(qobject_cast<QCheckBox *>(wizard.button(QWizard::CustomButton2)));
     QVERIFY(qobject_cast<QPushButton *>(wizard.button(QWizard::CustomButton1)));
 
-    QVERIFY(toolButton != 0);
+    QVERIFY(toolButton != nullptr);
 
     // resetting the same button does nothing
     wizard.setButton(QWizard::NextButton, toolButton);
-    QVERIFY(toolButton != 0);
+    QVERIFY(toolButton != nullptr);
 
     // revert to default button
     wizard.setButton(QWizard::NextButton, 0);
@@ -470,8 +470,8 @@ public:
     }
 
     void registerField(const QString &name, QWidget *widget,
-                       const char *property = 0,
-                       const char *changedSignal = 0)
+                       const char *property = nullptr,
+                       const char *changedSignal = nullptr)
         { QWizardPage::registerField(name, widget, property, changedSignal); }
 
     QLineEdit *edit1;
@@ -821,9 +821,9 @@ struct MyPage2 : public QWizardPage
 public:
     MyPage2() : init(0), cleanup(0), validate(0) {}
 
-    void initializePage() { ++init; QWizardPage::initializePage(); }
-    void cleanupPage() { ++cleanup; QWizardPage::cleanupPage(); }
-    bool validatePage() { ++validate; return QWizardPage::validatePage(); }
+    void initializePage() override { ++init; QWizardPage::initializePage(); }
+    void cleanupPage() override { ++cleanup; QWizardPage::cleanupPage(); }
+    bool validatePage() override { ++validate; return QWizardPage::validatePage(); }
 
     bool sanityCheck(int init, int cleanup)
     {
@@ -1592,13 +1592,13 @@ protected:
 
 class SetPage : public Operation
 {
-    void apply(QWizard *wizard) const
+    void apply(QWizard *wizard) const override
     {
         wizard->restart();
         for (int j = 0; j < page; ++j)
             wizard->next();
     }
-    QString describe() const { return QLatin1String("set page ") + QString::number(page); }
+    QString describe() const override { return QLatin1String("set page ") + QString::number(page); }
     int page;
 public:
     static QSharedPointer<SetPage> create(int page)
@@ -1611,8 +1611,8 @@ public:
 
 class SetStyle : public Operation
 {
-    void apply(QWizard *wizard) const { wizard->setWizardStyle(style); }
-    QString describe() const { return QLatin1String("set style ") + QString::number(style); }
+    void apply(QWizard *wizard) const override { wizard->setWizardStyle(style); }
+    QString describe() const override { return QLatin1String("set style ") + QString::number(style); }
     QWizard::WizardStyle style;
 public:
     static QSharedPointer<SetStyle> create(QWizard::WizardStyle style)
@@ -1625,8 +1625,8 @@ public:
 
 class SetOption : public Operation
 {
-    void apply(QWizard *wizard) const { wizard->setOption(option, on); }
-    QString describe() const;
+    void apply(QWizard *wizard) const override { wizard->setOption(option, on); }
+    QString describe() const override;
     QWizard::WizardOption option;
     bool on;
 public:
@@ -2117,8 +2117,8 @@ class WizardPage : public QWizardPage
 {
     Q_OBJECT
     bool shown_;
-    void showEvent(QShowEvent *) { shown_ = true; }
-    void hideEvent(QHideEvent *) { shown_ = false; }
+    void showEvent(QShowEvent *) override { shown_ = true; }
+    void hideEvent(QHideEvent *) override { shown_ = false; }
 public:
     WizardPage() : shown_(false) {}
     bool shown() const { return shown_; }
@@ -2409,7 +2409,7 @@ void tst_QWizard::sideWidget()
 {
     QWizard wizard;
 
-    wizard.setSideWidget(0);
+    wizard.setSideWidget(nullptr);
     QVERIFY(!wizard.sideWidget());
     QScopedPointer<QWidget> w1(new QWidget(&wizard));
     wizard.setSideWidget(w1.data());
@@ -2417,11 +2417,11 @@ void tst_QWizard::sideWidget()
     QWidget *w2 = new QWidget(&wizard);
     wizard.setSideWidget(w2);
     QCOMPARE(wizard.sideWidget(), w2);
-    QVERIFY(w1->parent() != 0);
+    QVERIFY(w1->parent() != nullptr);
     QCOMPARE(w1->window(), static_cast<QWidget *>(&wizard));
     QCOMPARE(w2->window(), static_cast<QWidget *>(&wizard));
-    w1->setParent(0);
-    wizard.setSideWidget(0);
+    w1->setParent(nullptr);
+    wizard.setSideWidget(nullptr);
     QVERIFY(!wizard.sideWidget());
 }
 
@@ -2498,7 +2498,7 @@ void tst_QWizard::task177716_disableCommitButton()
 class WizardPage_task183550 : public QWizardPage
 {
 public:
-    WizardPage_task183550(QWidget *parent = 0)
+    WizardPage_task183550(QWidget *parent = nullptr)
         : QWizardPage(parent)
         , treeWidget(new QTreeWidget)
         , verticalPolicy(QSizePolicy::MinimumExpanding) {}
@@ -2511,7 +2511,7 @@ private:
     QTreeWidget *treeWidget;
     QSizePolicy::Policy verticalPolicy;
 
-    void initializePage()
+    void initializePage() override
     {
         if (layout())
             delete layout();

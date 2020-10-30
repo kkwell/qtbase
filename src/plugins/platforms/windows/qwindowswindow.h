@@ -125,12 +125,12 @@ struct QWindowsWindowData
 };
 
 class QWindowsBaseWindow : public QPlatformWindow,
-                           public QPlatformInterface::Private::QWindowsWindow
+                           public QNativeInterface::Private::QWindowsWindow
 {
     Q_DISABLE_COPY_MOVE(QWindowsBaseWindow)
 public:
-    using TouchWindowTouchType = QPlatformInterface::Private::QWindowsApplication::TouchWindowTouchType;
-    using TouchWindowTouchTypes = QPlatformInterface::Private::QWindowsApplication::TouchWindowTouchTypes;
+    using TouchWindowTouchType = QNativeInterface::Private::QWindowsApplication::TouchWindowTouchType;
+    using TouchWindowTouchTypes = QNativeInterface::Private::QWindowsApplication::TouchWindowTouchTypes;
 
     explicit QWindowsBaseWindow(QWindow *window) : QPlatformWindow(window) {}
 
@@ -249,7 +249,7 @@ public:
 
     using QPlatformWindow::screenForGeometry;
 
-    QSurfaceFormat format() const override { return m_format; }
+    QSurfaceFormat format() const override;
     void setGeometry(const QRect &rect) override;
     QRect geometry() const override { return m_data.geometry; }
     QRect normalGeometry() const override;
@@ -402,7 +402,6 @@ private:
     QWindowsOleDropTarget *m_dropTarget = nullptr;
     unsigned m_savedStyle = 0;
     QRect m_savedFrameGeometry;
-    const QSurfaceFormat m_format;
     HICON m_iconSmall = nullptr;
     HICON m_iconBig = nullptr;
     void *m_surface = nullptr;

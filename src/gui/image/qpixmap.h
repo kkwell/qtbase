@@ -57,6 +57,7 @@ class QImageReader;
 class QColor;
 class QVariant;
 class QPlatformPixmap;
+QT_DECLARE_QESDP_SPECIALIZATION_DTOR_WITH_EXPORT(QPlatformPixmap, Q_GUI_EXPORT)
 
 class Q_GUI_EXPORT QPixmap : public QPaintDevice
 {
@@ -70,11 +71,11 @@ public:
     explicit QPixmap(const char * const xpm[]);
 #endif
     QPixmap(const QPixmap &);
+    QPixmap(QPixmap &&other) noexcept : QPaintDevice(), data(std::move(other.data)) {}
     ~QPixmap();
 
     QPixmap &operator=(const QPixmap &);
-    inline QPixmap &operator=(QPixmap &&other) noexcept
-    { qSwap(data, other.data); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QPixmap)
     inline void swap(QPixmap &other) noexcept
     { qSwap(data, other.data); }
     bool operator==(const QPixmap &) const = delete;

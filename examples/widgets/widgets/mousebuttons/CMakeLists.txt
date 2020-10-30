@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(mousebuttons
+qt_add_executable(mousebuttons
     buttontester.cpp buttontester.h
     main.cpp
+)
+set_target_properties(mousebuttons PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(mousebuttons PUBLIC
     Qt::Core

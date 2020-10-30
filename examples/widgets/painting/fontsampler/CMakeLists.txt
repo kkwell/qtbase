@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(fontsampler
+qt_add_executable(fontsampler
     main.cpp
     mainwindow.cpp mainwindow.h
     mainwindowbase.ui
+)
+set_target_properties(fontsampler PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(fontsampler PUBLIC
     Qt::Core

@@ -92,14 +92,14 @@ public:
     QTimeZone() noexcept;
     explicit QTimeZone(const QByteArray &ianaId);
     explicit QTimeZone(int offsetSeconds);
-    /*implicit*/ QTimeZone(const QByteArray &zoneId, int offsetSeconds, const QString &name,
+    QTimeZone(const QByteArray &zoneId, int offsetSeconds, const QString &name,
               const QString &abbreviation, QLocale::Country country = QLocale::AnyCountry,
               const QString &comment = QString());
     QTimeZone(const QTimeZone &other);
     ~QTimeZone();
 
     QTimeZone &operator=(const QTimeZone &other);
-    QTimeZone &operator=(QTimeZone &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QTimeZone)
 
     void swap(QTimeZone &other) noexcept
     { d.swap(other.d); }

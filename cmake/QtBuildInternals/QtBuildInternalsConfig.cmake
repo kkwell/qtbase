@@ -52,11 +52,14 @@ endif()
 include(QtPlatformSupport)
 
 function(qt_build_internals_disable_pkg_config_if_needed)
-    # pkg-config should not be used by default on Darwin and Windows platforms, as defined in
-    # the qtbase/configure.json. Unfortunately by the time the feature is evaluated there are
-    # already a few find_package() calls.
-    # So we have to duplicate the condition logic here and disable pkg-config for those platforms by
-    # default.
+    # pkg-config should not be used by default on Darwin and Windows platforms (and QNX), as defined
+    # in the qtbase/configure.json. Unfortunately by the time the feature is evaluated there are
+    # already a few find_package() calls that try to use the FindPkgConfig module.
+    # Thus, we have to duplicate the condition logic here and disable pkg-config for those platforms
+    # by default.
+    # We also need to check if the pkg-config executable exists, to mirror the condition test in
+    # configure.json. We do that by trying to find the executable ourselves, and not delegating to
+    # the FindPkgConfig module because that has more unwanted side-effects.
     #
     # Note that on macOS, if the pkg-config feature is enabled by the user explicitly, we will also
     # tell CMake to consider paths like /usr/local (Homebrew) as system paths when looking for
@@ -65,10 +68,16 @@ function(qt_build_internals_disable_pkg_config_if_needed)
     # enabled won't enable finding all system libraries via pkg-config alone, many libraries can
     # only be found via FooConfig.cmake files which means /usr/local should be in the system prefix
     # path.
+
     set(pkg_config_enabled ON)
-    if(APPLE OR WIN32 OR QNX)
+    qt_build_internals_find_pkg_config_executable()
+
+    if(APPLE OR WIN32 OR QNX OR ANDROID OR (NOT PKG_CONFIG_EXECUTABLE))
         set(pkg_config_enabled OFF)
     endif()
+
+    # If user explicitly specified a value for the feature, honor it, even if it might break
+    # the build.
     if(DEFINED FEATURE_pkg_config)
         if(FEATURE_pkg_config)
             set(pkg_config_enabled ON)
@@ -76,6 +85,7 @@ function(qt_build_internals_disable_pkg_config_if_needed)
             set(pkg_config_enabled OFF)
         endif()
     endif()
+
     set(FEATURE_pkg_config "${pkg_config_enabled}" CACHE STRING "Using pkg-config")
     if(NOT pkg_config_enabled)
         qt_build_internals_disable_pkg_config()
@@ -84,9 +94,20 @@ function(qt_build_internals_disable_pkg_config_if_needed)
     endif()
 endfunction()
 
+# This is a copy of the first few lines in FindPkgConfig.cmake.
+function(qt_build_internals_find_pkg_config_executable)
+    # find pkg-config, use PKG_CONFIG if set
+    if((NOT PKG_CONFIG_EXECUTABLE) AND (NOT "$ENV{PKG_CONFIG}" STREQUAL ""))
+      set(PKG_CONFIG_EXECUTABLE "$ENV{PKG_CONFIG}" CACHE FILEPATH "pkg-config executable")
+    endif()
+    find_program(PKG_CONFIG_EXECUTABLE NAMES pkg-config DOC "pkg-config executable")
+    mark_as_advanced(PKG_CONFIG_EXECUTABLE)
+endfunction()
+
 function(qt_build_internals_disable_pkg_config)
     # Disable pkg-config by setting an empty executable path. There's no documented way to
-    # mark the package as found, but force all pkg_check_modules calls to do nothing.
+    # mark the package as not found, but we can force all pkg_check_modules calls to do nothing
+    # by setting the variable to an empty value.
     set(PKG_CONFIG_EXECUTABLE "" CACHE STRING "Disabled pkg-config usage." FORCE)
 endfunction()
 
@@ -180,6 +201,11 @@ macro(qt_enable_cmake_languages)
         endif()
     endforeach()
 
+    # The qtbase call is handled in qtbase/CMakeLists.txt.
+    # This call is used for projects other than qtbase, including for other project's standalone
+    # tests.
+    # Because the function uses QT_FEATURE_foo values, it's important that find_package(Qt6Core) is
+    # called before this function. but that's usually the case for Qt repos.
     if(NOT PROJECT_NAME STREQUAL "QtBase")
         qt_internal_set_up_config_optimizations_like_in_qmake()
     endif()
@@ -204,9 +230,24 @@ macro(qt_build_repo_begin)
         add_custom_target(generate_docs)
         add_custom_target(html_docs)
         add_custom_target(qch_docs)
-        add_custom_target(install_html_docs_docs)
-        add_custom_target(install_qch_docs_docs)
-        add_custom_target(install_docs_docs)
+        add_custom_target(install_html_docs)
+        add_custom_target(install_qch_docs)
+        add_custom_target(install_docs)
+        add_dependencies(html_docs generate_docs)
+        add_dependencies(docs html_docs qch_docs)
+        add_dependencies(install_html_docs html_docs)
+        add_dependencies(install_qch_docs qch_docs)
+        add_dependencies(install_docs install_html_docs install_qch_docs)
+    endif()
+
+    # Add global qt_plugins, qpa_plugins and qpa_default_plugins convenience custom targets.
+    # Internal executables will add a dependency on the qpa_default_plugins target,
+    # so that building and running a test ensures it won't fail at runtime due to a missing qpa
+    # plugin.
+    if(NOT TARGET qt_plugins)
+        add_custom_target(qt_plugins)
+        add_custom_target(qpa_plugins)
+        add_custom_target(qpa_default_plugins)
     endif()
 
     string(TOLOWER ${PROJECT_NAME} project_name_lower)
@@ -231,19 +272,13 @@ macro(qt_build_repo_begin)
 
     add_dependencies(${qt_docs_generate_target_name} ${qt_docs_prepare_target_name})
     add_dependencies(${qt_docs_html_target_name} ${qt_docs_generate_target_name})
+    add_dependencies(${qt_docs_target_name} ${qt_docs_html_target_name} ${qt_docs_qch_target_name})
     add_dependencies(${qt_docs_install_html_target_name} ${qt_docs_html_target_name})
     add_dependencies(${qt_docs_install_qch_target_name} ${qt_docs_qch_target_name})
     add_dependencies(${qt_docs_install_target_name} ${qt_docs_install_html_target_name} ${qt_docs_install_qch_target_name})
 
-    # Make global doc targets depend on the module ones.
-    add_dependencies(docs ${qt_docs_target_name})
+    # Make top-level prepare_docs target depend on the repository-level prepare_docs_<repo> target.
     add_dependencies(prepare_docs ${qt_docs_prepare_target_name})
-    add_dependencies(generate_docs ${qt_docs_generate_target_name})
-    add_dependencies(html_docs ${qt_docs_html_target_name})
-    add_dependencies(qch_docs ${qt_docs_qch_target_name})
-    add_dependencies(install_html_docs_docs ${qt_docs_install_html_target_name})
-    add_dependencies(install_qch_docs_docs ${qt_docs_install_qch_target_name})
-    add_dependencies(install_docs_docs ${qt_docs_install_target_name})
 
     # Add host_tools meta target, so that developrs can easily build only tools and their
     # dependencies when working in qtbase.
@@ -416,6 +451,18 @@ function(qt_set_up_fake_standalone_tests_install_prefix)
     message(STATUS
             "Setting local standalone test install prefix (non-cached) to '${new_install_prefix}'.")
     set(CMAKE_INSTALL_PREFIX "${new_install_prefix}" PARENT_SCOPE)
+
+    # We also need to clear the staging prefix if it's set, otherwise CMake will modify any computed
+    # rpaths containing the staging prefix to point to the new fake prefix, which is not what we
+    # want. This replacement is done in cmComputeLinkInformation::GetRPath().
+    #
+    # By clearing the staging prefix for the standalone tests, any detected link time
+    # rpaths will be embedded as-is, which will point to the place where Qt was installed (aka
+    # the staging prefix).
+    if(DEFINED CMAKE_STAGING_PREFIX)
+        message(STATUS "Clearing local standalone test staging prefix (non-cached).")
+        set(CMAKE_STAGING_PREFIX "" PARENT_SCOPE)
+    endif()
 endfunction()
 
 # Mean to be called when configuring examples as part of the main build tree, as well as for CMake

@@ -846,7 +846,7 @@ qint64 QIODevice::pos() const
 */
 qint64 QIODevice::size() const
 {
-    return d_func()->isSequential() ?  bytesAvailable() : qint64(0);
+    return d_func()->isSequential() ? bytesAvailable() : qint64(0);
 }
 
 /*!
@@ -1353,7 +1353,7 @@ qint64 QIODevice::readLine(char *data, qint64 maxSize)
         // QRingBuffer::readLine() terminates the line with '\0'
         readSoFar = d->buffer.readLine(data, maxSize + 1);
         if (d->buffer.isEmpty())
-            readData(data,0);
+            readData(data, 0);
         if (!sequential)
             d->pos += readSoFar;
     }
@@ -1470,6 +1470,7 @@ QByteArray QIODevice::readLine(qint64 maxSize)
     else
         result.resize(readBytes);
 
+    result.squeeze();
     return result;
 }
 
@@ -1727,7 +1728,7 @@ qint64 QIODevice::write(const char *data)
 /*!
     \overload
 
-    Writes the content of \a byteArray to the device. Returns the number of
+    Writes the content of \a data to the device. Returns the number of
     bytes that were actually written, or -1 if an error occurred.
 
     \sa read(), writeData()

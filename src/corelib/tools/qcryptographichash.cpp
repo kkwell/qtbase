@@ -93,39 +93,7 @@ static SHA3Final * const sha3Final = Final;
 
 #endif
 
-/*
-    These #defines replace the typedefs needed by the RFC6234 code. Normally
-    the typedefs would come from from stdint.h, but since this header is not
-    available on all platforms (MSVC 2008, for example), we #define them to the
-    Qt equivalents.
-*/
-
-#ifdef uint64_t
-#undef uint64_t
-#endif
-
-#define uint64_t QT_PREPEND_NAMESPACE(quint64)
-
-#ifdef uint32_t
-#undef uint32_t
-#endif
-
-#define uint32_t QT_PREPEND_NAMESPACE(quint32)
-
-#ifdef uint8_t
-#undef uint8_t
-#endif
-
-#define uint8_t QT_PREPEND_NAMESPACE(quint8)
-
-#ifdef int_least16_t
-#undef int_least16_t
-#endif
-
-#define int_least16_t QT_PREPEND_NAMESPACE(qint16)
-
-// Header from rfc6234 with 1 modification:
-// sha1.h - commented out '#include <stdint.h>' on line 74
+// Header from rfc6234
 #include "../../3rdparty/rfc6234/sha.h"
 
 /*
@@ -149,19 +117,14 @@ static int SHA384_512AddLength(SHA512Context *context, unsigned int length);
 // sha384-512.c - appended 'M' to the SHA224_256AddLength macro on line 304
 #include "../../3rdparty/rfc6234/sha384-512.c"
 
-#undef uint64_t
-#undef uint32_t
-#undef uint68_t
-#undef int_least16_t
-
 static inline int SHA224_256AddLength(SHA256Context *context, unsigned int length)
 {
-  QT_PREPEND_NAMESPACE(quint32) addTemp;
+  uint32_t addTemp;
   return SHA224_256AddLengthM(context, length);
 }
 static inline int SHA384_512AddLength(SHA512Context *context, unsigned int length)
 {
-  QT_PREPEND_NAMESPACE(quint64) addTemp;
+  uint64_t addTemp;
   return SHA384_512AddLengthM(context, length);
 }
 
@@ -437,19 +400,19 @@ void QCryptographicHash::addData(const char *data, qsizetype length)
             break;
         case RealSha3_224:
         case Keccak_224:
-            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), quint64(length) * 8);
+            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), uint64_t(length) * 8);
             break;
         case RealSha3_256:
         case Keccak_256:
-            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), quint64(length) * 8);
+            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), uint64_t(length) * 8);
             break;
         case RealSha3_384:
         case Keccak_384:
-            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), quint64(length) * 8);
+            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), uint64_t(length) * 8);
             break;
         case RealSha3_512:
         case Keccak_512:
-            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), quint64(length) * 8);
+            sha3Update(&d->sha3Context, reinterpret_cast<const BitSequence *>(data), uint64_t(length) * 8);
             break;
         case Blake2b_160:
         case Blake2b_256:
@@ -482,7 +445,7 @@ void QCryptographicHash::addData(const QByteArray &data)
   and hashes it. Returns \c true if reading was successful.
   \since 5.0
  */
-bool QCryptographicHash::addData(QIODevice* device)
+bool QCryptographicHash::addData(QIODevice *device)
 {
     if (!device->isReadable())
         return false;
@@ -493,8 +456,8 @@ bool QCryptographicHash::addData(QIODevice* device)
     char buffer[1024];
     int length;
 
-    while ((length = device->read(buffer,sizeof(buffer))) > 0)
-        addData(buffer,length);
+    while ((length = device->read(buffer, sizeof(buffer))) > 0)
+        addData(buffer, length);
 
     return device->atEnd();
 }
@@ -542,19 +505,19 @@ QByteArray QCryptographicHash::result() const
         SHA224Result(&copy, reinterpret_cast<unsigned char *>(d->result.data()));
         break;
     }
-    case Sha256:{
+    case Sha256: {
         SHA256Context copy = d->sha256Context;
         d->result.resize(SHA256HashSize);
         SHA256Result(&copy, reinterpret_cast<unsigned char *>(d->result.data()));
         break;
     }
-    case Sha384:{
+    case Sha384: {
         SHA384Context copy = d->sha384Context;
         d->result.resize(SHA384HashSize);
         SHA384Result(&copy, reinterpret_cast<unsigned char *>(d->result.data()));
         break;
     }
-    case Sha512:{
+    case Sha512: {
         SHA512Context copy = d->sha512Context;
         d->result.resize(SHA512HashSize);
         SHA512Result(&copy, reinterpret_cast<unsigned char *>(d->result.data()));

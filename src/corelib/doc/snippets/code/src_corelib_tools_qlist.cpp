@@ -71,7 +71,7 @@ if (list[0] == "Liz")
 
 
 //! [4]
-for (int i = 0; i < list.size(); ++i) {
+for (qsizetype i = 0; i < list.size(); ++i) {
     if (list.at(i) == "Alfonso")
         cout << "Found Alfonso at position " << i << Qt::endl;
 }
@@ -79,7 +79,7 @@ for (int i = 0; i < list.size(); ++i) {
 
 
 //! [5]
-int i = list.indexOf("Harumi");
+qsizetype i = list.indexOf("Harumi");
 if (i != -1)
     cout << "First occurrence of Harumi is at position " << i << Qt::endl;
 //! [5]
@@ -88,7 +88,7 @@ if (i != -1)
 //! [6]
 QList<int> list(10);
 int *data = list.data();
-for (int i = 0; i < 10; ++i)
+for (qsizetype i = 0; i < 10; ++i)
     data[i] = 2 * i;
 //! [6]
 
@@ -191,20 +191,3 @@ list.lastIndexOf("B", 3);     // returns 3
 list.lastIndexOf("B", 2);     // returns 1
 list.lastIndexOf("X");        // returns -1
 //! [13]
-
-//! [16]
-std::vector<double> stdvector;
-stdvector.push_back(1.2);
-stdvector.push_back(0.5);
-stdvector.push_back(3.14);
-
-QList<double> list = QList<double>::fromStdVector(stdvector);
-//! [16]
-
-
-//! [17]
-QList<double> list;
-list << 1.2 << 0.5 << 3.14;
-
-std::vector<double> stdvector = list.toStdVector();
-//! [17]

@@ -1,11 +1,11 @@
 # This function creates a CMake target for a generic console or GUI binary.
 # Please consider to use a more specific version target like the one created
 # by qt_add_test or qt_add_tool below.
-function(qt_add_executable name)
-    qt_parse_all_arguments(arg "qt_add_executable"
-        "${__qt_add_executable_optional_args}"
-        "${__qt_add_executable_single_args}"
-        "${__qt_add_executable_multi_args}"
+function(qt_internal_add_executable name)
+    qt_parse_all_arguments(arg "qt_internal_add_executable"
+        "${__qt_internal_add_executable_optional_args}"
+        "${__qt_internal_add_executable_single_args}"
+        "${__qt_internal_add_executable_multi_args}"
         ${ARGN})
 
     if ("x${arg_OUTPUT_DIRECTORY}" STREQUAL "x")
@@ -68,7 +68,7 @@ function(qt_add_executable name)
     endif()
 
     if (WIN32 AND NOT arg_DELAY_RC)
-        qt6_generate_win32_rc_file(${name})
+        _qt_internal_generate_win32_rc_file(${name})
     endif()
 
     qt_set_common_target_properties(${name})
@@ -86,7 +86,7 @@ function(qt_add_executable name)
          ${arg_INCLUDE_DIRECTORIES}
     )
 
-    qt_extend_target("${name}"
+    qt_internal_extend_target("${name}"
         SOURCES ${arg_SOURCES}
         INCLUDE_DIRECTORIES ${private_includes}
         DEFINES ${arg_DEFINES}
@@ -146,5 +146,13 @@ function(qt_add_executable name)
                        CONFIGURATIONS ${cmake_config}
                        ${install_targets_default_args})
         endforeach()
+    endif()
+
+    # If linking against Gui, make sure to also build the default QPA plugin.
+    # This makes the experience of an initial Qt configuration to build and run one single
+    # test / executable nicer.
+    get_target_property(linked_libs "${name}" LINK_LIBRARIES)
+    if("Qt::Gui" IN_LIST linked_libs AND TARGET qpa_default_plugins)
+        add_dependencies("${name}" qpa_default_plugins)
     endif()
 endfunction()

@@ -39,7 +39,7 @@
 include(CMakeParseArguments)
 
 # macro used to create the names of output files preserving relative dirs
-macro(qt6_make_output_file infile prefix ext outfile )
+macro(_qt_internal_make_output_file infile prefix ext outfile )
     string(LENGTH ${CMAKE_CURRENT_BINARY_DIR} _binlength)
     string(LENGTH ${infile} _infileLength)
     set(_checkinfile ${CMAKE_CURRENT_SOURCE_DIR})
@@ -71,8 +71,7 @@ macro(qt6_make_output_file infile prefix ext outfile )
     set(${outfile} ${outpath}/${prefix}${_outfile}.${ext})
 endmacro()
 
-
-macro(qt6_get_moc_flags _moc_flags)
+macro(_qt_internal_get_moc_flags _moc_flags)
     set(${_moc_flags})
     get_directory_property(_inc_DIRS INCLUDE_DIRECTORIES)
 
@@ -102,9 +101,8 @@ macro(qt6_get_moc_flags _moc_flags)
     endif()
 endmacro()
 
-
 # helper macro to set up a moc rule
-function(qt6_create_moc_command infile outfile moc_flags moc_options moc_target moc_depends)
+function(_qt_internal_create_moc_command infile outfile moc_flags moc_options moc_target moc_depends)
     # Pass the parameters in a file.  Set the working directory to
     # be that containing the parameters file and reference it by
     # just the file name.  This is necessary because the moc tool on
@@ -149,10 +147,9 @@ function(qt6_create_moc_command infile outfile moc_flags moc_options moc_target 
     set_source_files_properties(${outfile} PROPERTIES SKIP_AUTOUIC ON)
 endfunction()
 
-
 function(qt6_generate_moc infile outfile )
     # get include dirs and flags
-    qt6_get_moc_flags(moc_flags)
+    _qt_internal_get_moc_flags(moc_flags)
     get_filename_component(abs_infile ${infile} ABSOLUTE)
     set(_outfile "${outfile}")
     if(NOT IS_ABSOLUTE "${outfile}")
@@ -161,7 +158,7 @@ function(qt6_generate_moc infile outfile )
     if ("x${ARGV2}" STREQUAL "xTARGET")
         set(moc_target ${ARGV3})
     endif()
-    qt6_create_moc_command(${abs_infile} ${_outfile} "${moc_flags}" "" "${moc_target}" "")
+    _qt_internal_create_moc_command(${abs_infile} ${_outfile} "${moc_flags}" "" "${moc_target}" "")
 endfunction()
 
 if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
@@ -179,7 +176,7 @@ endif()
 
 function(qt6_wrap_cpp outfiles )
     # get include dirs
-    qt6_get_moc_flags(moc_flags)
+    _qt_internal_get_moc_flags(moc_flags)
 
     set(options)
     set(oneValueArgs TARGET)
@@ -194,8 +191,9 @@ function(qt6_wrap_cpp outfiles )
 
     foreach(it ${moc_files})
         get_filename_component(it ${it} ABSOLUTE)
-        qt6_make_output_file(${it} moc_ cpp outfile)
-        qt6_create_moc_command(${it} ${outfile} "${moc_flags}" "${moc_options}" "${moc_target}" "${moc_depends}")
+        _qt_internal_make_output_file(${it} moc_ cpp outfile)
+        _qt_internal_create_moc_command(
+            ${it} ${outfile} "${moc_flags}" "${moc_options}" "${moc_target}" "${moc_depends}")
         list(APPEND ${outfiles} ${outfile})
     endforeach()
     set(${outfiles} ${${outfiles}} PARENT_SCOPE)
@@ -235,7 +233,7 @@ function(_qt6_parse_qrc_file infile _out_depends _rc_depends)
         # Since this cmake macro is doing the dependency scanning for these files,
         # let's make a configured file and add it as a dependency so cmake is run
         # again when dependencies need to be recomputed.
-        qt6_make_output_file("${infile}" "" "qrc.depends" out_depends)
+        _qt_internal_make_output_file("${infile}" "" "qrc.depends" out_depends)
         configure_file("${infile}" "${out_depends}" COPYONLY)
     else()
         # The .qrc file does not exist (yet). Let's add a dependency and hope
@@ -308,7 +306,7 @@ endif()
 function(qt6_add_resources outfiles )
     if (TARGET ${outfiles})
         cmake_parse_arguments(arg "" "OUTPUT_TARGETS" "" ${ARGN})
-        qt6_process_resource(${ARGV})
+        _qt_internal_process_resource(${ARGV})
         if (arg_OUTPUT_TARGETS)
             set(${arg_OUTPUT_TARGETS} ${${arg_OUTPUT_TARGETS}} PARENT_SCOPE)
         endif()
@@ -424,7 +422,11 @@ endif()
 
 set(_Qt6_COMPONENT_PATH "${CMAKE_CURRENT_LIST_DIR}/..")
 
-function(add_qt_gui_executable target)
+# This function is currently in Technical Preview.
+# It's signature and behavior might change.
+#
+# Wrapper function that adds an executable with some Qt specific behavior.
+function(qt6_add_executable target)
     if(ANDROID)
         add_library("${target}" MODULE ${ARGN})
         # On our qmake builds we do don't compile the executables with
@@ -435,23 +437,28 @@ function(add_qt_gui_executable target)
         set_property(TARGET "${target}" PROPERTY CXX_VISIBILITY_PRESET default)
         set_property(TARGET "${target}" PROPERTY OBJC_VISIBILITY_PRESET default)
         set_property(TARGET "${target}" PROPERTY OBJCXX_VISIBILITY_PRESET default)
-        qt_android_apply_arch_suffix("${target}")
+        qt6_android_apply_arch_suffix("${target}")
     else()
-        add_executable("${target}" WIN32 MACOSX_BUNDLE ${ARGN})
+        add_executable("${target}" ${ARGN})
     endif()
     target_link_libraries("${target}" PRIVATE Qt::Core)
-    if(TARGET Qt::Gui)
-        target_link_libraries("${target}" PRIVATE Qt::Gui)
-    endif()
-
-    if (WIN32)
-        qt6_generate_win32_rc_file(${target})
-    endif()
 
     if(ANDROID)
         qt_android_generate_deployment_settings("${target}")
         qt_android_add_apk_target("${target}")
     endif()
+endfunction()
+
+if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
+    function(qt_add_executable)
+        qt6_add_executable(${ARGV})
+    endfunction()
+endif()
+
+# Temporarily keep compatibility, until all repositories are migrated.
+function(add_qt_gui_executable)
+    message(AUTHOR_WARNING "Please replace add_qt_gui_executable with qt_add_executable instead. The former will be removed shortly.")
+    qt6_add_executable(${ARGV})
 endfunction()
 
 function(_qt_get_plugin_name_with_version target out_var)
@@ -563,9 +570,10 @@ if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
 endif()
 
 
-# Generate Qt metatypes.json for a target. By default we check whether AUTOMOC
-# has been enabled and we extract the information from that target. Should you
-# not wish to use automoc you need to pass in all the generated json files via the
+# Extracts metatypes from a Qt target and generates a metatypes.json for it.
+# By default we check whether AUTOMOC has been enabled and we extract the information from the
+# target's AUTOMOC supporting files.
+# Should you not wish to use automoc you need to pass in all the generated json files via the
 # MANUAL_MOC_JSON_FILES parameter. The latter can be obtained by running moc with
 # the --output-json parameter.
 # Params:
@@ -574,7 +582,7 @@ endif()
 #                Executable metatypes files are never installed.
 #   COPY_OVER_INSTALL: (Qt Internal) When present will install the file via a post build step
 #   copy rather than using install.
-function(qt6_generate_meta_types_json_file target)
+function(qt6_extract_metatypes target)
 
     get_target_property(existing_meta_types_file ${target} INTERFACE_QT_META_TYPES_BUILD_FILE)
     if (existing_meta_types_file)
@@ -743,7 +751,7 @@ function(qt6_generate_meta_types_json_file target)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${metatypes_file_gen}
             ${metatypes_file}
-        COMMENT "Runing automoc with --collect-json"
+        COMMENT "Running automoc with --collect-json"
     )
 
     # We still need to add this file as a source of Core, otherwise the file
@@ -820,8 +828,8 @@ function(qt6_generate_meta_types_json_file target)
 endfunction()
 
 if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
-    function(qt_generate_meta_types_json_file)
-        qt6_generate_meta_types_json_file(${ARGV})
+    function(qt_extract_metatypes)
+        qt6_extract_metatypes(${ARGV})
     endfunction()
 endif()
 
@@ -842,7 +850,7 @@ endif()
 # If you do not wish to auto-generate rc files, it's possible to provide your
 # own RC file by setting the property QT_TARGET_WINDOWS_RC_FILE with a path to
 # an existing rc file.
-function(qt6_generate_win32_rc_file target)
+function(_qt_internal_generate_win32_rc_file target)
     set(prohibited_target_types INTERFACE_LIBRARY STATIC_LIBRARY OBJECT_LIBRARY)
     get_target_property(target_type ${target} TYPE)
     if(target_type IN_LIST prohibited_target_types)
@@ -1073,7 +1081,7 @@ endfunction()
 # will be generated. Should you wish to perform additional processing on these
 # targets pass a value to the OUTPUT_TARGETS parameter.
 #
-function(QT6_PROCESS_RESOURCE target resourceName)
+function(_qt_internal_process_resource target resourceName)
 
     cmake_parse_arguments(rcc "" "PREFIX;LANG;BASE;OUTPUT_TARGETS" "FILES;OPTIONS" ${ARGN})
 
@@ -1103,14 +1111,14 @@ function(QT6_PROCESS_RESOURCE target resourceName)
     if(NOT rcc_PREFIX)
         get_target_property(rcc_PREFIX ${target} QT_RESOURCE_PREFIX)
         if (NOT rcc_PREFIX)
-            message(FATAL_ERROR "QT6_PROCESS_RESOURCE() was called without a PREFIX and the target does not provide QT_RESOURCE_PREFIX. Please either add a PREFIX or make the target ${target} provide a default.")
+            message(FATAL_ERROR "_qt_internal_process_resource() was called without a PREFIX and the target does not provide QT_RESOURCE_PREFIX. Please either add a PREFIX or make the target ${target} provide a default.")
         endif()
     endif()
 
     # Apply quick compiler pass. This is only enabled when Qt6QmlMacros is
     # parsed.
     if (QT6_ADD_RESOURCE_DECLARATIVE_EXTENSIONS)
-        qt6_quick_compiler_process_resources(${target} ${resourceName}
+        _qt_internal_quick_compiler_process_resources(${target} ${resourceName}
             FILES ${resource_files}
             PREFIX ${rcc_PREFIX}
             OUTPUT_REMAINING_RESOURCES resources
@@ -1172,7 +1180,10 @@ function(QT6_PROCESS_RESOURCE target resourceName)
     # </qresource></RCC>
     string(APPEND qrcContents "  </qresource>\n</RCC>\n")
 
-    file(GENERATE OUTPUT "${generatedResourceFile}" CONTENT "${qrcContents}")
+    file(WRITE "${generatedResourceFile}.in" "${qrcContents}")
+    configure_file("${generatedResourceFile}.in" "${generatedResourceFile}")
+
+    set_property(TARGET ${target} APPEND PROPERTY _qt_generated_qrc_files "${generatedResourceFile}")
 
     set(rccArgs --name "${newResourceName}"
         --output "${generatedSourceCode}" "${generatedResourceFile}")
@@ -1216,11 +1227,12 @@ function(QT6_PROCESS_RESOURCE target resourceName)
     endif()
 endfunction()
 
+# This function is currently in Technical Preview.
+# It's signature and behavior might change.
 function(qt6_add_plugin target)
     cmake_parse_arguments(arg
         "STATIC"
-        "OUTPUT_NAME"
-        "CLASS_NAME"
+        "OUTPUT_NAME;CLASS_NAME;TYPE"
         ""
         ${ARGN}
     )
@@ -1246,7 +1258,7 @@ function(qt6_add_plugin target)
     set_property(TARGET "${target}" PROPERTY OUTPUT_NAME "${output_name}")
 
     if (ANDROID)
-        qt_android_apply_arch_suffix("${target}")
+        qt6_android_apply_arch_suffix("${target}")
         set_target_properties(${target}
             PROPERTIES
             LIBRARY_OUTPUT_NAME "plugins_${arg_TYPE}_${output_name}"
@@ -1275,21 +1287,22 @@ endfunction()
 
 if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
     function(qt_add_plugin)
-        if (NOT DEFINED QT_DISABLE_QT_ADD_PLUGIN_COMPATIBILITY
-                OR NOT QT_DISABLE_QT_ADD_PLUGIN_COMPATIBILITY)
-            qt_internal_add_plugin(${ARGV})
-        else()
-            qt6_add_plugin(${ARGV})
-        endif()
+        qt6_add_plugin(${ARGV})
     endfunction()
 endif()
 
 # By default Qt6 forces usage of utf8 sources for consumers of Qt.
 # Users can opt out of utf8 sources by calling this function with the target name of their
 # application or library.
-function(qt_disable_utf8_sources target)
+function(qt6_allow_non_utf8_sources target)
     set_target_properties("${target}" PROPERTIES QT_NO_UTF8_SOURCE TRUE)
 endfunction()
+
+if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
+    function(qt_allow_non_utf8_sources)
+        qt6_allow_non_utf8_sources(${ARGV})
+    endfunction()
+endif()
 
 function(_qt_internal_apply_strict_cpp target)
     # Disable C, Obj-C and C++ GNU extensions aka no "-std=gnu++11".
@@ -1305,4 +1318,104 @@ function(_qt_internal_apply_strict_cpp target)
                 OBJCXX_EXTENSIONS OFF)
         endif()
     endif()
+endfunction()
+
+# Sets up auto-linkage of platform-specific entry points.
+#
+# See qt_internal_setup_startup_target() in qtbase/cmake/QtStartupHelpers.cmake for the internal
+# implementation counterpart.
+#
+# A project that uses Qt can opt-out of this auto-linking behavior by either setting the
+# QT_NO_LINK_QTMAIN property to TRUE on a target, or by setting the
+# QT_NO_LINK_QTMAIN variable to TRUE before the find_package(Qt6) call.
+#
+# QT_NO_LINK_QTMAIN replaces the old Qt5_NO_LINK_QTMAIN name for both the property and variable
+#name.
+#
+# This function is called by Qt6CoreConfigExtras.cmake at find_package(Qt6Core) time.
+# The reason the linkage is done at find_package() time instead of Qt build time is to allow
+# opting out via a variable. This ensures compatibility with Qt5 behavior.
+# If it was done at build time, opt-out could only be achieved via the property.
+function(_qt_internal_setup_startup_target)
+    set(target "${QT_CMAKE_EXPORT_NAMESPACE}::Startup")
+    set(dependent_target "${QT_CMAKE_EXPORT_NAMESPACE}::Core")
+
+    # Get actual Core target name.
+    get_target_property(dependent_aliased_target "${dependent_target}" ALIASED_TARGET)
+    if(dependent_aliased_target)
+        set(dependent_target "${dependent_aliased_target}")
+    endif()
+
+    # Check if Core is being built as part of current CMake invocation.
+    # If it is, that means the Core target scope is global and the same scope should be set for the
+    # to-be-created Startup target, to avoid creating 100s of local IMPORTED Startup targets
+    # when building with -DBUILD_TESTING=ON and -DBUILD_EXAMPLES=ON due to multiple
+    # find_package(Qt6Core) calls.
+    get_target_property(core_imported "${dependent_target}" IMPORTED)
+    set(create_global "")
+    if(NOT core_imported)
+        set(create_global "GLOBAL")
+    endif()
+
+    # Create Startup only if it's not available in the current scope.
+    # Guards against multiple find_package(Qt6Core) calls.
+    if(NOT TARGET "${target}")
+        add_library("${target}" INTERFACE IMPORTED ${create_global})
+    endif()
+
+    # Allow variable opt-out. Has to be after target creation, because Core always links against
+    # Startup.
+    if(QT_NO_LINK_QTMAIN)
+        return()
+    endif()
+
+    # find_package(Qt6Core) can be called multiple times, but we only want to set the flags once.
+    set(initialized_prop "_qt_startup_target_initialized")
+    get_target_property(initialized "${target}" "${initialized_prop}")
+    if(initialized)
+        return()
+    else()
+        set_target_properties("${target}" PROPERTIES "${initialized_prop}" TRUE)
+    endif()
+
+    # On Windows this enables automatic linkage to QtEntryPoint.
+    # On iOS this enables automatic passing of a linker flag that will change the default
+    # entry point of the linked executable.
+    set(isExe "$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>")
+    set(isNotExcluded "$<NOT:$<BOOL:$<TARGET_PROPERTY:QT_NO_LINK_QTMAIN>>>")
+    if(WIN32)
+        set(isWin32 "$<BOOL:$<TARGET_PROPERTY:WIN32_EXECUTABLE>>")
+        set(isPolicyNEW "$<TARGET_POLICY:CMP0020>")
+        set(finalGenex "$<$<AND:${isExe},${isWin32},${isNotExcluded},${isPolicyNEW}>:Qt::EntryPoint>")
+
+        # Use set_target_properties instead of target_link_libraries because the latter has some
+        # weird additional behavior of checking which project the target belongs to, and might
+        # error out when called multiple times from different scopes.
+        set_target_properties("${target}" PROPERTIES INTERFACE_LINK_LIBRARIES "${finalGenex}")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        set(flag "-Wl,-e,_qt_main_wrapper")
+        set(finalGenex "$<$<AND:${isExe},${isNotExcluded}>:${flag}>")
+
+        set_target_properties("${target}" PROPERTIES INTERFACE_LINK_OPTIONS "${finalGenex}")
+    endif()
+
+    # Set up the dependency on Startup for the local Core target, if it hasn't been set yet.
+    set(initialized_prop "_qt_core_startup_dependency_initialized")
+    get_target_property(initialized "${dependent_target}" "${initialized_prop}")
+    if(initialized)
+        get_target_property(thelibs "${dependent_target}" INTERFACE_LINK_LIBRARIES)
+        return()
+    else()
+        set_target_properties("${dependent_target}" PROPERTIES "${initialized_prop}" TRUE)
+
+        # Export the initialized property on Core, to ensure that Core links against Startup
+        # only once in a non-qtbase project.
+        if(NOT core_imported)
+            set_property(TARGET "${dependent_target}" APPEND PROPERTY
+                                 EXPORT_PROPERTIES "${initialized_prop}")
+        endif()
+    endif()
+
+    target_link_libraries("${dependent_target}" INTERFACE "${target}")
+    get_target_property(thelibs "${dependent_target}" INTERFACE_LINK_LIBRARIES)
 endfunction()

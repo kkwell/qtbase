@@ -109,7 +109,8 @@ public:
                            QRhiRenderTarget *rt,
                            const QColor &colorClearValue,
                            const QRhiDepthStencilClearValue &depthStencilClearValue,
-                           QRhiResourceUpdateBatch *resourceUpdates) = 0;
+                           QRhiResourceUpdateBatch *resourceUpdates,
+                           QRhiCommandBuffer::BeginPassFlags flags) = 0;
     virtual void endPass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceUpdates) = 0;
 
     virtual void setGraphicsPipeline(QRhiCommandBuffer *cb,
@@ -140,7 +141,9 @@ public:
     virtual void debugMarkEnd(QRhiCommandBuffer *cb) = 0;
     virtual void debugMarkMsg(QRhiCommandBuffer *cb, const QByteArray &msg) = 0;
 
-    virtual void beginComputePass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceUpdates) = 0;
+    virtual void beginComputePass(QRhiCommandBuffer *cb,
+                                  QRhiResourceUpdateBatch *resourceUpdates,
+                                  QRhiCommandBuffer::BeginPassFlags flags) = 0;
     virtual void endComputePass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceUpdates) = 0;
     virtual void setComputePipeline(QRhiCommandBuffer *cb, QRhiComputePipeline *ps) = 0;
     virtual void dispatch(QRhiCommandBuffer *cb, int x, int y, int z) = 0;
@@ -210,12 +213,13 @@ public:
     }
 
     bool sanityCheckGraphicsPipeline(QRhiGraphicsPipeline *ps);
+    bool sanityCheckShaderResourceBindings(QRhiShaderResourceBindings *srb);
+    void updateLayoutDesc(QRhiShaderResourceBindings *srb);
 
     QRhi *q;
 
     static const int MAX_SHADER_CACHE_ENTRIES = 128;
 
-protected:
     bool debugMarkers = false;
     int currentFrameSlot = 0; // for vk, mtl, and similar. unused by gl and d3d11.
     bool inFrame = false;
@@ -225,7 +229,8 @@ private:
     QThread *implThread;
     QRhiProfiler profiler;
     QVarLengthArray<QRhiResourceUpdateBatch *, 4> resUpdPool;
-    QBitArray resUpdPoolMap;
+    quint64 resUpdPoolMap = 0;
+    int lastResUpdIdx = -1;
     QSet<QRhiResource *> resources;
     QSet<QRhiResource *> pendingDeleteResources;
     QVarLengthArray<QRhi::CleanupCallback, 4> cleanupCallbacks;
@@ -274,6 +279,80 @@ bool qrhi_toTopLeftRenderTargetRect(const QSize &outputSize, const std::array<T,
     return true;
 }
 
+struct QRhiBufferDataPrivate
+{
+    Q_DISABLE_COPY_MOVE(QRhiBufferDataPrivate)
+    QRhiBufferDataPrivate() { }
+    ~QRhiBufferDataPrivate() { delete[] largeData; }
+    int ref = 1;
+    int size = 0;
+    int largeAlloc = 0;
+    char *largeData = nullptr;
+    static constexpr int SMALL_DATA_SIZE = 1024;
+    char data[SMALL_DATA_SIZE];
+};
+
+// no detach-with-contents, no atomic refcount, no shrink
+class QRhiBufferData
+{
+public:
+    QRhiBufferData() = default;
+    ~QRhiBufferData()
+    {
+        if (d && !--d->ref)
+            delete d;
+    }
+    QRhiBufferData(const QRhiBufferData &other)
+        : d(other.d)
+    {
+        if (d)
+            d->ref += 1;
+    }
+    QRhiBufferData &operator=(const QRhiBufferData &other)
+    {
+        if (d == other.d)
+            return *this;
+        if (other.d)
+            other.d->ref += 1;
+        if (d && !--d->ref)
+            delete d;
+        d = other.d;
+        return *this;
+    }
+    const char *constData() const
+    {
+        return d->size <= QRhiBufferDataPrivate::SMALL_DATA_SIZE ? d->data : d->largeData;
+    }
+    int size() const
+    {
+        return d->size;
+    }
+    void assign(const char *s, int size)
+    {
+        if (!d) {
+            d = new QRhiBufferDataPrivate;
+        } else if (d->ref != 1) {
+            d->ref -= 1;
+            d = new QRhiBufferDataPrivate;
+        }
+        d->size = size;
+        if (size <= QRhiBufferDataPrivate::SMALL_DATA_SIZE) {
+            memcpy(d->data, s, size);
+        } else {
+            if (d->largeAlloc < size) {
+                delete[] d->largeData;
+                d->largeAlloc = size;
+                d->largeData = new char[size];
+            }
+            memcpy(d->largeData, s, size);
+        }
+    }
+private:
+    QRhiBufferDataPrivate *d = nullptr;
+};
+
+Q_DECLARE_TYPEINFO(QRhiBufferData, Q_MOVABLE_TYPE);
+
 class QRhiResourceUpdateBatchPrivate
 {
 public:
@@ -286,7 +365,7 @@ public:
         Type type;
         QRhiBuffer *buf;
         int offset;
-        QByteArray data;
+        QRhiBufferData data;
         int readSize;
         QRhiBufferReadbackResult *result;
 
@@ -296,8 +375,18 @@ public:
             op.type = DynamicUpdate;
             op.buf = buf;
             op.offset = offset;
-            op.data = QByteArray(reinterpret_cast<const char *>(data), size ? size : buf->size());
+            const int effectiveSize = size ? size : buf->size();
+            op.data.assign(reinterpret_cast<const char *>(data), effectiveSize);
             return op;
+        }
+
+        static void changeToDynamicUpdate(BufferOp *op, QRhiBuffer *buf, int offset, int size, const void *data)
+        {
+            op->type = DynamicUpdate;
+            op->buf = buf;
+            op->offset = offset;
+            const int effectiveSize = size ? size : buf->size();
+            op->data.assign(reinterpret_cast<const char *>(data), effectiveSize);
         }
 
         static BufferOp staticUpload(QRhiBuffer *buf, int offset, int size, const void *data)
@@ -306,8 +395,18 @@ public:
             op.type = StaticUpload;
             op.buf = buf;
             op.offset = offset;
-            op.data = QByteArray(reinterpret_cast<const char *>(data), size ? size : buf->size());
+            const int effectiveSize = size ? size : buf->size();
+            op.data.assign(reinterpret_cast<const char *>(data), effectiveSize);
             return op;
+        }
+
+        static void changeToStaticUpload(BufferOp *op, QRhiBuffer *buf, int offset, int size, const void *data)
+        {
+            op->type = StaticUpload;
+            op->buf = buf;
+            op->offset = offset;
+            const int effectiveSize = size ? size : buf->size();
+            op->data.assign(reinterpret_cast<const char *>(data), effectiveSize);
         }
 
         static BufferOp read(QRhiBuffer *buf, int offset, int size, QRhiBufferReadbackResult *result)
@@ -340,7 +439,6 @@ public:
         QRhiTextureCopyDescription desc;
         QRhiReadbackDescription rb;
         QRhiReadbackResult *result;
-        int layer;
 
         static TextureOp upload(QRhiTexture *tex, const QRhiTextureUploadDescription &desc)
         {
@@ -371,18 +469,22 @@ public:
             return op;
         }
 
-        static TextureOp genMips(QRhiTexture *tex, int layer)
+        static TextureOp genMips(QRhiTexture *tex)
         {
             TextureOp op = {};
             op.type = GenMips;
             op.dst = tex;
-            op.layer = layer;
             return op;
         }
     };
 
-    QVarLengthArray<BufferOp, 1024> bufferOps;
-    QVarLengthArray<TextureOp, 256> textureOps;
+    int activeBufferOpCount = 0; // this is the real number of used elements in bufferOps, not bufferOps.count()
+    static const int BUFFER_OPS_STATIC_ALLOC = 1024;
+    QVarLengthArray<BufferOp, BUFFER_OPS_STATIC_ALLOC> bufferOps;
+
+    int activeTextureOpCount = 0; // this is the real number of used elements in textureOps, not textureOps.count()
+    static const int TEXTURE_OPS_STATIC_ALLOC = 256;
+    QVarLengthArray<TextureOp, TEXTURE_OPS_STATIC_ALLOC> textureOps;
 
     QRhiResourceUpdateBatch *q = nullptr;
     QRhiImplementation *rhi = nullptr;
@@ -390,6 +492,8 @@ public:
 
     void free();
     void merge(QRhiResourceUpdateBatchPrivate *other);
+    bool hasOptimalCapacity() const;
+    void trimOpLists();
 
     static QRhiResourceUpdateBatchPrivate *get(QRhiResourceUpdateBatch *b) { return b->d; }
 };
@@ -413,9 +517,10 @@ struct QRhiBatchedBindings
         curBinding = binding;
     }
 
-    void finish() {
+    bool finish() {
         if (!curBatch.resources.isEmpty())
             batches.append(curBatch);
+        return !batches.isEmpty();
     }
 
     void clear() {
@@ -549,6 +654,38 @@ private:
 
 Q_DECLARE_TYPEINFO(QRhiPassResourceTracker::Buffer, Q_MOVABLE_TYPE);
 Q_DECLARE_TYPEINFO(QRhiPassResourceTracker::Texture, Q_MOVABLE_TYPE);
+
+template<typename T, int GROW = 1024>
+class QRhiBackendCommandList
+{
+public:
+    QRhiBackendCommandList() = default;
+    ~QRhiBackendCommandList() { delete[] v; }
+    inline void reset() { p = 0; }
+    inline bool isEmpty() const { return p == 0; }
+    inline T &get() {
+        if (p == a) {
+            a += GROW;
+            T *nv = new T[a];
+            if (v) {
+                memcpy(nv, v, p * sizeof(T));
+                delete[] v;
+            }
+            v = nv;
+        }
+        return v[p++];
+    }
+    inline void unget() { --p; }
+    inline T *cbegin() const { return v; }
+    inline T *cend() const { return v + p; }
+    inline T *begin() { return v; }
+    inline T *end() { return v + p; }
+private:
+    Q_DISABLE_COPY(QRhiBackendCommandList)
+    T *v = nullptr;
+    int a = 0;
+    int p = 0;
+};
 
 QT_END_NAMESPACE
 

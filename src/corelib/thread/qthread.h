@@ -105,7 +105,7 @@ public:
 
 #if QT_CONFIG(cxx11_future) || defined(Q_CLANG_QDOC)
     template <typename Function, typename... Args>
-    static QThread *create(Function &&f, Args &&... args);
+    [[nodiscard]] static QThread *create(Function &&f, Args &&... args);
 #endif
 
 public Q_SLOTS:
@@ -115,8 +115,12 @@ public Q_SLOTS:
 
 public:
     bool wait(QDeadlineTimer deadline = QDeadlineTimer(QDeadlineTimer::Forever));
-    // ### Qt6 inline this function
-    bool wait(unsigned long time);
+    bool wait(unsigned long time)
+    {
+        if (time == std::numeric_limits<unsigned long>::max())
+            return wait(QDeadlineTimer(QDeadlineTimer::Forever));
+        return wait(QDeadlineTimer(time));
+    }
 
     static void sleep(unsigned long);
     static void msleep(unsigned long);
@@ -139,7 +143,7 @@ private:
     Q_DECLARE_PRIVATE(QThread)
 
 #if QT_CONFIG(cxx11_future)
-    static QThread *createThreadImpl(std::future<void> &&future);
+    [[nodiscard]] static QThread *createThreadImpl(std::future<void> &&future);
 #endif
     static Qt::HANDLE currentThreadIdImpl() noexcept Q_DECL_PURE_FUNCTION;
 

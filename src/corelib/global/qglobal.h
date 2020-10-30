@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2019 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2019 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
@@ -76,10 +76,6 @@
 */
 #define QT_CONFIG(feature) (1/QT_FEATURE_##feature == 1)
 #define QT_REQUIRE_CONFIG(feature) Q_STATIC_ASSERT_X(QT_FEATURE_##feature == 1, "Required feature " #feature " for file " __FILE__ " not available.")
-
-// ### Clean those up, once all code is adjusted
-#define QT6_VIRTUAL virtual
-#define QT6_NOT_VIRTUAL
 
 /* These two macros makes it possible to turn the builtin line expander into a
  * string literal. */
@@ -279,7 +275,7 @@ typedef double qreal;
 #  undef QT_DEPRECATED_VARIABLE
 #  define QT_DEPRECATED_VARIABLE Q_DECL_VARIABLE_DEPRECATED
 #  undef QT_DEPRECATED_CONSTRUCTOR
-#  define QT_DEPRECATED_CONSTRUCTOR explicit Q_DECL_CONSTRUCTOR_DEPRECATED
+#  define QT_DEPRECATED_CONSTRUCTOR Q_DECL_CONSTRUCTOR_DEPRECATED explicit
 #else
 #  undef QT_DEPRECATED
 #  define QT_DEPRECATED
@@ -380,7 +376,7 @@ typedef double qreal;
 // A tag to help mark stuff deprecated (cf. QStringViewLiteral)
 namespace QtPrivate {
 enum class Deprecated_t {};
-constexpr Q_DECL_UNUSED Deprecated_t Deprecated = {};
+constexpr inline Deprecated_t Deprecated = {};
 }
 #endif
 
@@ -434,6 +430,51 @@ constexpr Q_DECL_UNUSED Deprecated_t Deprecated = {};
 #define Q_DISABLE_COPY_MOVE(Class) \
     Q_DISABLE_COPY(Class) \
     Q_DISABLE_MOVE(Class)
+
+/*
+    Implementing a move assignment operator using an established
+    technique (move-and-swap, pure swap) is just boilerplate.
+    Here's a couple of *private* macros for convenience.
+
+    To know which one to use:
+
+    * if you don't have a move constructor (*) => use pure swap;
+    * if you have a move constructor, then
+      * if your class holds just memory (no file handles, no user-defined
+        datatypes, etc.) => use pure swap;
+      * use move and swap.
+
+    The preference should always go for the move-and-swap one, as it
+    will deterministically destroy the data previously held in *this,
+    and not "dump" it in the moved-from object (which may then be alive
+    for longer).
+
+    The requirement for either macro is the presence of a member swap(),
+    which any value class that defines its own special member functions
+    should have anyhow.
+
+    (*) Many value classes in Qt do not have move constructors; mostly,
+    the implicitly shared classes using QSharedDataPointer and friends.
+    The reason is mostly historical: those classes require either an
+    out-of-line move constructor, which we could not provide before we
+    made C++11 mandatory (and that we don't like anyhow), or
+    an out-of-line dtor for the Q(E)DSP<Private> member (cf. QPixmap).
+
+    If you can however add a move constructor to a class lacking it,
+    consider doing so, then reevaluate which macro to choose.
+*/
+#define QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(Class) \
+    Class &operator=(Class &&other) noexcept { \
+        Class moved(std::move(other)); \
+        swap(moved); \
+        return *this; \
+    }
+
+#define QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(Class) \
+    Class &operator=(Class &&other) noexcept { \
+        swap(other); \
+        return *this; \
+    }
 
 /*
    No, this is not an evil backdoor. QT_BUILD_INTERNAL just exports more symbols
@@ -512,8 +553,8 @@ template <>    struct QIntegerForSize<16> { __extension__ typedef unsigned __int
 template <class T> struct QIntegerForSizeof: QIntegerForSize<sizeof(T)> { };
 typedef QIntegerForSize<Q_PROCESSOR_WORDSIZE>::Signed qregisterint;
 typedef QIntegerForSize<Q_PROCESSOR_WORDSIZE>::Unsigned qregisteruint;
-typedef QIntegerForSizeof<void*>::Unsigned quintptr;
-typedef QIntegerForSizeof<void*>::Signed qptrdiff;
+typedef QIntegerForSizeof<void *>::Unsigned quintptr;
+typedef QIntegerForSizeof<void *>::Signed qptrdiff;
 typedef qptrdiff qintptr;
 using qsizetype = QIntegerForSizeof<std::size_t>::Signed;
 
@@ -586,14 +627,14 @@ template <typename T>
 constexpr inline T qAbs(const T &t) { return t >= 0 ? t : -t; }
 
 constexpr inline int qRound(double d)
-{ return d >= 0.0 ? int(d + 0.5) : int(d - double(int(d-1)) + 0.5) + int(d-1); }
+{ return d >= 0.0 ? int(d + 0.5) : int(d - 0.5); }
 constexpr inline int qRound(float d)
-{ return d >= 0.0f ? int(d + 0.5f) : int(d - float(int(d-1)) + 0.5f) + int(d-1); }
+{ return d >= 0.0f ? int(d + 0.5f) : int(d - 0.5f); }
 
 constexpr inline qint64 qRound64(double d)
-{ return d >= 0.0 ? qint64(d + 0.5) : qint64(d - double(qint64(d-1)) + 0.5) + qint64(d-1); }
+{ return d >= 0.0 ? qint64(d + 0.5) : qint64(d - 0.5); }
 constexpr inline qint64 qRound64(float d)
-{ return d >= 0.0f ? qint64(d + 0.5f) : qint64(d - float(qint64(d-1)) + 0.5f) + qint64(d-1); }
+{ return d >= 0.0f ? qint64(d + 0.5f) : qint64(d - 0.5f); }
 
 namespace QTypeTraits {
 
@@ -601,7 +642,9 @@ namespace detail {
 template<typename T, typename U,
          typename = std::enable_if_t<std::is_arithmetic_v<T> && std::is_arithmetic_v<U> &&
                                      std::is_floating_point_v<T> == std::is_floating_point_v<U> &&
-                                     std::is_signed_v<T> == std::is_signed_v<U>> >
+                                     std::is_signed_v<T> == std::is_signed_v<U> &&
+                                     !std::is_same_v<T, bool> && !std::is_same_v<U, bool> &&
+                                     !std::is_same_v<T, char> && !std::is_same_v<U, char>>>
 struct Promoted
 {
     using type = decltype(T() + U());
@@ -868,22 +911,22 @@ typedef void (*QFunctionPointer)();
 #  define Q_UNIMPLEMENTED() qWarning("Unimplemented code.")
 #endif
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED bool qFuzzyCompare(double p1, double p2)
+[[nodiscard]] constexpr bool qFuzzyCompare(double p1, double p2)
 {
     return (qAbs(p1 - p2) * 1000000000000. <= qMin(qAbs(p1), qAbs(p2)));
 }
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED bool qFuzzyCompare(float p1, float p2)
+[[nodiscard]] constexpr bool qFuzzyCompare(float p1, float p2)
 {
     return (qAbs(p1 - p2) * 100000.f <= qMin(qAbs(p1), qAbs(p2)));
 }
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED bool qFuzzyIsNull(double d)
+[[nodiscard]] constexpr bool qFuzzyIsNull(double d)
 {
     return qAbs(d) <= 0.000000000001;
 }
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED  bool qFuzzyIsNull(float f)
+[[nodiscard]] constexpr bool qFuzzyIsNull(float f)
 {
     return qAbs(f) <= 0.00001f;
 }
@@ -891,12 +934,12 @@ Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED  bool qFuzzyIsNull(float
 QT_WARNING_PUSH
 QT_WARNING_DISABLE_FLOAT_COMPARE
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED bool qIsNull(double d) noexcept
+[[nodiscard]] constexpr bool qIsNull(double d) noexcept
 {
     return d == 0.0;
 }
 
-Q_REQUIRED_RESULT constexpr static inline Q_DECL_UNUSED bool qIsNull(float f) noexcept
+[[nodiscard]] constexpr bool qIsNull(float f) noexcept
 {
     return f == 0.0f;
 }
@@ -985,29 +1028,6 @@ QT_WARNING_DISABLE_MSVC(4530) /* C++ exception handler used, but unwind semantic
 #  endif
 #endif
 
-// Work around MSVC warning about use of 3-arg algorithms
-// until we can depend on the C++14 4-arg ones.
-//
-// These algortithms do NOT check for equal length.
-// They need to be treated as if they called the 3-arg version (which they do)!
-#ifdef Q_CC_MSVC
-# define QT_3ARG_ALG(alg, f1, l1, f2, l2) \
-    std::alg(f1, l1, f2, l2)
-#else
-# define QT_3ARG_ALG(alg, f1, l1, f2, l2)     \
-    [&f1, &l1, &f2, &l2]() {                  \
-        Q_UNUSED(l2);                         \
-        return std::alg(f1, l1, f2);          \
-    }()
-#endif
-template <typename ForwardIterator1, typename ForwardIterator2>
-inline bool qt_is_permutation(ForwardIterator1 first1, ForwardIterator1 last1,
-                              ForwardIterator2 first2, ForwardIterator2 last2)
-{
-    return QT_3ARG_ALG(is_permutation, first1, last1, first2, last2);
-}
-#undef QT_3ARG_ALG
-
 // this adds const to non-const objects (like std::as_const)
 template <typename T>
 constexpr typename std::add_const<T>::type &qAsConst(T &t) noexcept { return t; }
@@ -1023,6 +1043,12 @@ constexpr T qExchange(T &t, U &&newValue)
     t = std::forward<U>(newValue);
     return old;
 }
+
+#ifdef __cpp_conditional_explicit
+#define Q_IMPLICIT explicit(false)
+#else
+#define Q_IMPLICIT
+#endif
 
 #ifndef QT_NO_FOREACH
 
@@ -1065,29 +1091,12 @@ QForeachContainer<typename std::decay<T>::type> qMakeForeachContainer(T &&t)
 
 }
 
-#if __cplusplus >= 201703L
 // Use C++17 if statement with initializer. User's code ends up in a else so
 // scoping of different ifs is not broken
 #define Q_FOREACH(variable, container)                                   \
 for (auto _container_ = QtPrivate::qMakeForeachContainer(container);     \
      _container_.i != _container_.e;  ++_container_.i)                   \
     if (variable = *_container_.i; false) {} else
-#else
-// Explanation of the control word:
-//  - it's initialized to 1
-//  - that means both the inner and outer loops start
-//  - if there were no breaks, at the end of the inner loop, it's set to 0, which
-//    causes it to exit (the inner loop is run exactly once)
-//  - at the end of the outer loop, it's inverted, so it becomes 1 again, allowing
-//    the outer loop to continue executing
-//  - if there was a break inside the inner loop, it will exit with control still
-//    set to 1; in that case, the outer loop will invert it to 0 and will exit too
-#define Q_FOREACH(variable, container)                                \
-for (auto _container_ = QtPrivate::qMakeForeachContainer(container); \
-     _container_.control && _container_.i != _container_.e;         \
-     ++_container_.i, _container_.control ^= 1)                     \
-    for (variable = *_container_.i; _container_.control; _container_.control = 0)
-#endif
 #endif // QT_NO_FOREACH
 
 #define Q_FOREVER for(;;)
@@ -1102,28 +1111,29 @@ for (auto _container_ = QtPrivate::qMakeForeachContainer(container); \
 #  endif
 #endif
 
-template <typename T> inline T *qGetPtrHelper(T *ptr) { return ptr; }
-template <typename Ptr> inline auto qGetPtrHelper(Ptr &ptr) -> decltype(ptr.get()) { return ptr.get(); }
+template <typename T> inline T *qGetPtrHelper(T *ptr) noexcept { return ptr; }
+template <typename Ptr> inline auto qGetPtrHelper(Ptr &ptr) noexcept -> decltype(ptr.get())
+{ static_assert(noexcept(ptr.get()), "Smart d pointers for Q_DECLARE_PRIVATE must have noexcept get()"); return ptr.get(); }
 
 // The body must be a statement:
 #define Q_CAST_IGNORE_ALIGN(body) QT_WARNING_PUSH QT_WARNING_DISABLE_GCC("-Wcast-align") body QT_WARNING_POP
 #define Q_DECLARE_PRIVATE(Class) \
-    inline Class##Private* d_func() \
+    inline Class##Private* d_func() noexcept \
     { Q_CAST_IGNORE_ALIGN(return reinterpret_cast<Class##Private *>(qGetPtrHelper(d_ptr));) } \
-    inline const Class##Private* d_func() const \
+    inline const Class##Private* d_func() const noexcept \
     { Q_CAST_IGNORE_ALIGN(return reinterpret_cast<const Class##Private *>(qGetPtrHelper(d_ptr));) } \
     friend class Class##Private;
 
 #define Q_DECLARE_PRIVATE_D(Dptr, Class) \
-    inline Class##Private* d_func() \
+    inline Class##Private* d_func() noexcept \
     { Q_CAST_IGNORE_ALIGN(return reinterpret_cast<Class##Private *>(qGetPtrHelper(Dptr));) } \
-    inline const Class##Private* d_func() const \
+    inline const Class##Private* d_func() const noexcept \
     { Q_CAST_IGNORE_ALIGN(return reinterpret_cast<const Class##Private *>(qGetPtrHelper(Dptr));) } \
     friend class Class##Private;
 
 #define Q_DECLARE_PUBLIC(Class)                                    \
-    inline Class* q_func() { return static_cast<Class *>(q_ptr); } \
-    inline const Class* q_func() const { return static_cast<const Class *>(q_ptr); } \
+    inline Class* q_func() noexcept { return static_cast<Class *>(q_ptr); } \
+    inline const Class* q_func() const noexcept { return static_cast<const Class *>(q_ptr); } \
     friend class Class;
 
 #define Q_D(Class) Class##Private * const d = d_func()
@@ -1160,13 +1170,12 @@ Q_CORE_EXPORT QString qtTrId(const char *id, int n = -1);
 #  define dynamic_cast QT_PREPEND_NAMESPACE(qt_dynamic_cast_check)
 
   template<typename T, typename X>
-  T qt_dynamic_cast_check(X, T* = 0)
+  T qt_dynamic_cast_check(X, T* = nullptr)
   { return T::dynamic_cast_will_always_fail_because_rtti_is_disabled; }
 #endif
 
 
 #ifdef Q_QDOC
-
 // Just for documentation generation
 template<typename T>
 auto qOverload(T functionPointer);
@@ -1174,9 +1183,7 @@ template<typename T>
 auto qConstOverload(T memberFunctionPointer);
 template<typename T>
 auto qNonConstOverload(T memberFunctionPointer);
-
-#elif defined(Q_COMPILER_VARIADIC_TEMPLATES)
-
+#else
 template <typename... Args>
 struct QNonConstOverload
 {
@@ -1218,12 +1225,9 @@ struct QOverload : QConstOverload<Args...>, QNonConstOverload<Args...>
     { return ptr; }
 };
 
-#if defined(__cpp_variable_templates) && __cpp_variable_templates >= 201304 // C++14
-template <typename... Args> constexpr Q_DECL_UNUSED QOverload<Args...> qOverload = {};
-template <typename... Args> constexpr Q_DECL_UNUSED QConstOverload<Args...> qConstOverload = {};
-template <typename... Args> constexpr Q_DECL_UNUSED QNonConstOverload<Args...> qNonConstOverload = {};
-#endif
-
+template <typename... Args> constexpr inline QOverload<Args...> qOverload = {};
+template <typename... Args> constexpr inline QConstOverload<Args...> qConstOverload = {};
+template <typename... Args> constexpr inline QNonConstOverload<Args...> qNonConstOverload = {};
 #endif
 
 
@@ -1250,12 +1254,6 @@ inline int qIntCast(float f) { return int(f); }
          "Compile your code with -fPIC (and not with -fPIE)."
 #endif
 
-namespace QtPrivate {
-//like std::enable_if
-template <bool B, typename T = void> struct QEnableIf;
-template <typename T> struct QEnableIf<true, T> { typedef T Type; };
-}
-
 #define QT_VA_ARGS_CHOOSE(_1, _2, _3, _4, _5, _6, _7, _8, _9, N, ...) N
 #define QT_VA_ARGS_EXPAND(...) __VA_ARGS__ // Needed for MSVC
 #define QT_VA_ARGS_COUNT(...) QT_VA_ARGS_EXPAND(QT_VA_ARGS_CHOOSE(__VA_ARGS__, 9, 8, 7, 6, 5, 4, 3, 2, 1))
@@ -1266,21 +1264,26 @@ template <typename T> struct QEnableIf<true, T> { typedef T Type; };
 // Ensures that the interface's typeinfo is exported so that
 // dynamic casts work reliably, and protects the destructor
 // so that pointers to the interface can't be deleted.
-#define QT_DECLARE_PLATFORM_INTERFACE(InterfaceClass) \
+#define QT_DECLARE_NATIVE_INTERFACE(InterfaceClass) \
     protected: virtual ~InterfaceClass(); public:
 
+// Declares an accessor for the native interface
+#define QT_DECLARE_NATIVE_INTERFACE_ACCESSOR \
+    template <typename QNativeInterface> \
+    QNativeInterface *nativeInterface() const;
+
 // Provides a definition for the interface destructor
-#define QT_DEFINE_PLATFORM_INTERFACE2(Namespace, InterfaceClass) \
+#define QT_DEFINE_NATIVE_INTERFACE2(Namespace, InterfaceClass) \
     QT_PREPEND_NAMESPACE(Namespace)::InterfaceClass::~InterfaceClass() = default
 
 // Provides a definition for the destructor, and an explicit
-// template instantiation of the platform interface accessor.
-#define QT_DEFINE_PLATFORM_INTERFACE3(Namespace, InterfaceClass, PublicClass) \
-    QT_DEFINE_PLATFORM_INTERFACE2(Namespace, InterfaceClass); \
-    template Q_DECL_EXPORT QT_PREPEND_NAMESPACE(Namespace)::InterfaceClass *PublicClass::platformInterface() const
+// template instantiation of the native interface accessor.
+#define QT_DEFINE_NATIVE_INTERFACE3(Namespace, InterfaceClass, PublicClass) \
+    QT_DEFINE_NATIVE_INTERFACE2(Namespace, InterfaceClass); \
+    template Q_DECL_EXPORT QT_PREPEND_NAMESPACE(Namespace)::InterfaceClass *PublicClass::nativeInterface() const
 
-#define QT_DEFINE_PLATFORM_INTERFACE(...) QT_OVERLOADED_MACRO(QT_DEFINE_PLATFORM_INTERFACE, QPlatformInterface, __VA_ARGS__)
-#define QT_DEFINE_PRIVATE_PLATFORM_INTERFACE(...) QT_OVERLOADED_MACRO(QT_DEFINE_PLATFORM_INTERFACE, QPlatformInterface::Private, __VA_ARGS__)
+#define QT_DEFINE_NATIVE_INTERFACE(...) QT_OVERLOADED_MACRO(QT_DEFINE_NATIVE_INTERFACE, QNativeInterface, __VA_ARGS__)
+#define QT_DEFINE_PRIVATE_NATIVE_INTERFACE(...) QT_OVERLOADED_MACRO(QT_DEFINE_NATIVE_INTERFACE, QNativeInterface::Private, __VA_ARGS__)
 
 // This macro can be used to calculate member offsets for types with a non standard layout.
 // It uses the fact that offsetof() is allowed to support those types since C++17 as an optional

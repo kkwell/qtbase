@@ -1,4 +1,4 @@
-function(qt_add_resource target resourceName)
+function(qt_internal_add_resource target resourceName)
     # Don't try to add resources when cross compiling, and the target is actually a host target
     # (like a tool).
     qt_is_imported_target("${target}" is_imported)
@@ -8,7 +8,7 @@ function(qt_add_resource target resourceName)
 
     qt_parse_all_arguments(arg "qt_add_resource" "" "PREFIX;LANG;BASE" "FILES" ${ARGN})
 
-    QT6_PROCESS_RESOURCE(${target} ${resourceName}
+    _qt_internal_process_resource(${target} ${resourceName}
         PREFIX "${arg_PREFIX}"
         LANG "${arg_LANG}"
         BASE "${arg_BASE}"

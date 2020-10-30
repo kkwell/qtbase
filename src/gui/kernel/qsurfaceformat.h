@@ -45,7 +45,7 @@
 
 QT_BEGIN_NAMESPACE
 
-
+class QColorSpace;
 class QOpenGLContext;
 class QSurfaceFormatPrivate;
 
@@ -85,14 +85,16 @@ public:
     };
     Q_ENUM(OpenGLContextProfile)
 
+#if QT_DEPRECATED_SINCE(6,0)
     enum ColorSpace {
         DefaultColorSpace,
         sRGBColorSpace
     };
     Q_ENUM(ColorSpace)
+#endif
 
     QSurfaceFormat();
-    /*implicit*/ QSurfaceFormat(FormatOptions options);
+    Q_IMPLICIT QSurfaceFormat(FormatOptions options);
     QSurfaceFormat(const QSurfaceFormat &other);
     QSurfaceFormat &operator=(const QSurfaceFormat &other);
     ~QSurfaceFormat();
@@ -138,11 +140,6 @@ public:
     bool stereo() const;
     void setStereo(bool enable);
 
-#if QT_DEPRECATED_SINCE(5, 2)
-    QT_DEPRECATED void setOption(QSurfaceFormat::FormatOptions opt);
-    QT_DEPRECATED bool testOption(QSurfaceFormat::FormatOptions opt) const;
-#endif
-
     void setOptions(QSurfaceFormat::FormatOptions options);
     void setOption(FormatOption option, bool on = true);
     bool testOption(FormatOption option) const;
@@ -151,8 +148,12 @@ public:
     int swapInterval() const;
     void setSwapInterval(int interval);
 
-    ColorSpace colorSpace() const;
+    const QColorSpace &colorSpace() const;
+    void setColorSpace(const QColorSpace &colorSpace);
+#if QT_DEPRECATED_SINCE(6,0)
+    Q_DECL_DEPRECATED_X("Use setColorSpace(QColorSpace) instead.")
     void setColorSpace(ColorSpace colorSpace);
+#endif
 
     static void setDefaultFormat(const QSurfaceFormat &format);
     static QSurfaceFormat defaultFormat();
@@ -161,16 +162,16 @@ private:
     QSurfaceFormatPrivate *d;
 
     void detach();
+    bool equals(const QSurfaceFormat &other) const noexcept;
 
-    friend Q_GUI_EXPORT bool operator==(const QSurfaceFormat&, const QSurfaceFormat&);
-    friend Q_GUI_EXPORT bool operator!=(const QSurfaceFormat&, const QSurfaceFormat&);
+    friend inline bool operator==(const QSurfaceFormat &lhs, const QSurfaceFormat &rhs) noexcept
+    { return lhs.equals(rhs); }
+    friend inline bool operator!=(const QSurfaceFormat &lhs, const QSurfaceFormat &rhs) noexcept
+    { return !lhs.equals(rhs); }
 #ifndef QT_NO_DEBUG_STREAM
     friend Q_GUI_EXPORT QDebug operator<<(QDebug, const QSurfaceFormat &);
 #endif
 };
-
-Q_GUI_EXPORT bool operator==(const QSurfaceFormat&, const QSurfaceFormat&);
-Q_GUI_EXPORT bool operator!=(const QSurfaceFormat&, const QSurfaceFormat&);
 
 #ifndef QT_NO_DEBUG_STREAM
 Q_GUI_EXPORT QDebug operator<<(QDebug, const QSurfaceFormat &);

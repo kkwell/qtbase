@@ -61,10 +61,9 @@ QFileDevicePrivate::QFileDevicePrivate()
     writeBufferChunkSize = QFILE_WRITEBUFFER_SIZE;
 }
 
-QFileDevicePrivate::~QFileDevicePrivate()
-    = default;
+QFileDevicePrivate::~QFileDevicePrivate() = default;
 
-QAbstractFileEngine * QFileDevicePrivate::engine() const
+QAbstractFileEngine *QFileDevicePrivate::engine() const
 {
     if (!fileEngine)
         fileEngine = qt_make_unique<QFSFileEngine>();
@@ -670,7 +669,7 @@ bool QFileDevice::setPermissions(Permissions permissions)
 }
 
 /*!
-    \enum QFileDevice::MemoryMapFlags
+    \enum QFileDevice::MemoryMapFlag
     \since 4.4
 
     This enum describes special options that may be used by the map()

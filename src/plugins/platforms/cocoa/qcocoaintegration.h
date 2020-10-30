@@ -64,7 +64,7 @@ QT_BEGIN_NAMESPACE
 
 class QCocoaIntegration : public QObject, public QPlatformIntegration
 #ifndef QT_NO_OPENGL
-    , public QPlatformInterface::Private::QCocoaGLIntegration
+    , public QNativeInterface::Private::QCocoaGLIntegration
 #endif
 {
     Q_OBJECT
@@ -132,6 +132,7 @@ public:
     void setApplicationIcon(const QIcon &icon) const override;
 
     void beep() const override;
+    void quit() const override;
 
     void closePopups(QWindow *forWindow = nullptr);
 

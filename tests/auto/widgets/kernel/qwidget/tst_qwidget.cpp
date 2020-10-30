@@ -3602,7 +3602,7 @@ protected:
 static QPixmap grabFromWidget(QWidget *w, const QRect &rect)
 {
     QPixmap pixmap = w->grab(rect);
-    const qreal devicePixelRatio = pixmap.devicePixelRatioF();
+    const qreal devicePixelRatio = pixmap.devicePixelRatio();
     if (!qFuzzyCompare(devicePixelRatio, qreal(1))) {
         pixmap = pixmap.scaled((QSizeF(pixmap.size()) / devicePixelRatio).toSize(),
                                Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -5596,7 +5596,7 @@ public:
         r = QRegion();
     }
 
-    void enterEvent(QEvent *) override { ++enters; }
+    void enterEvent(QEnterEvent *) override { ++enters; }
     void leaveEvent(QEvent *) override { ++leaves; }
 
     void resetCounts()
@@ -5638,7 +5638,7 @@ bool verifyColor(QWidget &child, const QRegion &region, const QColor &color, int
             const QPixmap pixmap = grabBackingStore
                 ? child.grab(rect)
                 : grabWindow(window, rect.left(), rect.top(), rect.width(), rect.height());
-            const QSize actualSize = pixmap.size() / pixmap.devicePixelRatioF();
+            const QSize actualSize = pixmap.size() / pixmap.devicePixelRatio();
             if (!QTest::qCompare(actualSize, rect.size(), "pixmap.size()", "rect.size()", __FILE__, callerLine))
                 return false;
             QPixmap expectedPixmap(pixmap); /* ensure equal formats */
@@ -6513,7 +6513,7 @@ void tst_QWidget::minAndMaxSizeWithX11BypassWindowManagerHint()
     if (m_platform != QStringLiteral("xcb"))
         QSKIP("This test is for X11 only.");
     // Same size as in QWidgetPrivate::create.
-    const QSize desktopSize = QApplication::desktop()->size();
+    const QSize desktopSize = QGuiApplication::primaryScreen()->size();
     const QSize originalSize(desktopSize.width() / 2, desktopSize.height() * 4 / 10);
 
     { // Maximum size.
@@ -6986,7 +6986,7 @@ public:
     }
 
 protected:
-    void paintEvent(QPaintEvent *)
+    void paintEvent(QPaintEvent *) override
     {
         if (ellipse) {
             QPainter painter(this);
@@ -8127,7 +8127,8 @@ void tst_QWidget::updateWhileMinimized()
         const QString desktop = qgetenv("XDG_CURRENT_DESKTOP");
         qDebug() << "xcb: XDG_CURRENT_DESKTOP=" << desktop;
         if (desktop == QStringLiteral("ubuntu:GNOME")
-            || desktop == QStringLiteral("GNOME-Classic:GNOME"))
+            || desktop == QStringLiteral("GNOME-Classic:GNOME")
+            || desktop == QStringLiteral("GNOME"))
             count = 1;
     }
     QCOMPARE(widget.numPaintEvents, count);
@@ -8780,7 +8781,7 @@ public:
 
     void resizeEvent(QResizeEvent *) override
     {
-        setMask(QRegion(QRect(0, 0, width(), 10).normalized()));
+        setMask(QRegion(QRect(0, 0, width(), 10)));
     }
 
     QRegion paintedRegion;
@@ -9261,17 +9262,15 @@ void tst_QWidget::translucentWidget()
     label.show();
     QVERIFY(QTest::qWaitForWindowExposed(&label));
 
-    QPixmap widgetSnapshot;
-
+    QPixmap widgetSnapshot =
 #ifdef Q_OS_WIN
-    QWidget *desktopWidget = QApplication::desktop();
-    widgetSnapshot = grabWindow(desktopWidget->windowHandle(), labelPos.x(), labelPos.y(), label.width(), label.height());
+        QGuiApplication::primaryScreen()->grabWindow(0, labelPos.x(), labelPos.y(), label.width(), label.height());
 #else
-    widgetSnapshot = label.grab(QRect(QPoint(0, 0), label.size()));
+        label.grab(QRect(QPoint(0, 0), label.size()));
 #endif
     const QImage actual = widgetSnapshot.toImage().convertToFormat(QImage::Format_RGB32);
-    QImage expected = pm.toImage().scaled(label.devicePixelRatioF() * pm.size());
-    expected.setDevicePixelRatio(label.devicePixelRatioF());
+    QImage expected = pm.toImage().scaled(label.devicePixelRatio() * pm.size());
+    expected.setDevicePixelRatio(label.devicePixelRatio());
     QCOMPARE(actual.size(),expected.size());
     QCOMPARE(actual,expected);
 
@@ -9288,7 +9287,7 @@ class MaskResizeTestWidget : public QWidget
 public:
     explicit MaskResizeTestWidget(QWidget* p = nullptr) : QWidget(p)
     {
-        setMask(QRegion(QRect(0, 0, 100, 100).normalized()));
+        setMask(QRegion(QRect(0, 0, 100, 100)));
     }
 
     void paintEvent(QPaintEvent* event) override
@@ -9304,12 +9303,12 @@ public:
 
 public slots:
     void enlargeMask() {
-        QRegion newMask(QRect(0, 0, 150, 150).normalized());
+        QRegion newMask(QRect(0, 0, 150, 150));
         setMask(newMask);
     }
 
     void shrinkMask() {
-        QRegion newMask(QRect(0, 0, 50, 50).normalized());
+        QRegion newMask(QRect(0, 0, 50, 50));
         setMask(newMask);
     }
 
@@ -9627,7 +9626,7 @@ void tst_QWidget::syntheticEnterLeave()
     {
     public:
         using QWidget::QWidget;
-        void enterEvent(QEvent *) override { ++numEnterEvents; }
+        void enterEvent(QEnterEvent *) override { ++numEnterEvents; }
         void leaveEvent(QEvent *) override { ++numLeaveEvents; }
         int numEnterEvents = 0;
         int numLeaveEvents = 0;
@@ -9742,7 +9741,7 @@ void tst_QWidget::taskQTBUG_4055_sendSyntheticEnterLeave()
     {
     public:
         using QWidget::QWidget;
-        void enterEvent(QEvent *) override { ++numEnterEvents; }
+        void enterEvent(QEnterEvent *) override { ++numEnterEvents; }
         void mouseMoveEvent(QMouseEvent *event) override
         {
             QCOMPARE(event->button(), Qt::NoButton);
@@ -10142,7 +10141,7 @@ void tst_QWidget::focusProxy()
         int focusOutCount = 0;
 
     protected:
-        bool eventFilter(QObject *receiver, QEvent *event)
+        bool eventFilter(QObject *receiver, QEvent *event) override
         {
             if (receiver == edit) {
                 switch (event->type()) {
@@ -11496,7 +11495,7 @@ public:
 protected:
     void tabletEvent(QTabletEvent *event) override {
         ++tabletEventCount;
-        uid = event->uniqueId();
+        uid = event->pointingDevice()->uniqueId().numericId();
         switch (event->type()) {
         case QEvent::TabletMove:
             ++moveEventCount;

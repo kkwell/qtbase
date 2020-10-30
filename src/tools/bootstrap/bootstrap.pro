@@ -62,6 +62,8 @@ SOURCES += \
            ../../corelib/io/qurlrecode.cpp \
            ../../corelib/kernel/qcoreapplication.cpp \
            ../../corelib/kernel/qcoreglobaldata.cpp \
+           ../../corelib/kernel/qiterable.cpp \
+           ../../corelib/kernel/qmetacontainer.cpp \
            ../../corelib/kernel/qmetatype.cpp \
            ../../corelib/kernel/qvariant.cpp \
            ../../corelib/kernel/qsystemerror.cpp \
@@ -110,8 +112,7 @@ SOURCES += \
            ../../corelib/tools/qsize.cpp \
            ../../corelib/tools/qline.cpp \
            ../../corelib/tools/qversionnumber.cpp \
-           ../../xml/dom/qdom.cpp \
-           ../../xml/sax/qxml.cpp
+           ../../xml/dom/qdom.cpp
 
 unix:SOURCES += ../../corelib/kernel/qcore_unix.cpp \
                 ../../corelib/kernel/qsharedmemory_posix.cpp \

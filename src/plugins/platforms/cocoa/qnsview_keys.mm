@@ -53,11 +53,12 @@
         m_inputSource = [characters retain];
     }
 
-    // There is no way to get the scan code from carbon/cocoa. But we cannot
-    // use the value 0, since it indicates that the event originates from somewhere
-    // else than the keyboard.
-    quint32 nativeScanCode = 1;
-    quint32 nativeVirtualKey = [nsevent keyCode];
+    // Scan codes are hardware dependent codes for each key. There is no way to get these
+    // from Carbon or Cocoa, so leave it 0, as documented in QKeyEvent::nativeScanCode().
+    const quint32 nativeScanCode = 0;
+
+    // Virtual keys on the other hand are mapped to be the same keys on any system
+    const quint32 nativeVirtualKey = nsevent.keyCode;
 
     QChar ch = QChar::ReplacementCharacter;
     int keyCode = Qt::Key_unknown;
@@ -192,14 +193,21 @@
 - (void)flagsChanged:(NSEvent *)nsevent
 {
     ulong timestamp = [nsevent timestamp] * 1000;
-    ulong modifiers = [nsevent modifierFlags];
-    Qt::KeyboardModifiers qmodifiers = QCocoaKeyMapper::fromCocoaModifiers(modifiers);
+    ulong nativeModifiers = [nsevent modifierFlags];
+    Qt::KeyboardModifiers modifiers = QCocoaKeyMapper::fromCocoaModifiers(nativeModifiers);
+
+    // Scan codes are hardware dependent codes for each key. There is no way to get these
+    // from Carbon or Cocoa, so leave it 0, as documented in QKeyEvent::nativeScanCode().
+    const quint32 nativeScanCode = 0;
+
+    // Virtual keys on the other hand are mapped to be the same keys on any system
+    const quint32 nativeVirtualKey = nsevent.keyCode;
 
     // calculate the delta and remember the current modifiers for next time
     static ulong m_lastKnownModifiers;
     ulong lastKnownModifiers = m_lastKnownModifiers;
-    ulong delta = lastKnownModifiers ^ modifiers;
-    m_lastKnownModifiers = modifiers;
+    ulong delta = lastKnownModifiers ^ nativeModifiers;
+    m_lastKnownModifiers = nativeModifiers;
 
     struct qt_mac_enum_mapper
     {
@@ -225,11 +233,14 @@
             else if (qtCode == Qt::Key_Control)
                 qtCode = Qt::Key_Meta;
         }
-        QWindowSystemInterface::handleKeyEvent(m_platformWindow->window(),
-                                               timestamp,
-                                               (lastKnownModifiers & mac_mask) ? QEvent::KeyRelease : QEvent::KeyPress,
-                                               qtCode,
-                                               qmodifiers ^ QCocoaKeyMapper::fromCocoaModifiers(mac_mask));
+        QWindowSystemInterface::handleExtendedKeyEvent(m_platformWindow->window(),
+                                                       timestamp,
+                                                       (lastKnownModifiers & mac_mask) ? QEvent::KeyRelease
+                                                                                       : QEvent::KeyPress,
+                                                       qtCode,
+                                                       modifiers ^ QCocoaKeyMapper::fromCocoaModifiers(mac_mask),
+                                                       nativeScanCode, nativeVirtualKey,
+                                                       nativeModifiers ^ mac_mask);
     }
 }
 

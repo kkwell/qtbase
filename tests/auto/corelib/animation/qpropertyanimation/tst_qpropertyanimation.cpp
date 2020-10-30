@@ -39,10 +39,10 @@ class UncontrolledAnimation : public QPropertyAnimation
 {
     Q_OBJECT
 public:
-    int duration() const { return -1; /* not time driven */ }
+    int duration() const override { return -1; /* not time driven */ }
 
 protected:
-    void updateCurrentTime(int currentTime)
+    void updateCurrentTime(int currentTime) override
     {
         QPropertyAnimation::updateCurrentTime(currentTime);
         if (currentTime >= QPropertyAnimation::duration() || currentLoop() >= 1)
@@ -65,7 +65,7 @@ private:
 class DummyPropertyAnimation : public QPropertyAnimation
 {
 public:
-    DummyPropertyAnimation(QObject *parent = 0) : QPropertyAnimation(parent)
+    DummyPropertyAnimation(QObject *parent = nullptr) : QPropertyAnimation(parent)
     {
         setTargetObject(&o);
         this->setPropertyName("x");
@@ -115,10 +115,10 @@ public:
         static const int interval = 1000/60;
         qint64 until = m_elapsed + ms;
         while (m_elapsed < until) {
-            advanceAnimation(m_elapsed);
+            advanceAnimation();
             m_elapsed += interval;
         }
-        advanceAnimation(m_elapsed);
+        advanceAnimation();
         // This is to make sure that animations that were started with DeleteWhenStopped
         // will actually delete themselves within the test function.
         // Normally, they won't be deleted until the main event loop is processed.
@@ -1283,7 +1283,7 @@ public:
         innerAnim->start();
     }
 
-    void updateState(QAbstractAnimation::State newState, QAbstractAnimation::State oldState)
+    void updateState(QAbstractAnimation::State newState, QAbstractAnimation::State oldState) override
     {
         QPropertyAnimation::updateState(newState, oldState);
         if (newState == QAbstractAnimation::Stopped)

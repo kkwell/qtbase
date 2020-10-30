@@ -63,7 +63,7 @@
     \include module-use.qdocinc using qt module
     \quotefile overview/using-qt-gui.cmake
 
-    See also the \l{Build with CMake} overview.
+    See also the \l[QtDoc]{Build with CMake} overview.
 
     \section2 Building with qmake
 
@@ -112,8 +112,6 @@
     QFont. Applications that prefer more low-level APIs  to text
     and font handling, classes like QRawFont and QGlyphRun can be
     used.
-
-
 
     \section1 OpenGL and OpenGL ES Integration
 
@@ -191,6 +189,10 @@
     \section1 Drag and Drop
 
     More info in \l{Drag and Drop}
+
+    \section1 Module Evolution
+    \l{Porting to Qt 6 - Qt GUI} lists important changes in the module API
+    and functionality that were done for the Qt 6 series of Qt.
 
     \section1 Licenses and Attributions
 

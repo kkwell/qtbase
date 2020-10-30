@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(imagecomposition
+qt_add_executable(imagecomposition
     imagecomposer.cpp imagecomposer.h
     main.cpp
+)
+set_target_properties(imagecomposition PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(imagecomposition PUBLIC
     Qt::Core

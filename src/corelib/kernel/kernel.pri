@@ -12,6 +12,7 @@ HEADERS += \
         kernel/qcorecmdlineargs_p.h \
         kernel/qcoreapplication.h \
         kernel/qcoreevent.h \
+        kernel/qmetacontainer.h \
         kernel/qmetaobject.h \
         kernel/qmetatype.h \
         kernel/qmimedata.h \
@@ -34,6 +35,10 @@ HEADERS += \
         kernel/qmetaobjectbuilder_p.h \
         kernel/qobject_p.h \
         kernel/qcoreglobaldata_p.h \
+        kernel/qiterable.h \
+        kernel/qiterable_p.h \
+        kernel/qsequentialiterable.h \
+        kernel/qassociativeiterable.h \
         kernel/qsharedmemory.h \
         kernel/qsharedmemory_p.h \
         kernel/qsystemsemaphore.h \
@@ -56,6 +61,7 @@ SOURCES += \
         kernel/qeventloop.cpp \
         kernel/qcoreapplication.cpp \
         kernel/qcoreevent.cpp \
+        kernel/qmetacontainer.cpp \
         kernel/qmetaobject.cpp \
         kernel/qmetatype.cpp \
         kernel/qmetaobjectbuilder.cpp \
@@ -68,6 +74,9 @@ SOURCES += \
         kernel/qtranslator.cpp \
         kernel/qvariant.cpp \
         kernel/qcoreglobaldata.cpp \
+        kernel/qiterable.cpp \
+        kernel/qsequentialiterable.cpp \
+        kernel/qassociativeiterable.cpp \
         kernel/qsharedmemory.cpp \
         kernel/qsystemsemaphore.cpp \
         kernel/qpointer.cpp \
@@ -107,9 +116,8 @@ mac {
         kernel/qcoreapplication_mac.cpp \
         kernel/qcore_foundation.mm \
         kernel/qcore_mac.mm \
+        kernel/qelapsedtimer_mac.cpp \
         kernel/qeventdispatcher_cf.mm
-
-    !nacl: SOURCES += kernel/qelapsedtimer_mac.cpp
 
     LIBS_PRIVATE += -framework Foundation
 
@@ -126,19 +134,12 @@ mac {
     }
 }
 
-nacl {
-    SOURCES += \
-        kernel/qfunctions_nacl.cpp
-    HEADERS += \
-        kernel/qfunctions_nacl.h
-}
-
 unix|integrity {
     SOURCES += \
             kernel/qcore_unix.cpp \
             kernel/qeventdispatcher_unix.cpp \
             kernel/qtimerinfo_unix.cpp
-    !darwin|nacl: SOURCES += kernel/qelapsedtimer_unix.cpp
+    !darwin: SOURCES += kernel/qelapsedtimer_unix.cpp
 
     HEADERS += \
             kernel/qcore_unix_p.h \
@@ -179,18 +180,6 @@ vxworks {
                 kernel/qfunctions_vxworks.cpp
         HEADERS += \
                 kernel/qfunctions_vxworks.h
-}
-
-qnx:qtConfig(qqnx_pps) {
-        QMAKE_USE_PRIVATE += pps
-        SOURCES += \
-                kernel/qppsattribute.cpp \
-                kernel/qppsobject.cpp
-        HEADERS += \
-                kernel/qppsattribute_p.h \
-                kernel/qppsattributeprivate_p.h \
-                kernel/qppsobject_p.h \
-                kernel/qppsobjectprivate_p.h
 }
 
 android:!android-embedded {

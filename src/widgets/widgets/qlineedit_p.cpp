@@ -193,10 +193,8 @@ void QLineEditPrivate::init(const QString& txt)
             q, SLOT(_q_cursorPositionChanged(int,int)));
     QObject::connect(control, SIGNAL(selectionChanged()),
             q, SLOT(_q_selectionChanged()));
-    QObject::connect(control, SIGNAL(accepted()),
-            q, SIGNAL(returnPressed()));
     QObject::connect(control, SIGNAL(editingFinished()),
-            q, SIGNAL(editingFinished()));
+            q, SLOT(_q_controlEditingFinished()));
 #ifdef QT_KEYPAD_NAVIGATION
     QObject::connect(control, SIGNAL(editFocusChange(bool)),
             q, SLOT(_q_editFocusChange(bool)));
@@ -355,14 +353,13 @@ QLineEditPrivate *QLineEditIconButton::lineEditPrivate() const
 void QLineEditIconButton::paintEvent(QPaintEvent *)
 {
     QPainter painter(this);
-    QWindow *window = qt_widget_private(this)->windowHandle(QWidgetPrivate::WindowHandleMode::Closest);
     QIcon::Mode state = QIcon::Disabled;
     if (isEnabled())
         state = isDown() ? QIcon::Active : QIcon::Normal;
     const QLineEditPrivate *lep = lineEditPrivate();
     const int iconWidth = lep ? lep->sideWidgetParameters().iconSize : 16;
     const QSize iconSize(iconWidth, iconWidth);
-    const QPixmap iconPixmap = icon().pixmap(window, iconSize, state, QIcon::Off);
+    const QPixmap iconPixmap = icon().pixmap(iconSize, devicePixelRatio(), state, QIcon::Off);
     QRect pixmapRect = QRect(QPoint(0, 0), iconSize);
     pixmapRect.moveCenter(rect().center());
     painter.setOpacity(m_opacity);
@@ -484,6 +481,14 @@ void QLineEditPrivate::_q_clearButtonClicked()
         q->clear();
         emit q->textEdited(QString());
     }
+}
+
+void QLineEditPrivate::_q_controlEditingFinished()
+{
+    Q_Q(QLineEdit);
+    edited = false;
+    emit q->returnPressed();
+    emit q->editingFinished();
 }
 
 QLineEditPrivate::SideWidgetParameters QLineEditPrivate::sideWidgetParameters() const

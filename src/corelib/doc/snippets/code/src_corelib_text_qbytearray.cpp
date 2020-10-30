@@ -69,7 +69,7 @@ ba[4] = 0xca;
 
 
 //! [2]
-for (int i = 0; i < ba.size(); ++i) {
+for (qsizetype i = 0; i < ba.size(); ++i) {
     if (ba.at(i) >= 'a' && ba.at(i) <= 'f')
         cout << "Found character in range [a-f]" << Qt::endl;
 }
@@ -86,7 +86,7 @@ x.replace(5, 3, "&");       // x == "rock & roll"
 
 //! [4]
 QByteArray ba("We must be <b>bold</b>, very <b>bold</b>");
-int j = 0;
+qsizetype j = 0;
 while ((j = ba.indexOf("<b>", j)) != -1) {
     cout << "Found <b> tag at index position " << j << Qt::endl;
     ++j;
@@ -108,7 +108,7 @@ QByteArray("abc").isEmpty();    // returns false
 
 //! [6]
 QByteArray ba("Hello");
-int n = ba.size();          // n == 5
+qsizetype n = ba.size();    // n == 5
 ba.data()[0];               // returns 'H'
 ba.data()[4];               // returns 'o'
 ba.data()[5];               // returns '\0'
@@ -195,7 +195,7 @@ x.append(y);
 
 //! [17]
 QByteArray ba("Meal");
-ba.insert(1, QByteArray("ontr"));
+ba.insert(1, QByteArrayView("ontr"));
 // ba == "Montreal"
 //! [17]
 
@@ -276,22 +276,22 @@ if (url.endsWith(".html"))
 
 //! [27]
 QByteArray x("Pineapple");
-QByteArray y = x.left(4);
+QByteArray y = x.first(4);
 // y == "Pine"
 //! [27]
 
 
 //! [28]
 QByteArray x("Pineapple");
-QByteArray y = x.right(5);
+QByteArray y = x.last(5);
 // y == "apple"
 //! [28]
 
 
 //! [29]
 QByteArray x("Five pineapples");
-QByteArray y = x.mid(5, 4);     // y == "pine"
-QByteArray z = x.mid(5);        // z == "pineapples"
+QByteArray y = x.sliced(5, 4);     // y == "pine"
+QByteArray z = x.sliced(5);        // z == "pineapples"
 //! [29]
 
 
@@ -422,7 +422,7 @@ text.data();            // returns "Qt is great!"
 
 QByteArray::fromBase64("PHA+SGVsbG8/PC9wPg==", QByteArray::Base64Encoding); // returns "<p>Hello?</p>"
 QByteArray::fromBase64("PHA-SGVsbG8_PC9wPg==", QByteArray::Base64UrlEncoding); // returns "<p>Hello?</p>"
-//! [44bis]
+//! [44]
 
 //! [44ter]
 void process(const QByteArray &);

@@ -45,6 +45,7 @@
 
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopedpointer.h>
+#include <QtCore/qsharedpointer.h>
 #include <QtCore/qhash.h>
 #include <QtGui/qevent.h>
 
@@ -57,14 +58,16 @@ class QWindowsPointerHandler
 {
     Q_DISABLE_COPY_MOVE(QWindowsPointerHandler)
 public:
+    using QPointingDevicePtr = QSharedPointer<QPointingDevice>;
+
     QWindowsPointerHandler() = default;
     ~QWindowsPointerHandler();
     bool translatePointerEvent(QWindow *window, HWND hwnd, QtWindows::WindowsEventType et, MSG msg, LRESULT *result);
     bool translateMouseEvent(QWindow *window, HWND hwnd, QtWindows::WindowsEventType et, MSG msg, LRESULT *result);
 
-    QPointingDevice *touchDevice() const { return m_touchDevice; }
-    void setTouchDevice(QPointingDevice *d) { m_touchDevice = d; }
-    static QPointingDevice *createTouchDevice(bool mouseEmulation);
+    const QPointingDevicePtr &touchDevice() const { return m_touchDevice; }
+    void setTouchDevice(const QPointingDevicePtr &d) { m_touchDevice = d; }
+    static QPointingDevicePtr createTouchDevice(bool mouseEmulation);
 
     QWindow *windowUnderMouse() const { return m_windowUnderPointer.data(); }
     void clearWindowUnderMouse() { m_windowUnderPointer = nullptr; }
@@ -76,8 +79,14 @@ private:
     bool translateMouseWheelEvent(QWindow *window, QWindow *currentWindowUnderPointer, MSG msg, QPoint globalPos, Qt::KeyboardModifiers keyModifiers);
     void handleCaptureRelease(QWindow *window, QWindow *currentWindowUnderPointer, HWND hwnd, QEvent::Type eventType, Qt::MouseButtons mouseButtons);
     void handleEnterLeave(QWindow *window, QWindow *currentWindowUnderPointer, QPoint globalPos);
+#if QT_CONFIG(tabletevent)
+    QPointingDevicePtr findTabletDevice(QPointingDevice::PointerType pointerType) const;
+#endif
 
-    QPointingDevice *m_touchDevice = nullptr;
+    QPointingDevicePtr m_touchDevice;
+#if QT_CONFIG(tabletevent)
+    QList<QPointingDevicePtr> m_tabletDevices;
+#endif
     QHash<int, QPointF> m_lastTouchPositions;
     QHash<DWORD, int> m_touchInputIDToTouchPointID;
     QPointer<QWindow> m_windowUnderPointer;

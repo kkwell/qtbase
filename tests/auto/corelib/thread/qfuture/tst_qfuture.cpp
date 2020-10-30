@@ -136,7 +136,10 @@ private slots:
     void onFailedForMoveOnlyTypes();
 #endif
     void onCanceled();
+#if 0
+    // TODO: enable when QFuture::takeResults() is enabled
     void takeResults();
+#endif
     void takeResult();
     void runAndTake();
     void resultsReadyAt_data();
@@ -145,6 +148,11 @@ private slots:
     void canceledFutureIsNotValid();
     void signalConnect();
     void waitForFinished();
+
+    void rejectResultOverwrite_data();
+    void rejectResultOverwrite();
+    void rejectPendingResultOverwrite_data() { rejectResultOverwrite_data(); }
+    void rejectPendingResultOverwrite();
 
 private:
     using size_type = std::vector<int>::size_type;
@@ -645,7 +653,7 @@ void tst_QFuture::futureInterface()
         {
             QFutureInterface<int> i;
             i.reportStarted();
-            i.reportResult(10);
+            QVERIFY(i.reportResult(10));
             future = i.future();
             i.reportFinished();
         }
@@ -666,7 +674,7 @@ void tst_QFuture::futureInterface()
         QCOMPARE(intFuture.isStarted(), true);
         QCOMPARE(intFuture.isFinished(), false);
 
-        result.reportFinished(&value);
+        QVERIFY(result.reportFinished(&value));
 
         QCOMPARE(intFuture.isStarted(), true);
         QCOMPARE(intFuture.isFinished(), true);
@@ -693,9 +701,9 @@ void tst_QFuture::futureInterface()
 
     {
         QFutureInterface<int> i1;
-        i1.reportResult(1);
+        QVERIFY(i1.reportResult(1));
         QFutureInterface<int> i2;
-        i2.reportResult(2);
+        QVERIFY(i2.reportResult(2));
         swap(i1, i2);  // ADL must resolve this
         QCOMPARE(i1.resultReference(0), 2);
         QCOMPARE(i2.resultReference(0), 1);
@@ -859,15 +867,15 @@ void tst_QFuture::multipleResults()
     int result;
 
     result = 1;
-    a.reportResult(&result);
+    QVERIFY(a.reportResult(&result));
     QCOMPARE(f.resultAt(0), 1);
 
     result = 2;
-    a.reportResult(&result);
+    QVERIFY(a.reportResult(&result));
     QCOMPARE(f.resultAt(1), 2);
 
     result = 3;
-    a.reportResult(&result);
+    QVERIFY(a.reportResult(&result));
 
     result = 4;
     a.reportFinished(&result);
@@ -908,16 +916,16 @@ void tst_QFuture::indexedResults()
         QChar result;
 
         result = 'B';
-        Interface.reportResult(&result, 1);
+        QVERIFY(Interface.reportResult(&result, 1));
 
         QCOMPARE(f.resultAt(1), result);
 
         result = 'A';
-        Interface.reportResult(&result, 0);
+        QVERIFY(Interface.reportResult(&result, 0));
         QCOMPARE(f.resultAt(0), result);
 
         result = 'C';
-        Interface.reportResult(&result); // no index
+        QVERIFY(Interface.reportResult(&result)); // no index
         QCOMPARE(f.resultAt(2), result);
 
         Interface.reportFinished();
@@ -933,22 +941,22 @@ void tst_QFuture::indexedResults()
         int result;
 
         result = 0;
-        Interface.reportResult(&result, 0);
+        QVERIFY(Interface.reportResult(&result, 0));
         QVERIFY(f.isResultReadyAt(0));
         QCOMPARE(f.resultAt(0), 0);
 
         result = 3;
-        Interface.reportResult(&result, 3);
+        QVERIFY(Interface.reportResult(&result, 3));
         QVERIFY(f.isResultReadyAt(3));
         QCOMPARE(f.resultAt(3), 3);
 
         result = 2;
-        Interface.reportResult(&result, 2);
+        QVERIFY(Interface.reportResult(&result, 2));
         QVERIFY(f.isResultReadyAt(2));
         QCOMPARE(f.resultAt(2), 2);
 
         result = 4;
-        Interface.reportResult(&result); // no index
+        QVERIFY(Interface.reportResult(&result)); // no index
         QVERIFY(f.isResultReadyAt(4));
         QCOMPARE(f.resultAt(4), 4);
 
@@ -1005,7 +1013,7 @@ void tst_QFuture::resultsAfterFinished()
         QCOMPARE(f.resultCount(), 0);
 
         result = 1;
-        a.reportResult(&result);
+        QVERIFY(a.reportResult(&result));
         QCOMPARE(f.resultAt(0), 1);
 
         a.reportFinished();
@@ -1013,7 +1021,7 @@ void tst_QFuture::resultsAfterFinished()
         QCOMPARE(f.resultAt(0), 1);
         QCOMPARE(f.resultCount(), 1);
         result = 2;
-        a.reportResult(&result);
+        QVERIFY(!a.reportResult(&result));
         QCOMPARE(f.resultCount(), 1);
     }
     // cancel it
@@ -1026,7 +1034,7 @@ void tst_QFuture::resultsAfterFinished()
         QCOMPARE(f.resultCount(), 0);
 
         result = 1;
-        a.reportResult(&result);
+        QVERIFY(a.reportResult(&result));
         QCOMPARE(f.resultAt(0), 1);
         QCOMPARE(f.resultCount(), 1);
 
@@ -1036,7 +1044,7 @@ void tst_QFuture::resultsAfterFinished()
         QCOMPARE(f.resultCount(), 1);
 
         result = 2;
-        a.reportResult(&result);
+        QVERIFY(!a.reportResult(&result));
         a.reportFinished();
     }
 }
@@ -1049,9 +1057,9 @@ void tst_QFuture::resultsAsList()
 
     int result;
     result = 1;
-    a.reportResult(&result);
+    QVERIFY(a.reportResult(&result));
     result = 2;
-    a.reportResult(&result);
+    QVERIFY(a.reportResult(&result));
 
     a.reportFinished();
 
@@ -1492,12 +1500,10 @@ void tst_QFuture::voidConversions()
 
         QFuture<int> intFuture(&iface);
         int value = 10;
-        iface.reportFinished(&value);
+        QVERIFY(iface.reportFinished(&value));
 
         QFuture<void> voidFuture(intFuture);
         voidFuture = intFuture;
-
-        QVERIFY(voidFuture == intFuture);
     }
 
     {
@@ -1507,7 +1513,7 @@ void tst_QFuture::voidConversions()
             iface.reportStarted();
 
             QFuture<QList<int> > listFuture(&iface);
-            iface.reportResult(QList<int>() << 1 << 2 << 3);
+            QVERIFY(iface.reportResult(QList<int>() << 1 << 2 << 3));
             voidFuture = listFuture;
         }
         QCOMPARE(voidFuture.resultCount(), 0);
@@ -2829,6 +2835,7 @@ void tst_QFuture::testTakeResults(QFuture<T> future, size_type resultCount)
     testFutureTaken(copy);
 }
 
+#if 0
 void tst_QFuture::takeResults()
 {
     // Test takeResults() for movable types (whether or not copyable).
@@ -2844,8 +2851,8 @@ void tst_QFuture::takeResults()
     const int expectedCount = 10;
 
     for (int i = 0; i < expectedCount; ++i) {
-        moveIface.reportAndMoveResult(UniquePtr{new int(0b101010)}, i);
-        copyIface.reportAndMoveResult(std::vector<int>{1,2,3,4,5}, i);
+        QVERIFY(moveIface.reportAndMoveResult(UniquePtr{new int(0b101010)}, i));
+        QVERIFY(copyIface.reportAndMoveResult(std::vector<int>{1,2,3,4,5}, i));
     }
 
     moveIface.reportFinished();
@@ -2857,12 +2864,13 @@ void tst_QFuture::takeResults()
 
     testTakeResults(copyIface.future(), size_type(expectedCount));
 }
+#endif
 
 void tst_QFuture::takeResult()
 {
     QFutureInterface<UniquePtr> iface;
     iface.reportStarted();
-    iface.reportAndMoveResult(UniquePtr{new int(0b101010)}, 0);
+    QVERIFY(iface.reportAndMoveResult(UniquePtr{new int(0b101010)}, 0));
     iface.reportFinished();
 
     auto future = iface.future();
@@ -2903,7 +2911,10 @@ void tst_QFuture::runAndTake()
         QSKIP("Failed to run the task, nothing to test");
 
     gotcha = watcha.future();
+#if 0
+    // TODO: enable when QFuture::takeResults() is enabled
     testTakeResults(gotcha, size_type(1));
+#endif
 }
 
 void tst_QFuture::resultsReadyAt_data()
@@ -2943,9 +2954,9 @@ void tst_QFuture::resultsReadyAt()
     {
         int dummyResult = 0b101010;
         if (testMove)
-            iface.reportAndMoveResult(std::move(dummyResult), index);
+            QVERIFY(iface.reportAndMoveResult(std::move(dummyResult), index));
         else
-            iface.reportResult(&dummyResult, index);
+            QVERIFY(iface.reportResult(&dummyResult, index));
     };
 
     const QSignalSpy readyCounter(&watcher, &QFutureWatcher<int>::resultsReadyAt);
@@ -3099,6 +3110,183 @@ void tst_QFuture::waitForFinished()
 
     QVERIFY(waitingThread->wait());
     QVERIFY(waitingThread->isFinished());
+}
+
+void tst_QFuture::rejectResultOverwrite_data()
+{
+    QTest::addColumn<bool>("filterMode");
+    QTest::addColumn<QList<int>>("initResults");
+
+    QTest::addRow("filter-mode-on-1-result") << true << QList<int>({ 456 });
+    QTest::addRow("filter-mode-on-N-results") << true << QList<int>({ 456, 789 });
+    QTest::addRow("filter-mode-off-1-result") << false << QList<int>({ 456 });
+    QTest::addRow("filter-mode-off-N-results") << false << QList<int>({ 456, 789 });
+}
+
+void tst_QFuture::rejectResultOverwrite()
+{
+    QFETCH(bool, filterMode);
+    QFETCH(QList<int>, initResults);
+
+    QFutureInterface<int> iface;
+    iface.setFilterMode(filterMode);
+    auto f = iface.future();
+    QFutureWatcher<int> watcher;
+    watcher.setFuture(f);
+
+    QTestEventLoop eventProcessor;
+    // control the loop by suspend
+    connect(&watcher, &QFutureWatcher<int>::suspending, &eventProcessor, &QTestEventLoop::exitLoop);
+    // internal machinery always emits resultsReadyAt
+    QSignalSpy resultCounter(&watcher, &QFutureWatcher<int>::resultsReadyAt);
+
+    // init
+    if (initResults.size() == 1)
+        QVERIFY(iface.reportResult(initResults[0]));
+    else
+        QVERIFY(iface.reportResults(initResults));
+    QCOMPARE(f.resultCount(), initResults.size());
+    QCOMPARE(f.resultAt(0), initResults[0]);
+    QCOMPARE(f.results(), initResults);
+
+    QTimer::singleShot(50, [&f]() {
+        f.suspend(); // should exit the loop
+    });
+    // Run event loop, QCoreApplication::postEvent is in use
+    // in QFutureInterface:
+    eventProcessor.enterLoopMSecs(2000);
+    QVERIFY(!eventProcessor.timeout());
+    QCOMPARE(resultCounter.count(), 1);
+    f.resume();
+
+    // overwrite with lvalue
+    {
+        int result = -1;
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(result, 0));
+        QCOMPARE(f.resultCount(), originalCount);
+        QCOMPARE(f.resultAt(0), initResults[0]);
+    }
+    // overwrite with rvalue
+    {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(-1, 0));
+        QCOMPARE(f.resultCount(), originalCount);
+        QCOMPARE(f.resultAt(0), initResults[0]);
+    }
+    // overwrite with array
+    {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResults(QList<int> { -1, -2, -3 }, 0));
+        QCOMPARE(f.resultCount(), originalCount);
+        QCOMPARE(f.resultAt(0), initResults[0]);
+    }
+
+    // special case: add result by different index, overlapping with the vector
+    if (initResults.size() > 1) {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(-1, 1));
+        QCOMPARE(f.resultCount(), originalCount);
+        QCOMPARE(f.resultAt(1), initResults[1]);
+    }
+
+    QTimer::singleShot(50, [&f]() {
+        f.suspend(); // should exit the loop
+    });
+    eventProcessor.enterLoopMSecs(2000);
+    QVERIFY(!eventProcessor.timeout());
+    QCOMPARE(resultCounter.count(), 1);
+    f.resume();
+    QCOMPARE(f.results(), initResults);
+}
+
+void tst_QFuture::rejectPendingResultOverwrite()
+{
+    QFETCH(bool, filterMode);
+    QFETCH(QList<int>, initResults);
+
+    QFutureInterface<int> iface;
+    iface.setFilterMode(filterMode);
+    auto f = iface.future();
+    QFutureWatcher<int> watcher;
+    watcher.setFuture(f);
+
+    QTestEventLoop eventProcessor;
+    // control the loop by suspend
+    connect(&watcher, &QFutureWatcher<int>::suspending, &eventProcessor, &QTestEventLoop::exitLoop);
+    // internal machinery always emits resultsReadyAt
+    QSignalSpy resultCounter(&watcher, &QFutureWatcher<int>::resultsReadyAt);
+
+    // init
+    if (initResults.size() == 1)
+        QVERIFY(iface.reportResult(initResults[0], 1));
+    else
+        QVERIFY(iface.reportResults(initResults, 1));
+    QCOMPARE(f.resultCount(), 0); // not visible yet
+    if (!filterMode) {
+        QCOMPARE(f.resultAt(1), initResults[0]);
+        QCOMPARE(f.results(), initResults);
+
+        QTimer::singleShot(50, [&f]() {
+            f.suspend(); // should exit the loop
+        });
+        // Run event loop, QCoreApplication::postEvent is in use
+        // in QFutureInterface:
+        eventProcessor.enterLoopMSecs(2000);
+        QVERIFY(!eventProcessor.timeout());
+        QCOMPARE(resultCounter.count(), 1);
+        f.resume();
+    }
+
+    // overwrite with lvalue
+    {
+        int result = -1;
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(result, 1));
+        QCOMPARE(f.resultCount(), originalCount);
+        if (!filterMode)
+            QCOMPARE(f.resultAt(1), initResults[0]);
+    }
+    // overwrite with rvalue
+    {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(-1, 1));
+        QCOMPARE(f.resultCount(), originalCount);
+        if (!filterMode)
+            QCOMPARE(f.resultAt(1), initResults[0]);
+    }
+    // overwrite with array
+    {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResults(QList<int> { -1, -2 }, 1));
+        QCOMPARE(f.resultCount(), originalCount);
+        if (!filterMode)
+            QCOMPARE(f.resultAt(1), initResults[0]);
+    }
+    // special case: add result by different index, overlapping with the vector
+    if (initResults.size() > 1) {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!iface.reportResult(-1, 2));
+        QCOMPARE(f.resultCount(), originalCount);
+        if (!filterMode)
+            QCOMPARE(f.resultAt(2), initResults[1]);
+    }
+
+    if (!filterMode) {
+        QTimer::singleShot(50, [&f]() {
+            f.suspend(); // should exit the loop
+        });
+        eventProcessor.enterLoopMSecs(2000);
+        QVERIFY(!eventProcessor.timeout());
+        QCOMPARE(resultCounter.count(), 1);
+        f.resume();
+    }
+
+    QVERIFY(iface.reportResult(123, 0)); // make results at 0 and 1 accessible
+    QCOMPARE(f.resultCount(), initResults.size() + 1);
+    QCOMPARE(f.resultAt(1), initResults[0]);
+    initResults.prepend(123);
+    QCOMPARE(f.results(), initResults);
 }
 
 QTEST_MAIN(tst_QFuture)

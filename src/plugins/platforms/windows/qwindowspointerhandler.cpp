@@ -45,6 +45,9 @@
 #endif
 
 #include "qwindowspointerhandler.h"
+#if QT_CONFIG(tabletevent)
+#  include "qwindowstabletsupport.h"
+#endif
 #include "qwindowskeymapper.h"
 #include "qwindowscontext.h"
 #include "qwindowswindow.h"
@@ -79,7 +82,6 @@ qint64 QWindowsPointerHandler::m_nextInputDeviceId = 1;
 
 QWindowsPointerHandler::~QWindowsPointerHandler()
 {
-    delete m_touchDevice;
 }
 
 bool QWindowsPointerHandler::translatePointerEvent(QWindow *window, HWND hwnd, QtWindows::WindowsEventType et, MSG msg, LRESULT *result)
@@ -317,7 +319,7 @@ static bool isValidWheelReceiver(QWindow *candidate)
     return false;
 }
 
-QPointingDevice *QWindowsPointerHandler::createTouchDevice(bool mouseEmulation)
+QWindowsPointerHandler::QPointingDevicePtr QWindowsPointerHandler::createTouchDevice(bool mouseEmulation)
 {
      const int digitizers = GetSystemMetrics(SM_DIGITIZER);
      if (!(digitizers & (NID_INTEGRATED_TOUCH | NID_EXTERNAL_TOUCH)))
@@ -336,15 +338,19 @@ QPointingDevice *QWindowsPointerHandler::createTouchDevice(bool mouseEmulation)
          capabilities.setFlag(QInputDevice::Capability::MouseEmulation);
      }
 
-     qCDebug(lcQpaEvents) << "Digitizers:" << Qt::hex << Qt::showbase << (digitizers & ~NID_READY)
+     const int flags = digitizers & ~NID_READY;
+     qCDebug(lcQpaEvents) << "Digitizers:" << Qt::hex << Qt::showbase << flags
          << "Ready:" << (digitizers & NID_READY) << Qt::dec << Qt::noshowbase
          << "Tablet PC:" << tabletPc << "Max touch points:" << maxTouchPoints << "Capabilities:" << capabilities;
 
      const int buttonCount = type == QInputDevice::DeviceType::TouchScreen ? 1 : 3;
      // TODO: use system-provided name and device ID rather than empty-string and m_nextInputDeviceId
-     return new QPointingDevice(QString(), m_nextInputDeviceId++,
-                                type, QPointingDevice::PointerType::Finger,
-                                capabilities, maxTouchPoints, buttonCount);
+     const qint64 systemId = m_nextInputDeviceId++ | (qint64(flags << 2));
+     auto d = new QPointingDevice(QString(), systemId, type,
+                                  QPointingDevice::PointerType::Finger,
+                                  capabilities, maxTouchPoints, buttonCount,
+                                  QString(), QPointingDeviceUniqueId::fromNumericId(systemId));
+     return QPointingDevicePtr(d);
 }
 
 void QWindowsPointerHandler::clearEvents()
@@ -463,7 +469,7 @@ bool QWindowsPointerHandler::translateTouchEvent(QWindow *window, HWND hwnd,
         return false;
 
     if (msg.message == WM_POINTERCAPTURECHANGED) {
-        QWindowSystemInterface::handleTouchCancelEvent(window, m_touchDevice,
+        QWindowSystemInterface::handleTouchCancelEvent(window, m_touchDevice.data(),
                                                        QWindowsKeyMapper::queryKeyboardModifiers());
         m_lastTouchPositions.clear();
         return true;
@@ -547,10 +553,21 @@ bool QWindowsPointerHandler::translateTouchEvent(QWindow *window, HWND hwnd,
     if (allStates == QEventPoint::State::Released)
         m_touchInputIDToTouchPointID.clear();
 
-    QWindowSystemInterface::handleTouchEvent(window, m_touchDevice, touchPoints,
+    QWindowSystemInterface::handleTouchEvent(window, m_touchDevice.data(), touchPoints,
                                              QWindowsKeyMapper::queryKeyboardModifiers());
     return false; // Allow mouse messages to be generated.
 }
+
+#if QT_CONFIG(tabletevent)
+QWindowsPointerHandler::QPointingDevicePtr QWindowsPointerHandler::findTabletDevice(QPointingDevice::PointerType pointerType) const
+{
+    for (const auto &d : m_tabletDevices) {
+        if (d->pointerType() == pointerType)
+            return d;
+    }
+    return {};
+}
+#endif
 
 bool QWindowsPointerHandler::translatePenEvent(QWindow *window, HWND hwnd, QtWindows::WindowsEventType et,
                                                MSG msg, PVOID vPenInfo)
@@ -565,28 +582,31 @@ bool QWindowsPointerHandler::translatePenEvent(QWindow *window, HWND hwnd, QtWin
     if (!QWindowsContext::user32dll.getPointerDeviceRects(penInfo->pointerInfo.sourceDevice, &pRect, &dRect))
         return false;
 
-    const auto sourceDevice = (qint64)penInfo->pointerInfo.sourceDevice;
+    const auto systemId = (qint64)penInfo->pointerInfo.sourceDevice;
     const QPoint globalPos = QPoint(penInfo->pointerInfo.ptPixelLocation.x, penInfo->pointerInfo.ptPixelLocation.y);
     const QPoint localPos = QWindowsGeometryHint::mapFromGlobal(hwnd, globalPos);
     const QPointF hiResGlobalPos = QPointF(dRect.left + qreal(penInfo->pointerInfo.ptHimetricLocation.x - pRect.left)
                                            / (pRect.right - pRect.left) * (dRect.right - dRect.left),
                                            dRect.top + qreal(penInfo->pointerInfo.ptHimetricLocation.y - pRect.top)
                                            / (pRect.bottom - pRect.top) * (dRect.bottom - dRect.top));
-    const qreal pressure = (penInfo->penMask & PEN_MASK_PRESSURE) ? qreal(penInfo->pressure) / 1024.0 : 0.5;
-    const qreal rotation = (penInfo->penMask & PEN_MASK_ROTATION) ? qreal(penInfo->rotation) : 0.0;
+    const bool hasPressure = (penInfo->penMask & PEN_MASK_PRESSURE) != 0;
+    const bool hasRotation =  (penInfo->penMask & PEN_MASK_ROTATION) != 0;
+    const qreal pressure = hasPressure ? qreal(penInfo->pressure) / 1024.0 : 0.5;
+    const qreal rotation = hasRotation ? qreal(penInfo->rotation) : 0.0;
     const qreal tangentialPressure = 0.0;
-    const int xTilt = (penInfo->penMask & PEN_MASK_TILT_X) ? penInfo->tiltX : 0;
-    const int yTilt = (penInfo->penMask & PEN_MASK_TILT_Y) ? penInfo->tiltY : 0;
+    const bool hasTiltX = (penInfo->penMask & PEN_MASK_TILT_X) != 0;
+    const bool hasTiltY = (penInfo->penMask & PEN_MASK_TILT_Y) != 0;
+    const int xTilt = hasTiltX ? penInfo->tiltX : 0;
+    const int yTilt = hasTiltY ? penInfo->tiltY : 0;
     const int z = 0;
 
     if (QWindowsContext::verbose > 1)
         qCDebug(lcQpaEvents).noquote().nospace() << Qt::showbase
-            << __FUNCTION__ << " sourceDevice=" << sourceDevice
+            << __FUNCTION__ << " systemId=" << systemId
             << " globalPos=" << globalPos << " localPos=" << localPos << " hiResGlobalPos=" << hiResGlobalPos
             << " message=" << Qt::hex << msg.message
             << " flags=" << Qt::hex << penInfo->pointerInfo.pointerFlags;
 
-    const QInputDevice::DeviceType device = QInputDevice::DeviceType::Stylus;
     QPointingDevice::PointerType type;
     // Since it may be the middle button, so if the checks fail then it should
     // be set to Middle if it was used.
@@ -604,9 +624,33 @@ bool QWindowsPointerHandler::translatePenEvent(QWindow *window, HWND hwnd, QtWin
             mouseButtons = Qt::RightButton; // Either left or right, not both
     }
 
+    auto device = findTabletDevice(type);
+    if (device.isNull()) {
+        QInputDevice::Capabilities caps(QInputDevice::Capability::Position
+                                        | QInputDevice::Capability::MouseEmulation
+                                        | QInputDevice::Capability::Hover);
+        if (hasPressure)
+             caps |= QInputDevice::Capability::Pressure;
+        if (hasRotation)
+            caps |= QInputDevice::Capability::Rotation;
+        if (hasTiltX)
+            caps |= QInputDevice::Capability::XTilt;
+        if (hasTiltY)
+            caps |= QInputDevice::Capability::YTilt;
+        const qint64 uniqueId = systemId | (qint64(type) << 32L);
+        device.reset(new QPointingDevice(QStringLiteral("wmpointer"),
+                                         systemId, QInputDevice::DeviceType::Stylus,
+                                         type, caps, 1, 3, QString(),
+                                         QPointingDeviceUniqueId::fromNumericId(uniqueId)));
+        QWindowSystemInterface::registerInputDevice(device.data());
+        m_tabletDevices.append(device);
+    }
+
+    const auto uniqueId = device->uniqueId().numericId();
+
     switch (msg.message) {
     case WM_POINTERENTER: {
-        QWindowSystemInterface::handleTabletEnterProximityEvent(int(device), int(type), sourceDevice);
+        QWindowSystemInterface::handleTabletEnterLeaveProximityEvent(window, device.data(), true);
         m_windowUnderPointer = window;
         // The local coordinates may fall outside the window.
         // Wait until the next update to send the enter event.
@@ -619,12 +663,12 @@ bool QWindowsPointerHandler::translatePenEvent(QWindow *window, HWND hwnd, QtWin
             m_windowUnderPointer = nullptr;
             m_currentWindow = nullptr;
         }
-        QWindowSystemInterface::handleTabletLeaveProximityEvent(int(device), int(type), sourceDevice);
+        QWindowSystemInterface::handleTabletEnterLeaveProximityEvent(window, device.data(), false);
         break;
     case WM_POINTERDOWN:
     case WM_POINTERUP:
     case WM_POINTERUPDATE: {
-        QWindow *target = QGuiApplicationPrivate::tabletDevicePoint(sourceDevice).target; // Pass to window that grabbed it.
+        QWindow *target = QGuiApplicationPrivate::tabletDevicePoint(uniqueId).target; // Pass to window that grabbed it.
         if (!target && m_windowUnderPointer)
             target = m_windowUnderPointer;
         if (!target)
@@ -644,9 +688,10 @@ bool QWindowsPointerHandler::translatePenEvent(QWindow *window, HWND hwnd, QtWin
         }
         const Qt::KeyboardModifiers keyModifiers = QWindowsKeyMapper::queryKeyboardModifiers();
 
-        QWindowSystemInterface::handleTabletEvent(target, localPos, hiResGlobalPos, int(device), int(type), mouseButtons,
-                                                  pressure, xTilt, yTilt, tangentialPressure, rotation, z,
-                                                  sourceDevice, keyModifiers);
+        QWindowSystemInterface::handleTabletEvent(target, device.data(),
+                                                  localPos, hiResGlobalPos, mouseButtons,
+                                                  pressure, xTilt, yTilt, tangentialPressure,
+                                                  rotation, z, keyModifiers);
         return false;  // Allow mouse messages to be generated.
     }
     }

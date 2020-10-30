@@ -143,15 +143,13 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn bool operator==(const QMargins &m1, const QMargins &m2)
-    \relates QMargins
+    \fn bool QMargins::operator==(const QMargins &m1, const QMargins &m2)
 
     Returns \c true if \a m1 and \a m2 are equal; otherwise returns \c false.
 */
 
 /*!
-    \fn bool operator!=(const QMargins &m1, const QMargins &m2)
-    \relates QMargins
+    \fn bool QMargins::operator!=(const QMargins &m1, const QMargins &m2)
 
     Returns \c true if \a m1 and \a m2 are different; otherwise returns \c false.
 */
@@ -315,7 +313,7 @@ QT_BEGIN_NAMESPACE
     \relates QMargins
 
     Returns a QMargins object that is formed from the maximum of each
-    component of \a m2 and a m1.
+    component of \a m2 and \a m1.
 
     \sa QMargins::operator+=(), QMargins::operator-=()
 
@@ -566,15 +564,13 @@ QDebug operator<<(QDebug dbg, const QMargins &m)
 */
 
 /*!
-    \fn bool operator==(const QMarginsF &lhs, const QMarginsF &rhs)
-    \relates QMarginsF
+    \fn bool QMarginsF::operator==(const QMarginsF &lhs, const QMarginsF &rhs)
 
     Returns \c true if \a lhs and \a rhs are equal; otherwise returns \c false.
 */
 
 /*!
-    \fn bool operator!=(const QMarginsF &lhs, const QMarginsF &rhs)
-    \relates QMarginsF
+    \fn bool QMarginsF::operator!=(const QMarginsF &lhs, const QMarginsF &rhs)
 
     Returns \c true if \a lhs and \a rhs are different; otherwise returns \c false.
 */
@@ -668,7 +664,7 @@ QDebug operator<<(QDebug dbg, const QMargins &m)
     \overload
 
     Returns a QMarginsF object that is formed from the maximum of each
-    component of \a m2 and a m1.
+    component of \a m2 and \a m1.
 
     \sa QMarginsF::operator+=(), QMarginsF::operator-=()
 

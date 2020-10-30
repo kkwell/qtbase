@@ -247,6 +247,15 @@ set(CMAKE_INSTALL_RPATH "" CACHE STRING "RPATH for installed binaries")
 
 # add the automatically determined parts of the RPATH
 # which point to directories outside the build tree to the install RPATH
+#
+# TODO: Do we really want to use this option for official packages? Perhaps make it configurable
+# or remove it? This causes final installed binaries to contain an absolute path RPATH pointing
+# to ${CMAKE_INSTALL_PREFIX}/lib, which on the CI would be something like
+# /Users/qt/work/install/lib.
+# It doesn't seem necessary to me, given that qt_apply_rpaths already applies $ORIGIN-style
+# relocatable paths, but maybe i'm missing something, because the original commit that added the
+# option mentions it's needed in some cross-compilation scenario for program binaries that
+# link against QtCore.
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 function(qt_setup_tool_path_command)
@@ -268,7 +277,11 @@ if(WIN32)
         list(APPEND QT_DEFAULT_PLATFORM_DEFINITIONS WIN64 _WIN64)
     endif()
     if(MSVC)
-        set(QT_DEFAULT_MKSPEC win32-msvc)
+        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+            set(QT_DEFAULT_MKSPEC win32-arm64-msvc)
+        else()
+            set(QT_DEFAULT_MKSPEC win32-msvc)
+        endif()
     elseif(CLANG AND MINGW)
         set(QT_DEFAULT_MKSPEC win32-clang-g++)
     elseif(MINGW)
@@ -292,6 +305,8 @@ elseif(ANDROID)
     elseif(CLANG)
         set(QT_DEFAULT_MKSPEC android-clang)
     endif()
+elseif(IOS)
+    set(QT_DEFAULT_MKSPEC macx-ios-clang)
 elseif(APPLE)
     set(QT_DEFAULT_MKSPEC macx-clang)
 elseif(EMSCRIPTEN)
@@ -423,16 +438,16 @@ set(__qt_add_plugin_multi_args
     "${__default_private_args};${__default_public_args};DEFAULT_IF"
 )
 
-# Collection of qt_add_executable arguments so they can be shared across qt_add_executable
-# and qt_add_test_helper.
-set(__qt_add_executable_optional_args
+# Collection of arguments so they can be shared across qt_internal_add_executable
+# and qt_internal_add_test_helper.
+set(__qt_internal_add_executable_optional_args
     "GUI;BOOTSTRAP;NO_QT;NO_INSTALL;EXCEPTIONS;DELAY_RC;DELAY_TARGET_INFO"
 )
-set(__qt_add_executable_single_args
+set(__qt_internal_add_executable_single_args
     "OUTPUT_DIRECTORY;INSTALL_DIRECTORY;VERSION"
     ${__default_target_info_args}
 )
-set(__qt_add_executable_multi_args
+set(__qt_internal_add_executable_multi_args
     "EXE_FLAGS;${__default_private_args};${__default_public_args}"
 )
 
@@ -443,6 +458,7 @@ include(QtAppHelpers)
 include(QtAutogenHelpers)
 include(QtCMakeHelpers)
 include(QtCompatibilityHelpers)
+include(QtDeferredDependenciesHelpers)
 include(QtDbusHelpers)
 include(QtDocsHelpers)
 include(QtExecutableHelpers)
@@ -463,11 +479,13 @@ include(QtRpathHelpers)
 include(QtSanitizerHelpers)
 include(QtScopeFinalizerHelpers)
 include(QtSimdHelpers)
+include(QtStartupHelpers)
 include(QtSyncQtHelpers)
 include(QtTargetHelpers)
 include(QtTestHelpers)
 include(QtToolHelpers)
 include(QtHeadersClean)
+include(QtJavaHelpers)
 
 # This sets up the scope finalizer mechanism.
 variable_watch(CMAKE_CURRENT_LIST_DIR qt_watch_current_list_dir)

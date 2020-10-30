@@ -84,7 +84,7 @@ public:
     TransformTranslator() : QTranslator() {}
     TransformTranslator(QObject *parent) : QTranslator(parent) {}
     QString translate(const char *context, const char *sourceText,
-                              const char *disambiguation = 0, int = -1) const
+                              const char *disambiguation = 0, int = -1) const override
     {
         QByteArray total(context);
         total.append("::");
@@ -108,7 +108,7 @@ public:
         return res;
     }
 
-    virtual bool isEmpty() const { return false; }
+    virtual bool isEmpty() const override { return false; }
 
 public:
     mutable QSet<QByteArray> m_translations;
@@ -285,7 +285,7 @@ void tst_languageChange::retranslatability()
     // In case we use a Color dialog, we do not want to test for
     // strings non existing in the dialog and which do not get
     // translated.
-    const QSize desktopSize = QApplication::desktop()->size();
+    const QSize desktopSize = QGuiApplication::primaryScreen()->size();
     if (dialogType == ColorDialog && (desktopSize.width() < 480 || desktopSize.height() < 350)) {
         expected.remove("QColorDialog::&Basic colors");
         expected.remove("QColorDialog::&Custom colors");

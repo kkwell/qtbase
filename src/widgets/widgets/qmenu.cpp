@@ -3406,7 +3406,7 @@ void QMenu::keyPressEvent(QKeyEvent *e)
                         continue;
                     QAction *act = d->actions.at(i);
                     QKeySequence sequence = QKeySequence::mnemonic(act->text());
-                    int key = sequence[0] & 0xffff;
+                    int key = sequence[0].toCombined() & 0xffff; // suspicious
                     if (key == c.unicode()) {
                         clashCount++;
                         if (!first)
@@ -3502,7 +3502,7 @@ void QMenu::mouseMoveEvent(QMouseEvent *e)
 /*!
   \reimp
 */
-void QMenu::enterEvent(QEvent *)
+void QMenu::enterEvent(QEnterEvent *)
 {
     Q_D(QMenu);
     d->hasReceievedEnter = true;

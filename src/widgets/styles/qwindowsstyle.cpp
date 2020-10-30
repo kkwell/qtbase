@@ -133,7 +133,7 @@ bool QWindowsStylePrivate::isDarkMode()
 {
     bool result = false;
 #ifdef Q_OS_WIN
-    using QWindowsApplication = QPlatformInterface::Private::QWindowsApplication;
+    using QWindowsApplication = QNativeInterface::Private::QWindowsApplication;
     // Windows only: Return whether dark mode style support is desired and
     // dark mode is in effect.
     if (auto windowsApp = dynamic_cast<QWindowsApplication *>(QGuiApplicationPrivate::platformIntegration())) {
@@ -1025,7 +1025,7 @@ void QWindowsStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, 
         {
             bool vertical = false, inverted = false;
             if (const QStyleOptionProgressBar *pb = qstyleoption_cast<const QStyleOptionProgressBar *>(opt)) {
-                vertical = pb->orientation == Qt::Vertical;
+                vertical = !(pb->state & QStyle::State_Horizontal);
                 inverted = pb->invertedAppearance;
             }
 
@@ -1691,7 +1691,7 @@ void QWindowsStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPai
             if (!rect.isValid())
                 return;
 
-            const bool vertical = pb->orientation == Qt::Vertical;
+            const bool vertical = !(pb->state & QStyle::State_Horizontal);
             const bool inverted = pb->invertedAppearance;
 
             QTransform m;

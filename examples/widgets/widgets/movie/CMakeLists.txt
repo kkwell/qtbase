@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(movie
+qt_add_executable(movie
     main.cpp
     movieplayer.cpp movieplayer.h
+)
+set_target_properties(movie PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(movie PUBLIC
     Qt::Core

@@ -565,7 +565,7 @@ Options parseOptions()
     }
 
     if (options.inputFileName.isEmpty())
-        options.inputFileName = QLatin1String("android-lib%1.so-deployment-settings.json").arg(QDir::current().dirName());
+        options.inputFileName = QLatin1String("android-%1-deployment-settings.json").arg(QDir::current().dirName());
 
     options.timing = qEnvironmentVariableIsSet("ANDROIDDEPLOYQT_TIMING_OUTPUT");
 
@@ -680,7 +680,7 @@ bool alwaysOverwritableFile(const QString &fileName)
     return (fileName.endsWith(QLatin1String("/res/values/libs.xml"))
             || fileName.endsWith(QLatin1String("/AndroidManifest.xml"))
             || fileName.endsWith(QLatin1String("/res/values/strings.xml"))
-            || fileName.endsWith(QLatin1String("/src/org/qtproject/qt5/android/bindings/QtActivity.java")));
+            || fileName.endsWith(QLatin1String("/src/org/qtproject/qt/android/bindings/QtActivity.java")));
 }
 
 
@@ -875,7 +875,7 @@ bool readInputFile(Options *options)
     {
         const auto extraPrefixDirs = jsonObject.value(QLatin1String("extraPrefixDirs")).toArray();
         options->extraPrefixDirs.reserve(extraPrefixDirs.size());
-        for (const auto &prefix : extraPrefixDirs) {
+        for (const QJsonValue prefix : extraPrefixDirs) {
             options->extraPrefixDirs.push_back(prefix.toString());
         }
     }
@@ -1630,7 +1630,7 @@ bool readAndroidDependencyXml(Options *options,
                     }
                 } else if (reader.name() == QLatin1String("jar")) {
                     int bundling = reader.attributes().value(QLatin1String("bundling")).toInt();
-                    QString fileName = reader.attributes().value(QLatin1String("file")).toString();
+                    QString fileName = QDir::cleanPath(reader.attributes().value(QLatin1String("file")).toString());
                     if (bundling == (options->deploymentMechanism == Options::Bundled)) {
                         QtDependency dependency(fileName, absoluteFilePath(options, fileName));
                         if (!usedDependencies->contains(dependency.absolutePath)) {
@@ -1646,7 +1646,7 @@ bool readAndroidDependencyXml(Options *options,
                         options->initClasses.append(reader.attributes().value(QLatin1String("initClass")).toString());
                     }
                 } else if (reader.name() == QLatin1String("lib")) {
-                    QString fileName = reader.attributes().value(QLatin1String("file")).toString();
+                    QString fileName = QDir::cleanPath(reader.attributes().value(QLatin1String("file")).toString());
                     if (reader.attributes().hasAttribute(QLatin1String("replaces"))) {
                         QString replaces = reader.attributes().value(QLatin1String("replaces")).toString();
                         for (int i=0; i<options->localLibs.size(); ++i) {
@@ -1792,14 +1792,13 @@ bool scanImports(Options *options, QSet<QString> *usedDependencies)
         fprintf(stdout, "Scanning for QML imports.\n");
 
     QString qmlImportScanner;
-    if (!options->qmlImportScannerBinaryPath.isEmpty()) {
+    if (!options->qmlImportScannerBinaryPath.isEmpty())
         qmlImportScanner = options->qmlImportScannerBinaryPath;
-    } else {
+    else
         qmlImportScanner = options->qtInstallDirectory + QLatin1String("/bin/qmlimportscanner");
 #if defined(Q_OS_WIN32)
-        qmlImportScanner += QLatin1String(".exe");
+    qmlImportScanner += QLatin1String(".exe");
 #endif
-    }
 
     if (!QFile::exists(qmlImportScanner)) {
         fprintf(stderr, "qmlimportscanner not found: %s\n", qPrintable(qmlImportScanner));
@@ -2171,13 +2170,13 @@ bool copyQtFiles(Options *options)
 
         if (qtDependency.relativePath.endsWith(QLatin1String(".so"))) {
             QString garbledFileName;
-            if (qtDependency.relativePath.startsWith(QLatin1String("lib/"))) {
+            if (QDir::fromNativeSeparators(qtDependency.relativePath).startsWith(QLatin1String("lib/"))) {
                 garbledFileName = qtDependency.relativePath.mid(sizeof("lib/") - 1);
             } else {
                 garbledFileName = qtDependency.relativePath.mid(qtDependency.relativePath.lastIndexOf(QLatin1Char('/')) + 1);
             }
             destinationFileName = libsDirectory + options->currentArchitecture + QLatin1Char('/') + garbledFileName;
-        } else if (qtDependency.relativePath.startsWith(QLatin1String("jar/"))) {
+        } else if (QDir::fromNativeSeparators(qtDependency.relativePath).startsWith(QLatin1String("jar/"))) {
             destinationFileName = libsDirectory + qtDependency.relativePath.mid(sizeof("jar/") - 1);
         } else {
             destinationFileName = assetsDestinationDirectory + qtDependency.relativePath;
@@ -2445,7 +2444,7 @@ bool buildAndroidProject(const Options &options)
         return false;
     }
 
-    QString commandLine = QLatin1String("%1 --no-daemon %2").arg(shellQuote(gradlePath), options.releasePackage ? QLatin1String(" assembleRelease") : QLatin1String(" assembleDebug"));
+    QString commandLine = QLatin1String("%1 %2").arg(shellQuote(gradlePath), options.releasePackage ? QLatin1String(" assembleRelease") : QLatin1String(" assembleDebug"));
     if (options.buildAAB)
         commandLine += QLatin1String(" bundle");
 

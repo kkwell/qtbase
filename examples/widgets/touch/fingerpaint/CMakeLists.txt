@@ -20,10 +20,14 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS PrintSupport) # special case
 
-add_qt_gui_executable(fingerpaint
+qt_add_executable(fingerpaint
     main.cpp
     mainwindow.cpp mainwindow.h
     scribblearea.cpp scribblearea.h
+)
+set_target_properties(fingerpaint PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(fingerpaint PUBLIC
     Qt::Core

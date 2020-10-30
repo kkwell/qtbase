@@ -90,7 +90,7 @@ namespace MyNamespace {
         MyFlags myFlags() const { return m_flags; }
         void setMyFlags(MyFlags val) { m_flags = val; }
 
-        MyClass(QObject *parent = 0)
+        MyClass(QObject *parent = nullptr)
             : QObject(parent),
               m_enum(MyEnum1),
               m_flags(MyFlag1|MyFlag2)
@@ -139,7 +139,7 @@ namespace MyNamespace {
         MyFlags myFlags() const { return m_flags; }
         void setMyFlags(MyFlags val) { m_flags = val; }
 
-        MyClass2(QObject *parent = 0)
+        MyClass2(QObject *parent = nullptr)
             : QObject(parent),
               m_enum(MyEnum1),
               m_flags(MyFlag1|MyFlag2)
@@ -699,24 +699,24 @@ void tst_QMetaObject::invokeMetaMember()
     QCOMPARE(exp, QString("yessir"));
     QCOMPARE(obj.slotResult, QString("sl1:bubu"));
 
-    QObject *ptr = 0;
+    QObject *ptr = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl11", Q_RETURN_ARG(QObject*,ptr)));
     QCOMPARE(ptr, (QObject *)&obj);
     QCOMPARE(obj.slotResult, QString("sl11"));
     // try again with a space:
-    ptr = 0;
+    ptr = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl11", Q_RETURN_ARG(QObject * , ptr)));
     QCOMPARE(ptr, (QObject *)&obj);
     QCOMPARE(obj.slotResult, QString("sl11"));
 
-    const char *ptr2 = 0;
+    const char *ptr2 = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl12", Q_RETURN_ARG(const char*, ptr2)));
-    QVERIFY(ptr2 != 0);
+    QVERIFY(ptr2 != nullptr);
     QCOMPARE(obj.slotResult, QString("sl12"));
     // try again with a space:
-    ptr2 = 0;
+    ptr2 = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl12", Q_RETURN_ARG(char const * , ptr2)));
-    QVERIFY(ptr2 != 0);
+    QVERIFY(ptr2 != nullptr);
     QCOMPARE(obj.slotResult, QString("sl12"));
 
     // test w/ template args
@@ -1022,12 +1022,12 @@ void tst_QMetaObject::invokeBlockingQueuedMetaMember()
     QCOMPARE(exp, QString("yessir"));
     QCOMPARE(obj.slotResult, QString("sl1:bubu"));
 
-    QObject *ptr = 0;
+    QObject *ptr = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl11", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QObject*,ptr)));
     QCOMPARE(ptr, (QObject *)&obj);
     QCOMPARE(obj.slotResult, QString("sl11"));
     // try again with a space:
-    ptr = 0;
+    ptr = nullptr;
     QVERIFY(QMetaObject::invokeMethod(&obj, "sl11", Qt::BlockingQueuedConnection, Q_RETURN_ARG(QObject * , ptr)));
     QCOMPARE(ptr, (QObject *)&obj);
     QCOMPARE(obj.slotResult, QString("sl11"));
@@ -1218,7 +1218,7 @@ class ConstructibleClass : public QObject
 {
     Q_OBJECT
 public:
-    Q_INVOKABLE ConstructibleClass(QObject *parent = 0)
+    Q_INVOKABLE ConstructibleClass(QObject *parent = nullptr)
         : QObject(parent) {}
 };
 
@@ -1402,15 +1402,15 @@ void tst_QMetaObject::normalizedType_data()
     QTest::newRow("QVector") << "QVector<int>" << "QList<int>";
     QTest::newRow("refref") << "X const*const&&" << "const X*const&&";
     QTest::newRow("refref2") << "const X<T const&&>&&" << "const X<const T&&>&&";
-    QTest::newRow("long1") << "long unsigned int long" << "unsigned long long";
+    QTest::newRow("long1") << "long unsigned int long" << "qulonglong";
     QTest::newRow("long2") << "int signed long" << "long";
     QTest::newRow("long3") << "long unsigned" << "ulong";
     QTest::newRow("long double") << " long  double" << "long double";
     QTest::newRow("signed char") << "char signed" << "signed char";
-    QTest::newRow("unsigned char") << "char unsigned" << "unsigned char";
+    QTest::newRow("unsigned char") << "char unsigned" << "uchar";
     QTest::newRow("signed short") << "short signed" << "short";
-    QTest::newRow("unsigned shot") << "short unsigned" << "unsigned short";
-    QTest::newRow("unsigned shot") << "short unsigned" << "unsigned short";
+    QTest::newRow("unsigned short") << "unsigned short" << "ushort";
+    QTest::newRow("short unsigned") << "short unsigned" << "ushort";
     QTest::newRow("array1") << "unsigned int [4]" << "uint[4]";
     QTest::newRow("array2") << "unsigned int const [4][5]" << "const uint[4][5]";
     QTest::newRow("array3") << "unsigned[] const" << "uint[]";
@@ -1447,7 +1447,15 @@ void tst_QMetaObject::customPropertyType()
 {
     QMetaProperty prop = metaObject()->property(metaObject()->indexOfProperty("value3"));
 
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_DEPRECATED
+
     QCOMPARE(prop.type(), QVariant::UserType);
+
+    QT_WARNING_POP
+#endif
+
     QCOMPARE(prop.userType(), QMetaType::fromType<MyStruct>().id());
     QCOMPARE(prop.metaType(), QMetaType::fromType<MyStruct>());
 
@@ -1455,11 +1463,11 @@ void tst_QMetaObject::customPropertyType()
     QCOMPARE(prop.userType(), QMetaType::fromName("MyStruct").id());
 
     prop = metaObject()->property(metaObject()->indexOfProperty("value4"));
-    QCOMPARE(prop.type(), QVariant::List);
+    QCOMPARE(prop.metaType().id(), QMetaType::QVariantList);
     QCOMPARE(prop.metaType(), QMetaType::fromType<QList<QVariant>>());
 
     prop = metaObject()->property(metaObject()->indexOfProperty("value5"));
-    QCOMPARE(prop.type(), QVariant::List);
+    QCOMPARE(prop.metaType().id(), QMetaType::QVariantList);
 }
 
 void tst_QMetaObject::checkScope_data()

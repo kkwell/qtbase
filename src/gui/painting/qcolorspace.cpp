@@ -46,6 +46,7 @@
 #include "qcolortransform_p.h"
 #include "qicc_p.h"
 
+#include <qatomic.h>
 #include <qmath.h>
 #include <qtransform.h>
 
@@ -54,6 +55,18 @@
 QT_BEGIN_NAMESPACE
 
 QBasicMutex QColorSpacePrivate::s_lutWriteLock;
+
+static QAtomicPointer<QColorSpacePrivate> s_predefinedColorspacePrivates[QColorSpace::ProPhotoRgb] = {};
+static void cleanupPredefinedColorspaces()
+{
+    for (QAtomicPointer<QColorSpacePrivate> &ptr : s_predefinedColorspacePrivates) {
+        QColorSpacePrivate *prv = ptr.fetchAndStoreAcquire(nullptr);
+        if (prv && !prv->ref.deref())
+            delete prv;
+    }
+}
+
+Q_DESTRUCTOR_FUNCTION(cleanupPredefinedColorspaces)
 
 QColorSpacePrimaries::QColorSpacePrimaries(QColorSpace::Primaries primaries)
 {
@@ -326,7 +339,6 @@ QColorTransform QColorSpacePrivate::transformationToColorSpace(const QColorSpace
     QColorTransform combined;
     auto ptr = new QColorTransformPrivate;
     combined.d = ptr;
-    combined.d->ref.ref();
     ptr->colorSpaceIn = this;
     ptr->colorSpaceOut = out;
     ptr->colorMatrix = out->toXyz.inverted() * toXyz;
@@ -411,11 +423,10 @@ QColorTransform QColorSpacePrivate::transformationToColorSpace(const QColorSpace
 */
 
 /*!
+    \fn QColorSpace::QColorSpace()
+
     Creates a new colorspace object that represents an undefined and invalid colorspace.
  */
-QColorSpace::QColorSpace()
-{
-}
 
 /*!
     Creates a new colorspace object that represents a \a namedColorSpace.
@@ -426,13 +437,18 @@ QColorSpace::QColorSpace(NamedColorSpace namedColorSpace)
         qWarning() << "QColorSpace attempted constructed from invalid QColorSpace::NamedColorSpace: " << int(namedColorSpace);
         return;
     }
-    static QColorSpacePrivate *predefinedColorspacePrivates[QColorSpace::ProPhotoRgb + 1];
-    if (!predefinedColorspacePrivates[namedColorSpace]) {
-        predefinedColorspacePrivates[namedColorSpace] = new QColorSpacePrivate(namedColorSpace);
-        predefinedColorspacePrivates[namedColorSpace]->ref.ref();
+    // The defined namespaces start at 1:
+    auto &atomicRef = s_predefinedColorspacePrivates[static_cast<int>(namedColorSpace) - 1];
+    QColorSpacePrivate *cspriv = atomicRef.loadAcquire();
+    if (!cspriv) {
+        auto *tmp = new QColorSpacePrivate(namedColorSpace);
+        tmp->ref.ref();
+        if (atomicRef.testAndSetOrdered(nullptr, tmp, cspriv))
+            cspriv = tmp;
+        else
+            delete tmp;
     }
-    d_ptr = predefinedColorspacePrivates[namedColorSpace];
-    d_ptr->ref.ref();
+    d_ptr = cspriv;
     Q_ASSERT(isValid());
 }
 
@@ -443,7 +459,6 @@ QColorSpace::QColorSpace(NamedColorSpace namedColorSpace)
 QColorSpace::QColorSpace(QColorSpace::Primaries primaries, QColorSpace::TransferFunction fun, float gamma)
         : d_ptr(new QColorSpacePrivate(primaries, fun, gamma))
 {
-    d_ptr->ref.ref();
 }
 
 /*!
@@ -453,7 +468,6 @@ QColorSpace::QColorSpace(QColorSpace::Primaries primaries, QColorSpace::Transfer
 QColorSpace::QColorSpace(QColorSpace::Primaries primaries, float gamma)
         : d_ptr(new QColorSpacePrivate(primaries, TransferFunction::Gamma, gamma))
 {
-    d_ptr->ref.ref();
 }
 
 /*!
@@ -467,36 +481,16 @@ QColorSpace::QColorSpace(const QPointF &whitePoint, const QPointF &redPoint,
     QColorSpacePrimaries primaries(whitePoint, redPoint, greenPoint, bluePoint);
     if (!primaries.areValid()) {
         qWarning() << "QColorSpace attempted constructed from invalid primaries:" << whitePoint << redPoint << greenPoint << bluePoint;
-        d_ptr = nullptr;
         return;
     }
     d_ptr = new QColorSpacePrivate(primaries, fun, gamma);
-    d_ptr->ref.ref();
 }
 
-QColorSpace::~QColorSpace()
-{
-    if (d_ptr && !d_ptr->ref.deref())
-        delete d_ptr;
-}
+QColorSpace::~QColorSpace() = default;
 
-QColorSpace::QColorSpace(const QColorSpace &colorSpace)
-        : d_ptr(colorSpace.d_ptr)
-{
-    if (d_ptr)
-        d_ptr->ref.ref();
-}
+QT_DEFINE_QESDP_SPECIALIZATION_DTOR(QColorSpacePrivate)
 
-QColorSpace &QColorSpace::operator=(const QColorSpace &colorSpace)
-{
-    QColorSpacePrivate *oldD = d_ptr;
-    d_ptr = colorSpace.d_ptr;
-    if (d_ptr)
-        d_ptr->ref.ref();
-    if (oldD && !oldD->ref.deref())
-        delete oldD;
-    return *this;
-}
+QColorSpace::QColorSpace(const QColorSpace &colorSpace) noexcept = default;
 
 /*! \fn void QColorSpace::swap(QColorSpace &other)
 
@@ -553,12 +547,11 @@ void QColorSpace::setTransferFunction(QColorSpace::TransferFunction transferFunc
         return;
     if (!d_ptr) {
         d_ptr = new QColorSpacePrivate(Primaries::Custom, transferFunction, gamma);
-        d_ptr->ref.ref();
         return;
     }
     if (d_ptr->transferFunction == transferFunction && d_ptr->gamma == gamma)
         return;
-    QColorSpacePrivate::getWritable(*this);  // detach
+    detach();
     d_ptr->description.clear();
     d_ptr->transferFunction = transferFunction;
     d_ptr->gamma = gamma;
@@ -594,12 +587,11 @@ void QColorSpace::setPrimaries(QColorSpace::Primaries primariesId)
         return;
     if (!d_ptr) {
         d_ptr = new QColorSpacePrivate(primariesId, TransferFunction::Custom, 0.0f);
-        d_ptr->ref.ref();
         return;
     }
     if (d_ptr->primaries == primariesId)
         return;
-    QColorSpacePrivate::getWritable(*this);  // detach
+    detach();
     d_ptr->description.clear();
     d_ptr->primaries = primariesId;
     d_ptr->identifyColorSpace();
@@ -620,18 +612,28 @@ void QColorSpace::setPrimaries(const QPointF &whitePoint, const QPointF &redPoin
         return;
     if (!d_ptr) {
         d_ptr = new QColorSpacePrivate(primaries, TransferFunction::Custom, 0.0f);
-        d_ptr->ref.ref();
         return;
     }
     QColorMatrix toXyz = primaries.toXyzMatrix();
     if (QColorVector(primaries.whitePoint) == d_ptr->whitePoint && toXyz == d_ptr->toXyz)
         return;
-    QColorSpacePrivate::getWritable(*this);  // detach
+    detach();
     d_ptr->description.clear();
     d_ptr->primaries = QColorSpace::Primaries::Custom;
     d_ptr->toXyz = toXyz;
     d_ptr->whitePoint = QColorVector(primaries.whitePoint);
     d_ptr->identifyColorSpace();
+}
+
+/*!
+    \internal
+*/
+void QColorSpace::detach()
+{
+    if (d_ptr)
+        d_ptr.detach();
+    else
+        d_ptr = new QColorSpacePrivate;
 }
 
 /*!
@@ -666,9 +668,6 @@ QByteArray QColorSpace::iccProfile() const
     If the ICC profile is not supported an invalid QColorSpace is returned
     where you can still read the original ICC profile using iccProfile().
 
-    \note If the QByteArray data is created from external sources it should be
-    at least 4 byte aligned.
-
     \sa iccProfile()
 */
 QColorSpace QColorSpace::fromIccProfile(const QByteArray &iccProfile)
@@ -676,8 +675,8 @@ QColorSpace QColorSpace::fromIccProfile(const QByteArray &iccProfile)
     QColorSpace colorSpace;
     if (QIcc::fromIccProfile(iccProfile, &colorSpace))
         return colorSpace;
-    QColorSpacePrivate *d = QColorSpacePrivate::getWritable(colorSpace);
-    d->iccProfile = iccProfile;
+    colorSpace.detach();
+    colorSpace.d_ptr->iccProfile = iccProfile;
     return colorSpace;
 }
 
@@ -692,63 +691,67 @@ bool QColorSpace::isValid() const noexcept
 }
 
 /*!
-    \relates QColorSpace
+    \fn bool QColorSpace::operator==(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
+
     Returns \c true if colorspace \a colorSpace1 is equal to colorspace \a colorSpace2;
     otherwise returns \c false
 */
-bool operator==(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
-{
-    if (colorSpace1.d_ptr == colorSpace2.d_ptr)
-        return true;
-    if (!colorSpace1.d_ptr || !colorSpace2.d_ptr)
-        return false;
-
-    if (colorSpace1.d_ptr->namedColorSpace && colorSpace2.d_ptr->namedColorSpace)
-        return colorSpace1.d_ptr->namedColorSpace == colorSpace2.d_ptr->namedColorSpace;
-
-    const bool valid1 = colorSpace1.isValid();
-    const bool valid2 = colorSpace2.isValid();
-    if (valid1 != valid2)
-        return false;
-    if (!valid1 && !valid2) {
-        if (!colorSpace1.d_ptr->iccProfile.isEmpty() || !colorSpace2.d_ptr->iccProfile.isEmpty())
-            return colorSpace1.d_ptr->iccProfile == colorSpace2.d_ptr->iccProfile;
-    }
-
-    // At this point one or both color spaces are unknown, and must be compared in detail instead
-
-    if (colorSpace1.primaries() != QColorSpace::Primaries::Custom && colorSpace2.primaries() != QColorSpace::Primaries::Custom) {
-        if (colorSpace1.primaries() != colorSpace2.primaries())
-            return false;
-    } else {
-        if (colorSpace1.d_ptr->toXyz != colorSpace2.d_ptr->toXyz)
-            return false;
-    }
-
-    if (colorSpace1.transferFunction() != QColorSpace::TransferFunction::Custom &&
-            colorSpace2.transferFunction() != QColorSpace::TransferFunction::Custom) {
-        if (colorSpace1.transferFunction() != colorSpace2.transferFunction())
-            return false;
-        if (colorSpace1.transferFunction() == QColorSpace::TransferFunction::Gamma)
-            return (qAbs(colorSpace1.gamma() - colorSpace2.gamma()) <= (1.0f / 512.0f));
-        return true;
-    }
-
-    if (colorSpace1.d_ptr->trc[0] != colorSpace2.d_ptr->trc[0] ||
-        colorSpace1.d_ptr->trc[1] != colorSpace2.d_ptr->trc[1] ||
-        colorSpace1.d_ptr->trc[2] != colorSpace2.d_ptr->trc[2])
-        return false;
-
-    return true;
-}
 
 /*!
-    \fn bool operator!=(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
-    \relates QColorSpace
+    \fn bool QColorSpace::operator!=(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
 
     Returns \c true if colorspace \a colorSpace1 is not equal to colorspace \a colorSpace2;
     otherwise returns \c false
 */
+
+/*!
+    \internal
+*/
+bool QColorSpace::equals(const QColorSpace &other) const
+{
+    if (d_ptr == other.d_ptr)
+        return true;
+    if (!d_ptr || !other.d_ptr)
+        return false;
+
+    if (d_ptr->namedColorSpace && other.d_ptr->namedColorSpace)
+        return d_ptr->namedColorSpace == other.d_ptr->namedColorSpace;
+
+    const bool valid1 = isValid();
+    const bool valid2 = other.isValid();
+    if (valid1 != valid2)
+        return false;
+    if (!valid1 && !valid2) {
+        if (!d_ptr->iccProfile.isEmpty() || !other.d_ptr->iccProfile.isEmpty())
+            return d_ptr->iccProfile == other.d_ptr->iccProfile;
+    }
+
+    // At this point one or both color spaces are unknown, and must be compared in detail instead
+
+    if (primaries() != QColorSpace::Primaries::Custom && other.primaries() != QColorSpace::Primaries::Custom) {
+        if (primaries() != other.primaries())
+            return false;
+    } else {
+        if (d_ptr->toXyz != other.d_ptr->toXyz)
+            return false;
+    }
+
+    if (transferFunction() != QColorSpace::TransferFunction::Custom &&
+            other.transferFunction() != QColorSpace::TransferFunction::Custom) {
+        if (transferFunction() != other.transferFunction())
+            return false;
+        if (transferFunction() == QColorSpace::TransferFunction::Gamma)
+            return (qAbs(gamma() - other.gamma()) <= (1.0f / 512.0f));
+        return true;
+    }
+
+    if (d_ptr->trc[0] != other.d_ptr->trc[0] ||
+        d_ptr->trc[1] != other.d_ptr->trc[1] ||
+        d_ptr->trc[2] != other.d_ptr->trc[2])
+        return false;
+
+    return true;
+}
 
 /*!
     Generates and returns a color space transformation from this color space to
@@ -759,7 +762,7 @@ QColorTransform QColorSpace::transformationToColorSpace(const QColorSpace &color
     if (!isValid() || !colorspace.isValid())
         return QColorTransform();
 
-    return d_ptr->transformationToColorSpace(colorspace.d_ptr);
+    return d_ptr->transformationToColorSpace(colorspace.d_ptr.get());
 }
 
 /*!

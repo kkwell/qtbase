@@ -91,9 +91,9 @@ private:
 
 } // namespace anonymous
 
-static QAndroidInputContext *m_androidInputContext = 0;
-static char const *const QtNativeInputConnectionClassName = "org/qtproject/qt5/android/QtNativeInputConnection";
-static char const *const QtExtractedTextClassName = "org/qtproject/qt5/android/QtExtractedText";
+static QAndroidInputContext *m_androidInputContext = nullptr;
+static char const *const QtNativeInputConnectionClassName = "org/qtproject/qt/android/QtNativeInputConnection";
+static char const *const QtExtractedTextClassName = "org/qtproject/qt/android/QtExtractedText";
 static jclass m_extractedTextClass = 0;
 static jmethodID m_classConstructorMethodID = 0;
 static jfieldID m_partialEndOffsetFieldID = 0;
@@ -392,7 +392,7 @@ static JNINativeMethod methods[] = {
     {"deleteSurroundingText", "(II)Z", (void *)deleteSurroundingText},
     {"finishComposingText", "()Z", (void *)finishComposingText},
     {"getCursorCapsMode", "(I)I", (void *)getCursorCapsMode},
-    {"getExtractedText", "(III)Lorg/qtproject/qt5/android/QtExtractedText;", (void *)getExtractedText},
+    {"getExtractedText", "(III)Lorg/qtproject/qt/android/QtExtractedText;", (void *)getExtractedText},
     {"getSelectedText", "(I)Ljava/lang/String;", (void *)getSelectedText},
     {"getTextAfterCursor", "(II)Ljava/lang/String;", (void *)getTextAfterCursor},
     {"getTextBeforeCursor", "(II)Ljava/lang/String;", (void *)getTextBeforeCursor},
@@ -1409,14 +1409,23 @@ jboolean QAndroidInputContext::setComposingText(const QString &text, jint newCur
     const int absoluteCursorPos = getAbsoluteCursorPosition(query);
     int absoluteAnchorPos = getBlockPosition(query) + query->value(Qt::ImAnchorPosition).toInt();
 
+    auto setCursorPosition = [=]() {
+            const int cursorPos = query->value(Qt::ImCursorPosition).toInt();
+            QInputMethodEvent event({}, { { QInputMethodEvent::Selection, cursorPos, 0 } });
+            QGuiApplication::sendEvent(m_focusObject, &event);
+        };
+
     // If we have composing region and selection (and therefore focusObjectIsComposing() == false),
     // we must clear selection so that we won't delete it when we will be replacing composing text
     if (!m_composingText.isEmpty() && absoluteCursorPos != absoluteAnchorPos) {
-        const int cursorPos = query->value(Qt::ImCursorPosition).toInt();
-        QInputMethodEvent event({}, { { QInputMethodEvent::Selection, cursorPos, 0 } });
-        QGuiApplication::sendEvent(m_focusObject, &event);
-
+        setCursorPosition();
         absoluteAnchorPos = absoluteCursorPos;
+    }
+
+    // The value of Qt::ImCursorPosition is not updated at the start
+    // when the first character is added, so we must update it (QTBUG-85090)
+    if (absoluteCursorPos == 0 && text.length() == 1 && getTextAfterCursor(1,1).length() >= 0) {
+        setCursorPosition();
     }
 
     // If we had no composing region, pretend that we had a zero-length composing region at current

@@ -125,7 +125,7 @@ Build options:
                          iOS, tvOS, and watchOS. [auto]
 
   -qtnamespace <name> .. Wrap all Qt library code in 'namespace <name> {...}'.
-  -qtlibinfix <infix> .. Rename all libQt5*.so to libQt5*<infix>.so.
+  -qtlibinfix <infix> .. Rename all libQt6*.so to libQt6*<infix>.so.
 
   -testcocoon .......... Instrument with the TestCocoon code coverage tool [no]
   -gcov ................ Instrument with the GCov code coverage tool [no]
@@ -210,6 +210,8 @@ Build environment:
                          [$ANDROID_NDK_HOST]
   -android-abis .......  Comma separated Android abis, default is:
                          armeabi-v7a,arm64-v8a,x86,x86_64
+  -android-javac-target  Set the javac build target version [8]
+  -android-javac-source  Set the javac build source version [8]
   -android-style-assets  Automatically extract style assets from the device at
                          run time. This option makes the Android style behave
                          correctly, but also makes the Android platform plugin
@@ -223,8 +225,6 @@ Component selection:
                          [libs and examples, also tools if not cross-building,
                          also tests if -developer-build]
   -nomake <part> ....... Exclude <part> from the list of parts to be built.
-  -compile-examples .... When unset, install only the sources of examples
-                         [no on WebAssembly, otherwise yes]
   -gui ................. Build the Qt GUI module and dependencies [yes]
   -widgets ............. Build the Qt Widgets module and dependencies [yes]
   -no-dbus ............. Do not build the Qt D-Bus module

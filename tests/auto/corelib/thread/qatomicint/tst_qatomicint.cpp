@@ -85,7 +85,7 @@ private:
 };
 
 template <int I>
-static inline void assemblyMarker(void *ptr = 0)
+static inline void assemblyMarker(void *ptr = nullptr)
 {
     puts((char *)ptr + I);
 }
@@ -156,14 +156,15 @@ static void constexprFunctionsHelperTemplate()
 {
 #ifdef Q_COMPILER_CONSTEXPR
     // this is a compile-time test only
-    booleanHelper<Atomic::isReferenceCountingNative()>();
     booleanHelper<Atomic::isReferenceCountingWaitFree()>();
-    booleanHelper<Atomic::isTestAndSetNative()>();
     booleanHelper<Atomic::isTestAndSetWaitFree()>();
-    booleanHelper<Atomic::isFetchAndStoreNative()>();
     booleanHelper<Atomic::isFetchAndStoreWaitFree()>();
-    booleanHelper<Atomic::isFetchAndAddNative()>();
     booleanHelper<Atomic::isFetchAndAddWaitFree()>();
+#elif 0 // No longer constexpr
+    booleanHelper<Atomic::isReferenceCountingNative()>();
+    booleanHelper<Atomic::isTestAndSetNative()>();
+    booleanHelper<Atomic::isFetchAndStoreNative()>();
+    booleanHelper<Atomic::isFetchAndAddNative()>();
 #endif
 }
 
@@ -177,10 +178,8 @@ void tst_QAtomicInt::warningFreeHelper()
     warningFreeHelperTemplate<unsigned int, QBasicAtomicInteger<unsigned int> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<int> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<unsigned int> >();
-# ifdef Q_COMPILER_UNICODE_STRINGS
     warningFreeHelperTemplate<qint16, QBasicAtomicInteger<char32_t> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<char32_t> >();
-# endif
 
     // pointer-sized integers are always supported:
     warningFreeHelperTemplate<int, QBasicAtomicInteger<qptrdiff> >();
@@ -199,10 +198,8 @@ void tst_QAtomicInt::warningFreeHelper()
     warningFreeHelperTemplate<quint16, QBasicAtomicInteger<quint16> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<qint16> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<quint16> >();
-# ifdef Q_COMPILER_UNICODE_STRINGS
     warningFreeHelperTemplate<qint16, QBasicAtomicInteger<char16_t> >();
     constexprFunctionsHelperTemplate<QBasicAtomicInteger<char16_t> >();
-# endif
 #endif
 
 #ifdef Q_ATOMIC_INT8_IS_SUPPORTED
@@ -887,7 +884,7 @@ void tst_QAtomicInt::fetchAndAdd_loop()
 class FetchAndAddThread : public QThread
 {
 public:
-    void run()
+    void run() override
     {
 
         for (int i = 0; i < iterations; ++i)

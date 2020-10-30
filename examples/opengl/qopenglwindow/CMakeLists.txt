@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS OpenGL)
 
-add_qt_gui_executable(qopenglwindow
+qt_add_executable(qopenglwindow
     background_renderer.cpp background_renderer.h
     main.cpp
+)
+set_target_properties(qopenglwindow PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_include_directories(qopenglwindow PUBLIC
     .

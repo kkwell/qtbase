@@ -79,6 +79,7 @@ static QTimeZonePrivate *newBackendTimeZone()
 // Create named time zone using appropriate backend
 static QTimeZonePrivate *newBackendTimeZone(const QByteArray &ianaId)
 {
+    Q_ASSERT(!ianaId.isEmpty());
 #ifdef QT_NO_SYSTEMLOCALE
 #if QT_CONFIG(icu)
     return new QIcuTimeZonePrivate(ianaId);
@@ -111,7 +112,7 @@ public:
     // isTimeZoneIdAvailable() and to create named IANA time zones.  This is usually the host
     // system, but may be different if the host resources are insufficient or if
     // QT_NO_SYSTEMLOCALE is set.  A simple UTC backend is used if no alternative is available.
-    QSharedDataPointer<QTimeZonePrivate> backend;
+    QExplicitlySharedDataPointer<QTimeZonePrivate> backend;
 };
 
 Q_GLOBAL_STATIC(QTimeZoneSingleton, global_tz);
@@ -338,11 +339,11 @@ QTimeZone::QTimeZone(const QByteArray &ianaId)
     d = new QUtcTimeZonePrivate(ianaId);
     // If not a CLDR UTC offset ID then try creating it with the system backend.
     // Relies on backend not creating valid TZ with invalid name.
-    if (!d->isValid())
-        d = newBackendTimeZone(ianaId);
+    if (!d.constData()->isValid())
+        d = ianaId.isEmpty() ? newBackendTimeZone() : newBackendTimeZone(ianaId);
     // Can also handle UTC with arbitrary (valid) offset, but only do so as
     // fall-back, since either of the above may handle it more informatively.
-    if (!d->isValid()) {
+    if (!d.constData()->isValid()) {
         qint64 offset = QUtcTimeZonePrivate::offsetFromUtcString(ianaId);
         if (offset != QTimeZonePrivate::invalidSeconds()) {
             // Should have abs(offset) < 24 * 60 * 60 = 86400.
@@ -386,7 +387,6 @@ QTimeZone::QTimeZone(int offsetSeconds)
 
 QTimeZone::QTimeZone(const QByteArray &ianaId, int offsetSeconds, const QString &name,
                      const QString &abbreviation, QLocale::Country country, const QString &comment)
-    : d()
 {
     if (!isTimeZoneIdAvailable(ianaId))
         d = new QUtcTimeZonePrivate(ianaId, offsetSeconds, name, abbreviation, country, comment);
@@ -457,10 +457,7 @@ QTimeZone &QTimeZone::operator=(const QTimeZone &other)
 
 bool QTimeZone::operator==(const QTimeZone &other) const
 {
-    if (d && other.d)
-        return (*d == *other.d);
-    else
-        return (d == other.d);
+    return d == other.d || (d && other.d && *d == *other.d);
 }
 
 /*!
@@ -469,10 +466,7 @@ bool QTimeZone::operator==(const QTimeZone &other) const
 
 bool QTimeZone::operator!=(const QTimeZone &other) const
 {
-    if (d && other.d)
-        return (*d != *other.d);
-    else
-        return (d != other.d);
+    return d != other.d && (!d || !other.d || *d != *other.d);
 }
 
 /*!
@@ -481,10 +475,7 @@ bool QTimeZone::operator!=(const QTimeZone &other) const
 
 bool QTimeZone::isValid() const
 {
-    if (d)
-        return d->isValid();
-    else
-        return false;
+    return d && d->isValid();
 }
 
 /*!
@@ -496,10 +487,7 @@ bool QTimeZone::isValid() const
 
 QByteArray QTimeZone::id() const
 {
-    if (d)
-        return d->id();
-    else
-        return QByteArray();
+    return d ? d->id() : QByteArray();
 }
 
 /*!
@@ -508,10 +496,7 @@ QByteArray QTimeZone::id() const
 
 QLocale::Country QTimeZone::country() const
 {
-    if (isValid())
-        return d->country();
-    else
-        return QLocale::AnyCountry;
+    return isValid() ? d->country() : QLocale::AnyCountry;
 }
 
 /*!
@@ -524,10 +509,7 @@ QLocale::Country QTimeZone::country() const
 
 QString QTimeZone::comment() const
 {
-    if (isValid())
-        return d->comment();
-    else
-        return QString();
+    return isValid() ? d->comment() : QString();
 }
 
 /*!
@@ -549,8 +531,8 @@ QString QTimeZone::displayName(const QDateTime &atDateTime, NameType nameType,
 {
     if (isValid())
         return d->displayName(atDateTime.toMSecsSinceEpoch(), nameType, locale);
-    else
-        return QString();
+
+    return QString();
 }
 
 /*!
@@ -573,8 +555,8 @@ QString QTimeZone::displayName(TimeType timeType, NameType nameType,
 {
     if (isValid())
         return d->displayName(timeType, nameType, locale);
-    else
-        return QString();
+
+    return QString();
 }
 
 /*!
@@ -591,8 +573,8 @@ QString QTimeZone::abbreviation(const QDateTime &atDateTime) const
 {
     if (isValid())
         return d->abbreviation(atDateTime.toMSecsSinceEpoch());
-    else
-        return QString();
+
+    return QString();
 }
 
 /*!
@@ -613,8 +595,8 @@ int QTimeZone::offsetFromUtc(const QDateTime &atDateTime) const
 {
     if (isValid())
         return d->offsetFromUtc(atDateTime.toMSecsSinceEpoch());
-    else
-        return 0;
+
+    return 0;
 }
 
 /*!
@@ -633,8 +615,8 @@ int QTimeZone::standardTimeOffset(const QDateTime &atDateTime) const
 {
     if (isValid())
         return d->standardTimeOffset(atDateTime.toMSecsSinceEpoch());
-    else
-        return 0;
+
+    return 0;
 }
 
 /*!
@@ -653,8 +635,8 @@ int QTimeZone::daylightTimeOffset(const QDateTime &atDateTime) const
 {
     if (hasDaylightTime())
         return d->daylightTimeOffset(atDateTime.toMSecsSinceEpoch());
-    else
-        return 0;
+
+    return 0;
 }
 
 /*!
@@ -665,10 +647,7 @@ int QTimeZone::daylightTimeOffset(const QDateTime &atDateTime) const
 
 bool QTimeZone::hasDaylightTime() const
 {
-    if (isValid())
-        return d->hasDaylightTime();
-    else
-        return false;
+    return isValid() && d->hasDaylightTime();
 }
 
 /*!
@@ -679,10 +658,7 @@ bool QTimeZone::hasDaylightTime() const
 
 bool QTimeZone::isDaylightTime(const QDateTime &atDateTime) const
 {
-    if (hasDaylightTime())
-        return d->isDaylightTime(atDateTime.toMSecsSinceEpoch());
-    else
-        return false;
+    return hasDaylightTime() && d->isDaylightTime(atDateTime.toMSecsSinceEpoch());
 }
 
 /*!
@@ -697,8 +673,8 @@ QTimeZone::OffsetData QTimeZone::offsetData(const QDateTime &forDateTime) const
 {
     if (hasTransitions())
         return QTimeZonePrivate::toOffsetData(d->data(forDateTime.toMSecsSinceEpoch()));
-    else
-        return QTimeZonePrivate::invalidOffsetData();
+
+    return QTimeZonePrivate::invalidOffsetData();
 }
 
 /*!
@@ -712,10 +688,7 @@ QTimeZone::OffsetData QTimeZone::offsetData(const QDateTime &forDateTime) const
 
 bool QTimeZone::hasTransitions() const
 {
-    if (isValid())
-        return d->hasTransitions();
-    else
-        return false;
+    return isValid() && d->hasTransitions();
 }
 
 /*!
@@ -735,8 +708,8 @@ QTimeZone::OffsetData QTimeZone::nextTransition(const QDateTime &afterDateTime) 
 {
     if (hasTransitions())
         return QTimeZonePrivate::toOffsetData(d->nextTransition(afterDateTime.toMSecsSinceEpoch()));
-    else
-        return QTimeZonePrivate::invalidOffsetData();
+
+    return QTimeZonePrivate::invalidOffsetData();
 }
 
 /*!
@@ -756,8 +729,8 @@ QTimeZone::OffsetData QTimeZone::previousTransition(const QDateTime &beforeDateT
 {
     if (hasTransitions())
         return QTimeZonePrivate::toOffsetData(d->previousTransition(beforeDateTime.toMSecsSinceEpoch()));
-    else
-        return QTimeZonePrivate::invalidOffsetData();
+
+    return QTimeZonePrivate::invalidOffsetData();
 }
 
 /*!
@@ -795,7 +768,15 @@ QTimeZone::OffsetDataList QTimeZone::transitions(const QDateTime &fromDateTime,
 
 QByteArray QTimeZone::systemTimeZoneId()
 {
-    return global_tz->backend->systemTimeZoneId();
+    const QByteArray sys = global_tz->backend->systemTimeZoneId();
+    if (!sys.isEmpty())
+        return sys;
+    // The system zone, despite the empty ID, may know its real ID anyway:
+    auto zone = systemTimeZone();
+    if (zone.isValid() && !zone.id().isEmpty())
+        return zone.id();
+    // If all else fails, guess UTC.
+    return QTimeZonePrivate::utcQByteArray();
 }
 
 /*!
@@ -807,7 +788,7 @@ QByteArray QTimeZone::systemTimeZoneId()
 */
 QTimeZone QTimeZone::systemTimeZone()
 {
-    return QTimeZone(QTimeZone::systemTimeZoneId());
+    return QTimeZone(global_tz->backend->systemTimeZoneId());
 }
 
 /*!

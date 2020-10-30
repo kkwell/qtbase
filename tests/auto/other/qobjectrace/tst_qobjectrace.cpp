@@ -47,6 +47,7 @@ class tst_QObjectRace: public QObject
 private slots:
     void moveToThreadRace();
     void destroyRace();
+    void blockingQueuedDestroyRace();
     void disconnectRace();
 };
 
@@ -103,7 +104,8 @@ public:
         QThread::start();
     }
 
-    void run() {
+    void run() override
+    {
         QTimer zeroTimer;
         connect(&zeroTimer, SIGNAL(timeout()), object, SLOT(theSlot()));
         connect(&zeroTimer, SIGNAL(timeout()), this, SLOT(checkStopWatch()), Qt::DirectConnection);
@@ -218,7 +220,8 @@ public:
             objects[i]->moveToThread(this);
     }
 
-    void run() {
+    void run() override
+    {
         for (int i = number-1; i >= 0; --i) {
             /* Do some more connection and disconnection between object in this thread that have not been destroyed yet */
 
@@ -298,6 +301,92 @@ void tst_QObjectRace::destroyRace()
         delete threads[i];
 }
 
+class BlockingQueuedDestroyRaceObject : public QObject
+{
+    Q_OBJECT
+
+public:
+    enum class Behavior { Normal, Crash };
+    explicit BlockingQueuedDestroyRaceObject(Behavior b = Behavior::Normal)
+        : m_behavior(b) {}
+
+signals:
+    bool aSignal();
+
+public slots:
+    bool aSlot()
+    {
+        switch (m_behavior) {
+        case Behavior::Normal:
+            return true;
+        case Behavior::Crash:
+            qFatal("Race detected in a blocking queued connection");
+            break;
+        }
+
+        Q_UNREACHABLE();
+        return false;
+    }
+
+private:
+    Behavior m_behavior;
+};
+
+void tst_QObjectRace::blockingQueuedDestroyRace()
+{
+    enum { MinIterations = 100, MinTime = 3000, WaitTime = 25 };
+
+    BlockingQueuedDestroyRaceObject sender;
+
+    QDeadlineTimer timer(MinTime);
+    int iteration = 0;
+
+    while (iteration++ < MinIterations || !timer.hasExpired()) {
+        // Manually allocate some storage, and create a receiver in there
+        std::aligned_storage<
+                sizeof(BlockingQueuedDestroyRaceObject),
+                alignof(BlockingQueuedDestroyRaceObject)
+            >::type storage;
+
+        auto *receiver = reinterpret_cast<BlockingQueuedDestroyRaceObject *>(&storage);
+        new (receiver) BlockingQueuedDestroyRaceObject(BlockingQueuedDestroyRaceObject::Behavior::Normal);
+
+        // Connect it to the sender via BlockingQueuedConnection
+        QVERIFY(connect(&sender, &BlockingQueuedDestroyRaceObject::aSignal,
+                        receiver, &BlockingQueuedDestroyRaceObject::aSlot,
+                        Qt::BlockingQueuedConnection));
+
+        const auto emitUntilDestroyed = [&sender] {
+            // Hack: as long as the receiver is alive and the connection
+            // established, the signal will return true (from the slot).
+            // When the receiver gets destroyed, the signal is disconnected
+            // and therefore the emission returns false.
+            while (emit sender.aSignal())
+                ;
+        };
+
+        std::unique_ptr<QThread> thread(QThread::create(emitUntilDestroyed));
+        thread->start();
+
+        QTest::qWait(WaitTime);
+
+        // Destroy the receiver, and immediately allocate a new one at
+        // the same address. In case of a race, this might cause:
+        // - the metacall event to be posted to a destroyed object;
+        // - the metacall event to be posted to the wrong object.
+        // In both cases we hope to catch the race by crashing.
+        receiver->~BlockingQueuedDestroyRaceObject();
+        new (receiver) BlockingQueuedDestroyRaceObject(BlockingQueuedDestroyRaceObject::Behavior::Crash);
+
+        // Flush events
+        QTest::qWait(0);
+
+        thread->wait();
+
+        receiver->~BlockingQueuedDestroyRaceObject();
+    }
+}
+
 static QAtomicInteger<unsigned> countedStructObjectsCount;
 struct CountedFunctor
 {
@@ -330,7 +419,7 @@ public:
     {
     }
 
-    void run()
+    void run() override
     {
         while (!isInterruptionRequested()) {
             QMetaObject::Connection conn = connect(sender, &DisconnectRaceSenderObject::theSignal,
@@ -354,7 +443,7 @@ public:
     {
     }
 
-    void run()
+    void run() override
     {
         while (!isInterruptionRequested()) {
             emit sender->theSignal();
@@ -403,7 +492,7 @@ public:
     {
     }
 
-    void run()
+    void run() override
     {
         QScopedPointer<DeleteReceiverRaceReceiver> receiver(new DeleteReceiverRaceReceiver(sender));
         exec();

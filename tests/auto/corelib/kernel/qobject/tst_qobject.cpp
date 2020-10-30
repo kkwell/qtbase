@@ -49,6 +49,8 @@
 #include <private/qobject_p.h>
 #endif
 
+#include <functional>
+
 #include <math.h>
 
 class tst_QObject : public QObject
@@ -69,6 +71,7 @@ private slots:
     void disconnectNotify_metaObjConnection();
     void connectNotify_connectSlotsByName();
     void connectDisconnectNotify_shadowing();
+    void connectReferenceToIncompleteTypes();
     void emitInDefinedOrder();
     void customTypes();
     void streamCustomTypes();
@@ -154,6 +157,7 @@ private slots:
     void nullReceiver();
     void functorReferencesConnection();
     void disconnectDisconnects();
+    void singleShotConnection();
 };
 
 struct QObjectCreatedOnShutdown
@@ -534,7 +538,7 @@ void tst_QObject::findChildren()
     Q_SET_OBJECT_NAME(t121);
     emptyname.setObjectName("");
 
-    QObject *op = 0;
+    QObject *op = nullptr;
 
     op = o.findChild<QObject*>("o1");
     QCOMPARE(op, &o1);
@@ -773,9 +777,9 @@ public:
         disconnectedSignals.clear();
     }
 protected:
-    void connectNotify(const QMetaMethod &signal)
+    void connectNotify(const QMetaMethod &signal) override
     { connectedSignals.append(signal); }
-    void disconnectNotify(const QMetaMethod &signal)
+    void disconnectNotify(const QMetaMethod &signal) override
     { disconnectedSignals.append(signal); }
 };
 
@@ -876,6 +880,25 @@ void tst_QObject::connectDisconnectNotify()
     QCOMPARE(s.disconnectedSignals.size(), 1);
     QCOMPARE(s.disconnectedSignals.at(0), signal);
     QCOMPARE(s.connectedSignals.size(), 1);
+}
+
+struct Incomplete;
+class QObjectWithIncomplete : public QObject {
+    Q_OBJECT
+
+public:
+    QObjectWithIncomplete(QObject *parent=nullptr) : QObject(parent) {}
+signals:
+    void signalWithIncomplete(const Incomplete &);
+public slots:
+    void slotWithIncomplete(const Incomplete &) {}
+};
+
+void tst_QObject::connectReferenceToIncompleteTypes() {
+    QObjectWithIncomplete withIncomplete;
+    auto connection = QObject::connect(&withIncomplete, &QObjectWithIncomplete::signalWithIncomplete,
+                                       &withIncomplete, &QObjectWithIncomplete::slotWithIncomplete);
+    QVERIFY(connection);
 }
 
 static void connectDisconnectNotifyTestSlot() {}
@@ -1000,9 +1023,9 @@ public:
         disconnectedSignals.clear();
     }
 protected:
-    void connectNotify(const QMetaMethod &signal)
+    void connectNotify(const QMetaMethod &signal) override
     { connectedSignals.append(signal); }
-    void disconnectNotify(const QMetaMethod &signal)
+    void disconnectNotify(const QMetaMethod &signal) override
     { disconnectedSignals.append(signal); }
 Q_SIGNALS:
     void signal1();
@@ -1427,7 +1450,7 @@ class QCustomTypeChecker: public QObject
     Q_OBJECT
 
 public:
-    QCustomTypeChecker(QObject *parent = 0): QObject(parent) {}
+    QCustomTypeChecker(QObject *parent = nullptr): QObject(parent) {}
     void doEmit(CustomType ct)
     { emit signal1(ct); }
 
@@ -1603,7 +1626,7 @@ class TestThread : public QThread
 {
     Q_OBJECT
 public:
-    inline void run()
+    inline void run() override
     {
         *object = new QObject;
         *child = new QObject(*object);
@@ -1635,8 +1658,8 @@ void tst_QObject::thread()
         QCOMPARE(child.thread(), object.thread());
     }
 
-    QObject *object = 0;
-    QObject *child = 0;
+    QObject *object = nullptr;
+    QObject *child = nullptr;
 
     {
         TestThread thr;
@@ -1678,15 +1701,15 @@ class MoveToThreadObject : public QObject
 {
     Q_OBJECT
 public:
-    QThread *timerEventThread;
-    QThread *customEventThread;
-    QThread *slotThread;
+    QThread *timerEventThread = nullptr;
+    QThread *customEventThread = nullptr;
+    QThread *slotThread = nullptr;
 
-    MoveToThreadObject(QObject *parent = 0)
-        : QObject(parent), timerEventThread(0), customEventThread(0), slotThread(0)
+    MoveToThreadObject(QObject *parent = nullptr)
+        : QObject(parent)
     { }
 
-    void customEvent(QEvent *)
+    void customEvent(QEvent *) override
     {
         if (customEventThread)
             qFatal("%s: customEventThread should be null", Q_FUNC_INFO);
@@ -1694,7 +1717,7 @@ public:
         emit theSignal();
     }
 
-    void timerEvent(QTimerEvent *)
+    void timerEvent(QTimerEvent *) override
     {
         if (timerEventThread)
             qFatal("%s: timerEventThread should be null", Q_FUNC_INFO);
@@ -1733,7 +1756,7 @@ public:
         // wait for thread to start
         (void) eventLoop.exec();
     }
-    void run()
+    void run() override
     { (void) exec(); }
 };
 
@@ -1966,7 +1989,7 @@ void tst_QObject::property()
     QCOMPARE(property.type(), QVariant::UserType);
     QCOMPARE(property.userType(), qMetaTypeId<CustomType*>());
 
-    CustomType *customPointer = 0;
+    CustomType *customPointer = nullptr;
     QVariant customVariant = object.property("custom");
     customPointer = qvariant_cast<CustomType *>(customVariant);
     QCOMPARE(customPointer, object.custom());
@@ -2163,7 +2186,7 @@ public:
 
     SuperObject()
     {
-        theSender = 0;
+        theSender = nullptr;
         theSignalId = 0;
     }
 
@@ -2227,7 +2250,7 @@ void tst_QObject::senderTest()
 
         QCOMPARE(receiver->sender(), (QObject *)0);
         QCOMPARE(receiver->senderSignalIndex(), -1);
-        receiver->theSender = 0;
+        receiver->theSender = nullptr;
         receiver->theSignalId = -1;
         thread.start();
         emit sender->theSignal();
@@ -2308,7 +2331,7 @@ class FooObject: public QObject, public Foo::Bar
     Q_OBJECT
     Q_INTERFACES(Foo::Bar)
 public:
-    int rtti() const { return 42; }
+    int rtti() const override { return 42; }
 };
 
 class BlehObject : public QObject, public Foo::Bleh
@@ -2316,7 +2339,7 @@ class BlehObject : public QObject, public Foo::Bleh
     Q_OBJECT
     Q_INTERFACES(Foo::Bleh)
 public:
-    int rtti() const { return 43; }
+    int rtti() const override { return 43; }
 };
 
 void tst_QObject::declareInterface()
@@ -2910,7 +2933,7 @@ class DynamicPropertyObject : public PropertyObject
 public:
     inline DynamicPropertyObject() {}
 
-    inline virtual bool event(QEvent *e) {
+    inline virtual bool event(QEvent *e) override {
         if (e->type() == QEvent::DynamicPropertyChange) {
             changedDynamicProperties.append(static_cast<QDynamicPropertyChangeEvent *>(e)->propertyName());
         }
@@ -3043,7 +3066,7 @@ class EventSpy : public QObject
 public:
     typedef QList<QPair<QObject *, QEvent::Type> > EventList;
 
-    EventSpy(QObject *parent = 0)
+    EventSpy(QObject *parent = nullptr)
         : QObject(parent)
     { }
 
@@ -3057,7 +3080,7 @@ public:
         events.clear();
     }
 
-    bool eventFilter(QObject *object, QEvent *event)
+    bool eventFilter(QObject *object, QEvent *event) override
     {
         events.append(qMakePair(object, event->type()));
         return false;
@@ -3195,7 +3218,7 @@ void tst_QObject::installEventFilter()
 class EmitThread : public QThread
 {   Q_OBJECT
 public:
-    void run(void) {
+    void run(void) override {
         emit work();
     }
 signals:
@@ -3579,9 +3602,9 @@ class OverloadObject : public QObject
     signals:
         void sig(int i, char c, qreal m = 12);
         void sig(int i, int j = 12);
-        void sig(QObject *o, QObject *p, QObject *q = 0, QObject *r = 0) const;
+        void sig(QObject *o, QObject *p, QObject *q = nullptr, QObject *r = nullptr) const;
         void other(int a = 0);
-        void sig(QObject *o, OverloadObject *p = 0, QObject *q = 0, QObject *r = nullptr);
+        void sig(QObject *o, OverloadObject *p = nullptr, QObject *q = nullptr, QObject *r = nullptr);
         void sig(double r = 0.5);
     public slots:
         void slo(int i, int j = 43)
@@ -4289,7 +4312,7 @@ public:
     ThreadAffinityThread(SenderObject *sender)
         : sender(sender)
     { }
-    void run()
+    void run() override
     {
         sender->emitSignal1();
     }
@@ -5652,7 +5675,7 @@ signals:
 class VirtualSlotsObject : public VirtualSlotsObjectBase {
     Q_OBJECT
 public slots:
-    virtual void slot1() {
+    virtual void slot1() override {
         derived_counter1++;
     }
 public:
@@ -5701,8 +5724,8 @@ public:
 
 public slots:
     void regularSlot() { ++regular_call_count; }
-    virtual void slot1() { ++derived_counter2; }
-    virtual void slot2() { ++virtual_base_count; }
+    virtual void slot1() override { ++derived_counter2; }
+    virtual void slot2() override { ++virtual_base_count; }
 };
 
 struct NormalBase
@@ -6054,13 +6077,41 @@ void tst_QObject::connectFunctorWithContext()
     connect(context, &QObject::destroyed, &obj, &SenderObject::signal1, Qt::QueuedConnection);
     context->deleteLater();
 
-    QCOMPARE(status, 1);
+    obj.emitSignal1();
+    QCOMPARE(status, 2);
     e.exec();
-    QCOMPARE(status, 1);
+    QCOMPARE(status, 2);
+
+    // Check disconnect with the context object as "receiver" argument, all signals
+    context = new ContextObject;
+    status = 1;
+    connect(&obj, &SenderObject::signal1, context, SlotArgFunctor(&status));
+
+    obj.emitSignal1();
+    QCOMPARE(status, 2);
+    QObject::disconnect(&obj, nullptr, context, nullptr);
+    obj.emitSignal1();
+    QCOMPARE(status, 2);
+
+    delete context;
+
+    // Check disconnect with the context object as "receiver" argument, specific signal
+    context = new ContextObject;
+    status = 1;
+    connect(&obj, &SenderObject::signal1, context, SlotArgFunctor(&status));
+
+    obj.emitSignal1();
+    QCOMPARE(status, 2);
+    QObject::disconnect(&obj, &SenderObject::signal1, context, nullptr);
+    obj.emitSignal1();
+    QCOMPARE(status, 2);
+
+    delete context;
 
     // Check the sender arg is set correctly in the context
     context = new ContextObject;
 
+    status = 1;
     connect(&obj, &SenderObject::signal1, context,
             SlotArgFunctor(context, &obj, &status), Qt::QueuedConnection);
 
@@ -6077,8 +6128,7 @@ void tst_QObject::connectFunctorWithContext()
     e.exec();
     QCOMPARE(status, 2);
 
-    // Free
-    context->deleteLater();
+    delete context;
 }
 
 class StatusChanger : public QObject
@@ -6130,7 +6180,7 @@ public slots:
     {
         if (abouttoblock) {
             abouttoblock->deleteLater();
-            abouttoblock = 0;
+            abouttoblock = nullptr;
         }
         ++m_aboutToBlocks;
     }
@@ -6138,7 +6188,7 @@ public slots:
     {
         if (awake) {
             awake->deleteLater();
-            awake = 0;
+            awake = nullptr;
         }
         ++m_awakes;
 
@@ -6774,6 +6824,7 @@ public:
     explicit CountedExceptionThrower(bool throwException, QObject *parent = nullptr)
         : QObject(parent)
     {
+        Q_UNUSED(throwException);
 #ifndef QT_NO_EXCEPTIONS
         if (throwException)
             throw ObjectException();
@@ -7466,6 +7517,594 @@ void tst_QObject::disconnectDisconnects()
     QCOMPARE(count, 2); // α + γ
     s1.emitSignal2();
     QCOMPARE(count, 3); // + δ
+}
+
+class ReceiverDisconnecting : public QObject
+{
+    Q_OBJECT
+
+public:
+    SenderObject *sender;
+    int slotCalledCount = 0;
+
+public slots:
+    void aSlotByName()
+    {
+        ++slotCalledCount;
+        QVERIFY(!disconnect(sender, SIGNAL(signal1()), this, SLOT(aSlotByName())));
+    }
+
+    void aSlotByPtr()
+    {
+        ++slotCalledCount;
+        QVERIFY(!disconnect(sender, &SenderObject::signal1, this, &ReceiverDisconnecting::aSlotByPtr));
+    }
+};
+
+class DeleteThisReceiver : public QObject
+{
+    Q_OBJECT
+
+public:
+    static int counter;
+
+public slots:
+    void deleteThis()
+    {
+        ++counter;
+        delete this;
+    }
+};
+
+int DeleteThisReceiver::counter = 0;
+
+void tst_QObject::singleShotConnection()
+{
+    {
+        // Non single shot behavior: slot called every time the signal is emitted
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot);
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 3);
+    }
+
+    {
+        // Non single shot behavior: multiple connections cause multiple invocations
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot);
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        QMetaObject::Connection c2 = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot);
+        QVERIFY(c);
+        QVERIFY(c2);
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QVERIFY(c);
+        QVERIFY(c2);
+        QCOMPARE(sender.aPublicSlotCalled, 4);
+
+        sender.emitSignal1();
+        QVERIFY(c);
+        QVERIFY(c2);
+        QCOMPARE(sender.aPublicSlotCalled, 6);
+    }
+
+    {
+        // Single shot behavior: slot called only once
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot,
+                                            static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+    }
+
+    {
+        // Same, without holding a Connection object
+        SenderObject sender;
+        bool ok = connect(&sender, &SenderObject::signal1,
+                          &sender, &SenderObject::aPublicSlot,
+                          static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+    }
+
+    {
+        // Single shot, disconnect before emitting
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot,
+                                            static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QVERIFY(QObject::disconnect(c));
+        QVERIFY(!c);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+    }
+
+    {
+        // Single shot together with another connection
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot));
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 4);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 5);
+    }
+
+    {
+        // Two single shot, from the same signal, to the same slot
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+    }
+
+    {
+        // Two single shot, from different signals, to the same slot
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+        QVERIFY(connect(&sender, &SenderObject::signal2,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal2();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal2();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+    }
+
+    {
+        // Same signal, different connections
+        SenderObject sender;
+        ReceiverObject receiver1, receiver2;
+        receiver1.reset();
+        receiver2.reset();
+
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &receiver1, &ReceiverObject::slot1));
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &receiver2, &ReceiverObject::slot1,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+        QCOMPARE(receiver1.count_slot1, 0);
+        QCOMPARE(receiver2.count_slot1, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver1.count_slot1, 1);
+        QCOMPARE(receiver2.count_slot1, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver1.count_slot1, 2);
+        QCOMPARE(receiver2.count_slot1, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver1.count_slot1, 3);
+        QCOMPARE(receiver2.count_slot1, 1);
+
+        // Reestablish a single shot
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &receiver2, &ReceiverObject::slot1,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+        QCOMPARE(receiver1.count_slot1, 3);
+        QCOMPARE(receiver2.count_slot1, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver1.count_slot1, 4);
+        QCOMPARE(receiver2.count_slot1, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver1.count_slot1, 5);
+        QCOMPARE(receiver2.count_slot1, 2);
+    }
+
+    {
+        // Check that the slot is invoked with the connection already disconnected
+        SenderObject sender;
+        QMetaObject::Connection c;
+        auto breakSlot = [&]() {
+            QVERIFY(!c);
+            ++sender.aPublicSlotCalled;
+        };
+
+        c = connect(&sender, &SenderObject::signal1,
+                    &sender, breakSlot,
+                    static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+        QVERIFY(!c);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+        QVERIFY(!c);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+        QVERIFY(!c);
+    }
+
+    {
+        // Same
+        SenderObject sender;
+        ReceiverDisconnecting receiver;
+        receiver.sender = &sender;
+        bool ok = connect(&sender, SIGNAL(signal1()),
+                          &receiver, SLOT(aSlotByName()),
+                          static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(receiver.slotCalledCount, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        // reconnect
+        ok = connect(&sender, SIGNAL(signal1()),
+                     &receiver, SLOT(aSlotByName()),
+                     static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 2);
+    }
+
+    {
+        // Same
+        SenderObject sender;
+        ReceiverDisconnecting receiver;
+        receiver.sender = &sender;
+        bool ok = connect(&sender, &SenderObject::signal1,
+                          &receiver, &ReceiverDisconnecting::aSlotByPtr,
+                          static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+
+        QVERIFY(ok);
+        QCOMPARE(receiver.slotCalledCount, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        // reconnect
+        ok = connect(&sender, &SenderObject::signal1,
+                     &receiver, &ReceiverDisconnecting::aSlotByPtr,
+                     static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(receiver.slotCalledCount, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(receiver.slotCalledCount, 2);
+    }
+
+    {
+        // Reconnect from inside the slot
+        SenderObject sender;
+        std::function<void()> reconnectingSlot;
+        bool reconnect = false;
+        reconnectingSlot = [&]() {
+            ++sender.aPublicSlotCalled;
+            if (reconnect) {
+                QObject::connect(&sender, &SenderObject::signal1,
+                                 &sender, reconnectingSlot,
+                                 static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+            }
+        };
+
+        bool ok = connect(&sender, &SenderObject::signal1,
+                          &sender, reconnectingSlot,
+                          static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        reconnect = true;
+        ok = connect(&sender, &SenderObject::signal1,
+                                  &sender, reconnectingSlot,
+                                  static_cast<Qt::ConnectionType>(Qt::SingleShotConnection));
+        QVERIFY(ok);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 2);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 3);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 4);
+
+        reconnect = false;
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 5);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 5);
+    }
+
+    {
+        // Delete the receiver from inside the slot
+        SenderObject sender;
+        QPointer<DeleteThisReceiver> p = new DeleteThisReceiver;
+        DeleteThisReceiver::counter = 0;
+
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        p.get(), &DeleteThisReceiver::deleteThis,
+                        static_cast<Qt::ConnectionType>(Qt::SingleShotConnection)));
+
+        QVERIFY(p);
+        QCOMPARE(DeleteThisReceiver::counter, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(DeleteThisReceiver::counter, 1);
+        QVERIFY(!p);
+
+        sender.emitSignal1();
+        QCOMPARE(DeleteThisReceiver::counter, 1);
+        QVERIFY(!p);
+    }
+
+    {
+        // Queued, non single shot
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::QueuedConnection)));
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QTRY_COMPARE(sender.aPublicSlotCalled, 3);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 3);
+
+        QTRY_COMPARE(sender.aPublicSlotCalled, 4);
+    }
+
+    {
+        // Queued, single shot
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection)));
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QTRY_COMPARE(sender.aPublicSlotCalled, 1);
+        QTest::qWait(0);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+    }
+
+    {
+        // Queued, single shot, checking the connection handle
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot,
+                                            static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QTRY_COMPARE(sender.aPublicSlotCalled, 1);
+        QVERIFY(!c);
+        QTest::qWait(0);
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 1);
+    }
+
+    {
+        // Queued, single shot, disconnect before emitting
+        SenderObject sender;
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        &sender, &SenderObject::aPublicSlot,
+                        static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection)));
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QVERIFY(QObject::disconnect(&sender, &SenderObject::signal1,
+                                    &sender, &SenderObject::aPublicSlot));
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QTest::qWait(0);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+    }
+
+    {
+        // Queued, single shot, disconnect before emitting by using the connection handle
+        SenderObject sender;
+        QMetaObject::Connection c = connect(&sender, &SenderObject::signal1,
+                                            &sender, &SenderObject::aPublicSlot,
+                                            static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection));
+        QVERIFY(c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QVERIFY(QObject::disconnect(c));
+        QVERIFY(!c);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        sender.emitSignal1();
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+
+        QTest::qWait(0);
+        QVERIFY(!c);
+        QCOMPARE(sender.aPublicSlotCalled, 0);
+    }
+
+    {
+        // Queued, single shot, delete the receiver from inside the slot
+        SenderObject sender;
+        QPointer<DeleteThisReceiver> p = new DeleteThisReceiver;
+        DeleteThisReceiver::counter = 0;
+
+        QVERIFY(connect(&sender, &SenderObject::signal1,
+                        p.get(), &DeleteThisReceiver::deleteThis,
+                        static_cast<Qt::ConnectionType>(Qt::QueuedConnection | Qt::SingleShotConnection)));
+        QCOMPARE(DeleteThisReceiver::counter, 0);
+
+        sender.emitSignal1();
+        QVERIFY(p);
+        QCOMPARE(DeleteThisReceiver::counter, 0);
+
+        sender.emitSignal1();
+        QVERIFY(p);
+        QCOMPARE(DeleteThisReceiver::counter, 0);
+
+        sender.emitSignal1();
+        QVERIFY(p);
+        QCOMPARE(DeleteThisReceiver::counter, 0);
+
+        QTRY_COMPARE(DeleteThisReceiver::counter, 1);
+        QVERIFY(!p);
+        QTest::qWait(0);
+        QCOMPARE(DeleteThisReceiver::counter, 1);
+        QVERIFY(!p);
+    }
 }
 
 // Test for QtPrivate::HasQ_OBJECT_Macro

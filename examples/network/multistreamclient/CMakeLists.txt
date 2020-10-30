@@ -20,13 +20,17 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(multistreamclient
+qt_add_executable(multistreamclient
     chatconsumer.cpp chatconsumer.h
     client.cpp client.h
     consumer.h
     main.cpp
     movieconsumer.cpp movieconsumer.h
     timeconsumer.cpp timeconsumer.h
+)
+set_target_properties(multistreamclient PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(multistreamclient PUBLIC
     Qt::Core

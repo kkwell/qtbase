@@ -406,7 +406,7 @@ QStringList QWindowsFileSystemWatcherEngine::addPaths(const QStringList &paths,
         pathInfo = fileInfo;
 
         // Look for a thread
-        QWindowsFileSystemWatcherEngineThread *thread = 0;
+        QWindowsFileSystemWatcherEngineThread *thread = nullptr;
         QWindowsFileSystemWatcherEngine::Handle handle;
         QList<QWindowsFileSystemWatcherEngineThread *>::const_iterator jt, end;
         end = threads.constEnd();
@@ -596,7 +596,7 @@ QStringList QWindowsFileSystemWatcherEngine::removePaths(const QStringList &path
         }
     }
 
-    threads.removeAll(0);
+    threads.removeAll(nullptr);
     return unhandled;
 }
 

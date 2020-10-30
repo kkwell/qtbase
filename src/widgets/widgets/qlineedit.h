@@ -214,6 +214,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *) override;
     void mouseDoubleClickEvent(QMouseEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
+    void keyReleaseEvent(QKeyEvent *) override;
     void focusInEvent(QFocusEvent *) override;
     void focusOutEvent(QFocusEvent *) override;
     void paintEvent(QPaintEvent *) override;
@@ -233,6 +234,7 @@ protected:
 public:
     QVariant inputMethodQuery(Qt::InputMethodQuery) const override;
     Q_INVOKABLE QVariant inputMethodQuery(Qt::InputMethodQuery property, QVariant argument) const;
+    void timerEvent(QTimerEvent *) override;
     bool event(QEvent *) override;
 protected:
     QRect cursorRect() const;
@@ -261,6 +263,7 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_updateNeeded(const QRect &))
     Q_PRIVATE_SLOT(d_func(), void _q_textChanged(const QString &))
     Q_PRIVATE_SLOT(d_func(), void _q_clearButtonClicked())
+    Q_PRIVATE_SLOT(d_func(), void _q_controlEditingFinished())
 };
 
 QT_END_NAMESPACE

@@ -20,12 +20,16 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS PrintSupport) # special case
 
-add_qt_gui_executable(spreadsheet
+qt_add_executable(spreadsheet
     main.cpp
     printview.cpp printview.h
     spreadsheet.cpp spreadsheet.h
     spreadsheetdelegate.cpp spreadsheetdelegate.h
     spreadsheetitem.cpp spreadsheetitem.h
+)
+set_target_properties(spreadsheet PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(spreadsheet PUBLIC
     Qt::Core

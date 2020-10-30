@@ -45,6 +45,7 @@
 #include <qdebug.h>
 #include <qiodevice.h>
 #include <qimage.h>
+#include <qloggingcategory.h>
 #include <qvariant.h>
 
 #include <private/qimage_p.h> // for qt_getImageText
@@ -79,6 +80,8 @@
 #endif
 
 QT_BEGIN_NAMESPACE
+
+Q_DECLARE_LOGGING_CATEGORY(lcImageIo)
 
 // avoid going through QImage::scanLine() which calls detach
 #define FAST_SCAN_LINE(data, bpl, y) (data + (y) * bpl)
@@ -497,7 +500,7 @@ static void read_image_scaled(QImage *outImage, png_structp png_ptr, png_infop i
 extern "C" {
 static void qt_png_warning(png_structp /*png_ptr*/, png_const_charp message)
 {
-    qWarning("libpng warning: %s", message);
+    qCWarning(lcImageIo, "libpng warning: %s", message);
 }
 
 }
@@ -587,29 +590,29 @@ bool QPngHandlerPrivate::readPngHeader()
         png_get_iCCP(png_ptr, info_ptr, &name, &compressionType, &profileData, &profLen);
         colorSpace = QColorSpace::fromIccProfile(QByteArray((const char *)profileData, profLen));
         if (!colorSpace.isValid()) {
-            qWarning() << "QPngHandler: Failed to parse ICC profile";
+            qCWarning(lcImageIo) << "QPngHandler: Failed to parse ICC profile";
         } else {
-            QColorSpacePrivate *csD = QColorSpacePrivate::getWritable(colorSpace);
+            QColorSpacePrivate *csD = QColorSpacePrivate::get(colorSpace);
             if (csD->description.isEmpty())
                 csD->description = QString::fromLatin1((const char *)name);
             colorSpaceState = Icc;
         }
     }
 #endif
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB)) {
+    if (colorSpaceState <= Srgb && png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB)) {
         int rendering_intent = -1;
         png_get_sRGB(png_ptr, info_ptr, &rendering_intent);
         // We don't actually care about the rendering_intent, just that it is valid
-        if (rendering_intent >= 0 && rendering_intent <= 3 && colorSpaceState <= Srgb) {
+        if (rendering_intent >= 0 && rendering_intent <= 3) {
             colorSpace = QColorSpace::SRgb;
             colorSpaceState = Srgb;
         }
     }
-    if (png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA)) {
+    if (colorSpaceState <= GammaChrm && png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA)) {
         double file_gamma = 0.0;
         png_get_gAMA(png_ptr, info_ptr, &file_gamma);
         fileGamma = file_gamma;
-        if (fileGamma > 0.0f && colorSpaceState <= GammaChrm) {
+        if (fileGamma > 0.0f) {
             QColorSpacePrimaries primaries;
             if (png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM)) {
                 double white_x, white_y, red_x, red_y;
@@ -659,7 +662,7 @@ bool QPngHandlerPrivate::readPngImage(QImage *outImage)
         // This configuration forces gamma correction and
         // thus changes the output colorspace
         png_set_gamma(png_ptr, 1.0f / gamma, fileGamma);
-        colorSpace = colorSpace.withTransferFunction(QColorSpace::TransferFunction::Gamma, 1.0f / gamma);
+        colorSpace.setTransferFunction(QColorSpace::TransferFunction::Gamma, 1.0f / gamma);
         colorSpaceState = GammaChrm;
     }
 
@@ -833,7 +836,7 @@ static void set_text(const QImage &image, png_structp png_ptr, png_infop info_pt
 
 #ifdef PNG_iTXt_SUPPORTED
         bool needsItxt = false;
-        for (const QChar c : it.value()) {
+        for (QChar c : it.value()) {
             uchar ch = c.cell();
             if (c.row() || (ch < 0x20 && ch != '\n') || (ch > 0x7e && ch < 0xa0)) {
                 needsItxt = true;
@@ -911,7 +914,7 @@ bool QPNGImageWriter::writeImage(const QImage& image, int compression_in, const 
     int compression = compression_in;
     if (compression >= 0) {
         if (compression > 9) {
-            qWarning("PNG: Compression %d out of range", compression);
+            qCWarning(lcImageIo, "PNG: Compression %d out of range", compression);
             compression = 9;
         }
         png_set_compression_level(png_ptr, compression);
@@ -1204,7 +1207,7 @@ bool QPngHandler::canRead() const
 bool QPngHandler::canRead(QIODevice *device)
 {
     if (!device) {
-        qWarning("QPngHandler::canRead() called with no device");
+        qCWarning(lcImageIo, "QPngHandler::canRead() called with no device");
         return false;
     }
 

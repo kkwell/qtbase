@@ -336,6 +336,7 @@ def set_up_cmake_api_calls():
     api[1]["qt_add_qml_module"] = "add_qml_module"
     api[1]["qt_add_cmake_library"] = "add_cmake_library"
     api[1]["qt_add_3rdparty_library"] = "qt_add_3rdparty_library"
+    api[1]["qt_create_tracepoints"] = "qt_create_tracepoints"
 
     api[2]["qt_extend_target"] = "qt_extend_target"
     api[2]["qt_add_module"] = "qt_add_module"
@@ -353,6 +354,25 @@ def set_up_cmake_api_calls():
     api[2]["qt_add_qml_module"] = "qt_add_qml_module"
     api[2]["qt_add_cmake_library"] = "qt_add_cmake_library"
     api[2]["qt_add_3rdparty_library"] = "qt_add_3rdparty_library"
+    api[2]["qt_create_tracepoints"] = "qt_create_tracepoints"
+
+    api[3]["qt_extend_target"] = "qt_internal_extend_target"
+    api[3]["qt_add_module"] = "qt_internal_add_module"
+    api[3]["qt_add_plugin"] = "qt_internal_add_plugin"
+    api[3]["qt_add_tool"] = "qt_internal_add_tool"
+    api[3]["qt_internal_add_app"] = "qt_internal_add_app"
+    api[3]["qt_add_test"] = "qt_internal_add_test"
+    api[3]["qt_add_test_helper"] = "qt_internal_add_test_helper"
+    api[3]["qt_add_manual_test"] = "qt_internal_add_manual_test"
+    api[3]["qt_add_benchmark"] = "qt_internal_add_benchmark"
+    api[3]["qt_add_executable"] = "qt_internal_add_executable"
+    api[3]["qt_add_simd_part"] = "qt_internal_add_simd_part"
+    api[3]["qt_add_docs"] = "qt_internal_add_docs"
+    api[3]["qt_add_resource"] = "qt_internal_add_resource"
+    api[3]["qt_add_qml_module"] = "qt_internal_add_qml_module"
+    api[3]["qt_add_cmake_library"] = "qt_internal_add_cmake_library"
+    api[3]["qt_add_3rdparty_library"] = "qt_internal_add_3rdparty_library"
+    api[3]["qt_create_tracepoints"] = "qt_internal_create_tracepoints"
 
     return api
 
@@ -372,16 +392,22 @@ def detect_cmake_api_version_used_in_file_content(project_file_path: str) -> Opt
     with open(cmake_project_path, "r") as file_fd:
         contents = file_fd.read()
 
-        new_api_calls = [cmake_api_calls[2][api_call] for api_call in cmake_api_calls[2]]
-        new_api_calls_alternatives = "|".join(new_api_calls)
-        match = re.search(new_api_calls_alternatives, contents)
+        api_call_versions = [version for version in cmake_api_calls]
+        api_call_versions = sorted(api_call_versions, reverse=True)
+        api_call_version_matches = {}
+        for version in api_call_versions:
+            versioned_api_calls = [cmake_api_calls[version][api_call]
+                                   for api_call in cmake_api_calls[version]]
+            versioned_api_calls_alternatives = "|".join(versioned_api_calls)
+            api_call_version_matches[version] = re.search(versioned_api_calls_alternatives, contents)
 
         # If new style found, return latest api version. Otherwise
-        # the old version.
-        if match:
-            return 2
-        else:
-            return 1
+        # return the current version.
+        for version in api_call_version_matches:
+            if api_call_version_matches[version]:
+                return version
+
+    return 1
 
 
 def get_cmake_api_call(api_name: str, api_version: Optional[int] = None) -> str:
@@ -586,6 +612,7 @@ class QmlDir:
         self.plugin_path = ""
         self.classname = ""
         self.imports: List[str] = []
+        self.optional_imports: List[str] = []
         self.type_names: Dict[str, QmlDirFileInfo] = {}
         self.type_infos: List[str] = []
         self.depends: List[Tuple[str, str]] = []
@@ -594,12 +621,14 @@ class QmlDir:
     def __str__(self) -> str:
         type_infos_line = "    \n".join(self.type_infos)
         imports_line = "    \n".join(self.imports)
+        optional_imports_line = "    \n".join(self.optional_imports)
         string = f"""\
             module: {self.module}
             plugin: {self.plugin_optional} {self.plugin_name} {self.plugin_path}
             classname: {self.classname}
             type_infos:{type_infos_line}
             imports:{imports_line}
+            optional_imports:{optional_imports_line}
             dependends:
             """
         for dep in self.depends:
@@ -667,7 +696,7 @@ class QmlDir:
             raise RuntimeError("Unexpected QmlDir file line entry")
         if entries[0] == "module":
             self.module = entries[1]
-        elif entries[0] == "[singleton]":
+        elif entries[0] == "singleton":
             self.handle_file_singleton(entries[1], entries[2], entries[3])
         elif entries[0] == "internal":
             self.handle_file_internal(entries[1], entries[2])
@@ -676,12 +705,18 @@ class QmlDir:
             if len(entries) > 2:
                 self.plugin_path = entries[2]
         elif entries[0] == "optional":
-            if entries[1] != "plugin":
-                raise RuntimeError("Only plugins can be optional in qmldir files")
-            self.plugin_name = entries[2]
-            self.plugin_optional = True
-            if len(entries) > 3:
-                self.plugin_path = entries[3]
+            if entries[1] == "plugin":
+                self.plugin_name = entries[2]
+                self.plugin_optional = True
+                if len(entries) > 3:
+                    self.plugin_path = entries[3]
+            elif entries[1] == "import":
+                if len(entries) == 4:
+                    self.optional_imports.append(entries[2] + "/" + entries[3])
+                else:
+                    self.optional_imports.append(entries[2])
+            else:
+                raise RuntimeError("Only plugins and imports can be optional in qmldir files")
         elif entries[0] == "classname":
             self.classname = entries[1]
         elif entries[0] == "typeinfo":
@@ -3346,8 +3381,9 @@ def write_module(cm_fh: IO[str], scope: Scope, *, indent: int = 0) -> str:
 
     if "qt_tracepoints" in scope.get("CONFIG"):
         tracepoints = scope.get_files("TRACEPOINT_PROVIDER")
+        create_trace_points = get_cmake_api_call("qt_create_tracepoints")
         cm_fh.write(
-            f"\n\n{spaces(indent)}qt_create_tracepoints({module_name[2:]} {' '.join(tracepoints)})\n"
+            f"\n\n{spaces(indent)}{create_trace_points}({module_name[2:]} {' '.join(tracepoints)})\n"
         )
 
     return target_name
@@ -3532,7 +3568,7 @@ def write_jar(cm_fh: IO[str], scope: Scope, *, indent: int = 0) -> str:
         cm_fh, scope, "", ["JAVASOURCES"], indent=indent, header=f"set(java_sources\n", footer=")\n"
     )
 
-    cm_fh.write(f"{spaces(indent)}add_jar({target}\n")
+    cm_fh.write(f"{spaces(indent)}qt_internal_add_jar({target}\n")
     cm_fh.write(f"{spaces(indent+1)}INCLUDE_JARS {android_sdk_jar}\n")
     cm_fh.write(f"{spaces(indent+1)}SOURCES ${{java_sources}}\n")
     cm_fh.write(f'{spaces(indent+1)}OUTPUT_DIR "${{QT_BUILD_DIR}}/{install_dir}"\n')
@@ -3544,6 +3580,34 @@ def write_jar(cm_fh: IO[str], scope: Scope, *, indent: int = 0) -> str:
     cm_fh.write(f"{spaces(indent)})\n\n")
 
     return target
+
+
+def write_win32_and_mac_bundle_properties(cm_fh: IO[str], scope: Scope, target: str, *,
+                                          handling_first_scope=False, indent: int = 0):
+    config = scope.get("CONFIG")
+    win32 = all(val not in config for val in ["cmdline", "console"])
+    mac_bundle = all(val not in config for val in ["cmdline", "-app_bundle"])
+
+    true_value = "TRUE"
+    false_value = "FALSE"
+
+    properties_mapping = {"WIN32_EXECUTABLE": true_value if win32 else false_value,
+                          "MACOSX_BUNDLE": true_value if mac_bundle else false_value}
+
+    properties = []
+
+    # Always write the properties for the first scope.
+    # For conditional scopes, only write them if the value is different
+    # from the default value (aka different from TRUE).
+    # This is a heurestic that should cover 90% of the example projects
+    # without creating excess noise of setting the properties in every
+    # single scope.
+    for name, value in properties_mapping.items():
+        if handling_first_scope or (not handling_first_scope and value != true_value):
+            properties.extend([name, value])
+
+    if properties:
+        write_set_target_properties(cm_fh, [target], properties, indent=indent)
 
 
 def write_example(
@@ -3667,6 +3731,9 @@ def write_example(
                     add_target += f"    IMPORTS\n{qml_dir_imports_line}"
                 if qml_dir_dynamic_imports:
                     add_target += "    IMPORTS ${module_dynamic_qml_imports}\n"
+                if len(qml_dir.optional_imports) != 0:
+                    qml_dir_optional_imports_line = "        \n".join(qml_dir.optional_imports)
+                    add_target += f"    OPTIONAL_IMPORTS\n{qml_dir_optional_imports_line}"
                 if qml_dir.plugin_optional:
                     add_target += "    PLUGIN_OPTIONAL\n"
 
@@ -3680,7 +3747,7 @@ def write_example(
             add_target += f"target_sources({binary_name} PRIVATE"
 
     else:
-        add_target = f'add_{"qt_gui_" if gui else ""}executable({binary_name}'
+        add_target = f'qt_add_executable({binary_name}'
 
     write_all_source_file_lists(cm_fh, scope, add_target, indent=0)
     cm_fh.write(")\n")
@@ -3707,6 +3774,12 @@ def write_example(
             write_all_source_file_lists(
                 io_string, scope, target_sources, indent=indent, footer=")\n"
             )
+
+        write_win32_and_mac_bundle_properties(io_string,
+                                              scope,
+                                              binary_name,
+                                              handling_first_scope=handling_first_scope,
+                                              indent=indent)
 
         write_include_paths(
             io_string,
@@ -3815,6 +3888,9 @@ def write_plugin(cm_fh, scope, *, indent: int = 0) -> str:
             extra.append("SKIP_INSTALL")
     if "qmltypes" in scope.get("CONFIG"):
         extra.append("GENERATE_QMLTYPES")
+
+    if "install_qmltypes" in scope.get("CONFIG"):
+        extra.append("INSTALL_QMLTYPES")
 
     if "static" in scope.get("CONFIG"):
         extra.append("STATIC")
@@ -3959,6 +4035,9 @@ def write_qml_plugin(
             extra_lines.append("IMPORTS\n        " f"{qml_dir_imports_line}")
         if qml_dir_dynamic_imports:
             extra_lines.append("IMPORTS ${module_dynamic_qml_imports}")
+        if len(qml_dir.optional_imports):
+            qml_dir_optional_imports_line = "\n        ".join(qml_dir.optional_imports)
+            extra_lines.append("OPTIONAL_IMPORTS\n        " f"{qml_dir_optional_imports_line}")
         if qml_dir.plugin_optional:
             extra_lines.append("PLUGIN_OPTIONAL")
 

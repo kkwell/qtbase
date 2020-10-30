@@ -47,11 +47,12 @@
 #include <QtCore/qshareddata.h>
 #include <QtCore/qvariant.h>
 
+#include <iterator>
+
 QT_REQUIRE_CONFIG(regularexpression);
 
 QT_BEGIN_NAMESPACE
 
-class QStringList;
 class QLatin1String;
 
 class QRegularExpressionMatch;
@@ -87,8 +88,7 @@ public:
     QRegularExpression(const QRegularExpression &re);
     ~QRegularExpression();
     QRegularExpression &operator=(const QRegularExpression &re);
-    QRegularExpression &operator=(QRegularExpression &&re) noexcept
-    { d.swap(re.d); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QRegularExpression)
 
     void swap(QRegularExpression &other) noexcept { d.swap(other.d); }
 
@@ -167,7 +167,7 @@ public:
     static QString wildcardToRegularExpression(QStringView str, WildcardConversionOptions options = DefaultWildcardConversion);
     static QString anchoredPattern(QStringView expression);
 
-    static QRegularExpression fromWildcard(QStringView str, Qt::CaseSensitivity cs = Qt::CaseInsensitive,
+    static QRegularExpression fromWildcard(QStringView pattern, Qt::CaseSensitivity cs = Qt::CaseInsensitive,
                                            WildcardConversionOptions options = DefaultWildcardConversion);
 
     bool operator==(const QRegularExpression &re) const;
@@ -226,7 +226,8 @@ public:
     QStringView capturedView(int nth = 0) const;
 
 #if QT_STRINGVIEW_LEVEL < 2
-    QString captured(const QString &name) const;
+    QString captured(const QString &name) const
+    { return captured(QStringView(name)); }
 #endif
 
     QString captured(QStringView name) const;
@@ -239,9 +240,12 @@ public:
     qsizetype capturedEnd(int nth = 0) const;
 
 #if QT_STRINGVIEW_LEVEL < 2
-    qsizetype capturedStart(const QString &name) const;
-    qsizetype capturedLength(const QString &name) const;
-    qsizetype capturedEnd(const QString &name) const;
+    qsizetype capturedStart(const QString &name) const
+    { return capturedStart(QStringView(name)); }
+    qsizetype capturedLength(const QString &name) const
+    { return capturedLength(QStringView(name)); }
+    qsizetype capturedEnd(const QString &name) const
+    { return capturedEnd(QStringView(name)); }
 #endif
 
     qsizetype capturedStart(QStringView name) const;
@@ -254,7 +258,7 @@ private:
     friend class QRegularExpressionMatchIterator;
 
     QRegularExpressionMatch(QRegularExpressionMatchPrivate &dd);
-    QSharedDataPointer<QRegularExpressionMatchPrivate> d;
+    QExplicitlySharedDataPointer<QRegularExpressionMatchPrivate> d;
 };
 
 Q_DECLARE_SHARED(QRegularExpressionMatch)
@@ -262,6 +266,11 @@ Q_DECLARE_SHARED(QRegularExpressionMatch)
 #ifndef QT_NO_DEBUG_STREAM
 Q_CORE_EXPORT QDebug operator<<(QDebug debug, const QRegularExpressionMatch &match);
 #endif
+
+namespace QtPrivate {
+class QRegularExpressionMatchIteratorRangeBasedForIterator;
+class QRegularExpressionMatchIteratorRangeBasedForIteratorSentinel {};
+}
 
 struct QRegularExpressionMatchIteratorPrivate;
 
@@ -288,10 +297,99 @@ public:
 
 private:
     friend class QRegularExpression;
+    friend Q_CORE_EXPORT QtPrivate::QRegularExpressionMatchIteratorRangeBasedForIterator begin(const QRegularExpressionMatchIterator &iterator);
+    friend QtPrivate::QRegularExpressionMatchIteratorRangeBasedForIteratorSentinel end(const QRegularExpressionMatchIterator &) { return {}; }
 
     QRegularExpressionMatchIterator(QRegularExpressionMatchIteratorPrivate &dd);
-    QSharedDataPointer<QRegularExpressionMatchIteratorPrivate> d;
+    QExplicitlySharedDataPointer<QRegularExpressionMatchIteratorPrivate> d;
 };
+
+namespace QtPrivate {
+
+// support for range-based for loop
+class QRegularExpressionMatchIteratorRangeBasedForIterator
+{
+public:
+    using value_type = QRegularExpressionMatch;
+    using difference_type = int;
+    using reference_type = const QRegularExpressionMatch &;
+    using pointer_type = const QRegularExpressionMatch *;
+    using iterator_category = std::forward_iterator_tag;
+
+    QRegularExpressionMatchIteratorRangeBasedForIterator()
+        : m_atEnd(true)
+    {
+    }
+
+    explicit QRegularExpressionMatchIteratorRangeBasedForIterator(const QRegularExpressionMatchIterator &iterator)
+        : m_matchIterator(iterator),
+        m_currentMatch(),
+        m_atEnd(false)
+    {
+        ++*this;
+    }
+
+    const QRegularExpressionMatch &operator*() const
+    {
+        Q_ASSERT_X(!m_atEnd, Q_FUNC_INFO, "operator* called on an iterator already at the end");
+        return m_currentMatch;
+    }
+
+    QRegularExpressionMatchIteratorRangeBasedForIterator &operator++()
+    {
+        Q_ASSERT_X(!m_atEnd, Q_FUNC_INFO, "operator++ called on an iterator already at the end");
+        if (m_matchIterator.hasNext()) {
+            m_currentMatch = m_matchIterator.next();
+        } else {
+            m_currentMatch = QRegularExpressionMatch();
+            m_atEnd = true;
+        }
+
+        return *this;
+    }
+
+    QRegularExpressionMatchIteratorRangeBasedForIterator operator++(int)
+    {
+        QRegularExpressionMatchIteratorRangeBasedForIterator i = *this;
+        ++*this;
+        return i;
+    }
+
+private:
+    // [input.iterators] imposes operator== on us. Unfortunately, it's not
+    // trivial to implement, so just do the bare minimum to satifisfy
+    // Cpp17EqualityComparable.
+    friend bool operator==(const QRegularExpressionMatchIteratorRangeBasedForIterator &lhs,
+                           const QRegularExpressionMatchIteratorRangeBasedForIterator &rhs) noexcept
+    {
+        return (&lhs == &rhs);
+    }
+
+    friend bool operator!=(const QRegularExpressionMatchIteratorRangeBasedForIterator &lhs,
+                           const QRegularExpressionMatchIteratorRangeBasedForIterator &rhs) noexcept
+    {
+        return !(lhs == rhs);
+    }
+
+    // This is what we really use in a range-based for.
+    friend bool operator==(const QRegularExpressionMatchIteratorRangeBasedForIterator &lhs,
+                           QRegularExpressionMatchIteratorRangeBasedForIteratorSentinel) noexcept
+    {
+        return lhs.m_atEnd;
+    }
+
+    friend bool operator!=(const QRegularExpressionMatchIteratorRangeBasedForIterator &lhs,
+                           QRegularExpressionMatchIteratorRangeBasedForIteratorSentinel) noexcept
+    {
+        return !lhs.m_atEnd;
+    }
+
+    QRegularExpressionMatchIterator m_matchIterator;
+    QRegularExpressionMatch m_currentMatch;
+    bool m_atEnd;
+};
+
+} // namespace QtPrivate
 
 Q_DECLARE_SHARED(QRegularExpressionMatchIterator)
 

@@ -204,11 +204,15 @@ public:
         UInt4,
         UInt3,
         UInt2,
-        UInt
+        UInt,
+        SInt4,
+        SInt3,
+        SInt2,
+        SInt
     };
 
     QRhiVertexInputAttribute() = default;
-    QRhiVertexInputAttribute(int binding, int location, Format format, quint32 offset);
+    QRhiVertexInputAttribute(int binding, int location, Format format, quint32 offset, int matrixSlice = -1);
 
     int binding() const { return m_binding; }
     void setBinding(int b) { m_binding = b; }
@@ -222,11 +226,15 @@ public:
     quint32 offset() const { return m_offset; }
     void setOffset(quint32 ofs) { m_offset = ofs; }
 
+    int matrixSlice() const { return m_matrixSlice; }
+    void setMatrixSlice(int slice) { m_matrixSlice = slice; }
+
 private:
     int m_binding = 0;
     int m_location = 0;
     Format m_format = Float4;
     quint32 m_offset = 0;
+    int m_matrixSlice = -1;
 };
 
 Q_DECLARE_TYPEINFO(QRhiVertexInputAttribute, Q_MOVABLE_TYPE);
@@ -342,7 +350,7 @@ public:
     };
     Q_DECLARE_FLAGS(StageFlags, StageFlag)
 
-    QRhiShaderResourceBinding();
+    QRhiShaderResourceBinding() = default;
 
     bool isLayoutCompatible(const QRhiShaderResourceBinding &other) const;
 
@@ -411,7 +419,7 @@ private:
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QRhiShaderResourceBinding::StageFlags)
 
-Q_DECLARE_TYPEINFO(QRhiShaderResourceBinding, Q_MOVABLE_TYPE);
+Q_DECLARE_TYPEINFO(QRhiShaderResourceBinding, Q_PRIMITIVE_TYPE);
 
 Q_GUI_EXPORT bool operator==(const QRhiShaderResourceBinding &a, const QRhiShaderResourceBinding &b) noexcept;
 Q_GUI_EXPORT bool operator!=(const QRhiShaderResourceBinding &a, const QRhiShaderResourceBinding &b) noexcept;
@@ -713,6 +721,9 @@ public:
 
     virtual NativeBuffer nativeBuffer();
 
+    virtual char *beginFullDynamicBufferUpdateForCurrentFrame();
+    virtual void endFullDynamicBufferUpdateForCurrentFrame();
+
 protected:
     QRhiBuffer(QRhiImplementation *rhi, Type type_, UsageFlags usage_, int size_);
     Type m_type;
@@ -1008,7 +1019,10 @@ public:
 
 protected:
     QRhiShaderResourceBindings(QRhiImplementation *rhi);
-    QVarLengthArray<QRhiShaderResourceBinding, 8> m_bindings;
+    QVarLengthArray<QRhiShaderResourceBinding, 16> m_bindings;
+    uint m_layoutDescHash = 0;
+    QVarLengthArray<uint, 16 * 3> m_layoutDesc;
+    friend class QRhiImplementation;
 #ifndef QT_NO_DEBUG_STREAM
     friend Q_GUI_EXPORT QDebug operator<<(QDebug, const QRhiShaderResourceBindings &);
 #endif
@@ -1324,6 +1338,12 @@ public:
         IndexUInt32
     };
 
+    enum BeginPassFlag {
+        ExternalContent = 0x01,
+        DoNotTrackResourcesForCompute = 0x02
+    };
+    Q_DECLARE_FLAGS(BeginPassFlags, BeginPassFlag)
+
     QRhiResource::Type resourceType() const override;
 
     void resourceUpdate(QRhiResourceUpdateBatch *resourceUpdates);
@@ -1331,7 +1351,8 @@ public:
     void beginPass(QRhiRenderTarget *rt,
                    const QColor &colorClearValue,
                    const QRhiDepthStencilClearValue &depthStencilClearValue,
-                   QRhiResourceUpdateBatch *resourceUpdates = nullptr);
+                   QRhiResourceUpdateBatch *resourceUpdates = nullptr,
+                   BeginPassFlags flags = {});
     void endPass(QRhiResourceUpdateBatch *resourceUpdates = nullptr);
 
     void setGraphicsPipeline(QRhiGraphicsPipeline *ps);
@@ -1364,7 +1385,7 @@ public:
     void debugMarkEnd();
     void debugMarkMsg(const QByteArray &msg);
 
-    void beginComputePass(QRhiResourceUpdateBatch *resourceUpdates = nullptr);
+    void beginComputePass(QRhiResourceUpdateBatch *resourceUpdates = nullptr, BeginPassFlags flags = {});
     void endComputePass(QRhiResourceUpdateBatch *resourceUpdates = nullptr);
     void setComputePipeline(QRhiComputePipeline *ps);
     void dispatch(int x, int y, int z);
@@ -1376,6 +1397,8 @@ public:
 protected:
     QRhiCommandBuffer(QRhiImplementation *rhi);
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QRhiCommandBuffer::BeginPassFlags)
 
 struct Q_GUI_EXPORT QRhiReadbackResult
 {
@@ -1399,6 +1422,7 @@ public:
     void release();
 
     void merge(QRhiResourceUpdateBatch *other);
+    bool hasOptimalCapacity() const;
 
     void updateDynamicBuffer(QRhiBuffer *buf, int offset, int size, const void *data);
     void uploadStaticBuffer(QRhiBuffer *buf, int offset, int size, const void *data);
@@ -1408,7 +1432,7 @@ public:
     void uploadTexture(QRhiTexture *tex, const QImage &image);
     void copyTexture(QRhiTexture *dst, QRhiTexture *src, const QRhiTextureCopyDescription &desc = QRhiTextureCopyDescription());
     void readBackTexture(const QRhiReadbackDescription &rb, QRhiReadbackResult *result);
-    void generateMips(QRhiTexture *tex, int layer = 0);
+    void generateMips(QRhiTexture *tex);
 
 private:
     QRhiResourceUpdateBatch(QRhiImplementation *rhi);
@@ -1470,13 +1494,12 @@ public:
         ReadBackNonBaseMipLevel,
         TexelFetch,
         RenderToNonBaseMipLevel,
-        UIntAttributes,
+        IntAttributes,
         ScreenSpaceDerivatives,
         ReadBackAnyTextureFormat
     };
 
     enum BeginFrameFlag {
-        ExternalContentsInPass = 0x01
     };
     Q_DECLARE_FLAGS(BeginFrameFlags, BeginFrameFlag)
 
@@ -1490,14 +1513,19 @@ public:
         TextureSizeMax,
         MaxColorAttachments,
         FramesInFlight,
-        MaxAsyncReadbackFrames
+        MaxAsyncReadbackFrames,
+        MaxThreadGroupsPerDimension,
+        MaxThreadsPerThreadGroup,
+        MaxThreadGroupX,
+        MaxThreadGroupY,
+        MaxThreadGroupZ
     };
 
     ~QRhi();
 
     static QRhi *create(Implementation impl,
                         QRhiInitParams *params,
-                        Flags flags = Flags(),
+                        Flags flags = {},
                         QRhiNativeHandles *importDevice = nullptr);
 
     Implementation backend() const;
@@ -1518,13 +1546,13 @@ public:
     QRhiRenderBuffer *newRenderBuffer(QRhiRenderBuffer::Type type,
                                       const QSize &pixelSize,
                                       int sampleCount = 1,
-                                      QRhiRenderBuffer::Flags flags = QRhiRenderBuffer::Flags(),
+                                      QRhiRenderBuffer::Flags flags = {},
                                       QRhiTexture::Format backingFormatHint = QRhiTexture::UnknownFormat);
 
     QRhiTexture *newTexture(QRhiTexture::Format format,
                             const QSize &pixelSize,
                             int sampleCount = 1,
-                            QRhiTexture::Flags flags = QRhiTexture::Flags());
+                            QRhiTexture::Flags flags = {});
 
     QRhiSampler *newSampler(QRhiSampler::Filter magFilter,
                             QRhiSampler::Filter minFilter,
@@ -1534,16 +1562,16 @@ public:
                             QRhiSampler::AddressMode addressW = QRhiSampler::Repeat);
 
     QRhiTextureRenderTarget *newTextureRenderTarget(const QRhiTextureRenderTargetDescription &desc,
-                                                    QRhiTextureRenderTarget::Flags flags = QRhiTextureRenderTarget::Flags());
+                                                    QRhiTextureRenderTarget::Flags flags = {});
 
     QRhiSwapChain *newSwapChain();
-    FrameOpResult beginFrame(QRhiSwapChain *swapChain, BeginFrameFlags flags = BeginFrameFlags());
-    FrameOpResult endFrame(QRhiSwapChain *swapChain, EndFrameFlags flags = EndFrameFlags());
+    FrameOpResult beginFrame(QRhiSwapChain *swapChain, BeginFrameFlags flags = {});
+    FrameOpResult endFrame(QRhiSwapChain *swapChain, EndFrameFlags flags = {});
     bool isRecordingFrame() const;
     int currentFrameSlot() const;
 
-    FrameOpResult beginOffscreenFrame(QRhiCommandBuffer **cb, BeginFrameFlags flags = BeginFrameFlags());
-    FrameOpResult endOffscreenFrame(EndFrameFlags flags = EndFrameFlags());
+    FrameOpResult beginOffscreenFrame(QRhiCommandBuffer **cb, BeginFrameFlags flags = {});
+    FrameOpResult endOffscreenFrame(EndFrameFlags flags = {});
 
     QRhi::FrameOpResult finish();
 
@@ -1563,7 +1591,7 @@ public:
 
     QMatrix4x4 clipSpaceCorrMatrix() const;
 
-    bool isTextureFormatSupported(QRhiTexture::Format format, QRhiTexture::Flags flags = QRhiTexture::Flags()) const;
+    bool isTextureFormatSupported(QRhiTexture::Format format, QRhiTexture::Flags flags = {}) const;
     bool isFeatureSupported(QRhi::Feature feature) const;
     int resourceLimit(ResourceLimit limit) const;
 

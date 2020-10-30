@@ -76,7 +76,7 @@ QByteArray QDBusArgumentPrivate::createSignature(int id)
     // run it
     QVariant v{QMetaType(id)};
     QDBusArgument arg(marshaller);
-    QDBusMetaType::marshall(arg, v.userType(), v.constData());
+    QDBusMetaType::marshall(arg, v.metaType(), v.constData());
     arg.d = nullptr;
 
     // delete it
@@ -96,7 +96,7 @@ QByteArray QDBusArgumentPrivate::createSignature(int id)
                  "(Did you forget to call beginStructure() ?)",
                  QMetaType(id).name(),
                  signature.constData(),
-                 QMetaType(QDBusMetaType::signatureToType(signature)).name());
+                 QDBusMetaType::signatureToMetaType(signature).name());
         return "";
     }
     return signature;
@@ -268,7 +268,7 @@ bool QDBusArgumentPrivate::checkReadAndDetach(QDBusArgumentPrivate *&d)
 */
 
 /*!
-    \fn template<typename T> T qdbus_cast(const QDBusArgument &arg, T*)
+    \fn template<typename T> T qdbus_cast(const QDBusArgument &arg)
     \relates QDBusArgument
     \since 4.2
 
@@ -879,7 +879,7 @@ void QDBusArgument::endStructure()
 
     \sa endArray(), beginStructure(), beginMap()
 */
-void QDBusArgument::beginArray(int id)
+void QDBusArgument::beginArray(QMetaType id)
 {
     if (QDBusArgumentPrivate::checkWrite(d))
         d = d->marshaller()->beginArray(id);
@@ -901,8 +901,8 @@ void QDBusArgument::endArray()
     Opens a new D-Bus map suitable for
     appending elements. Maps are containers that associate one entry
     (the key) to another (the value), such as Qt's QMap or QHash. The
-    ids of the map's key and value meta types must be passed in \a kid
-    and \a vid respectively.
+    ids of the map's key and value meta types must be passed in \a keyMetaType
+    and \a valueMetaType respectively.
 
     This function is used usually in \c{operator<<} streaming
     operators, as in the following example:
@@ -916,10 +916,10 @@ void QDBusArgument::endArray()
 
     \sa endMap(), beginStructure(), beginArray(), beginMapEntry()
 */
-void QDBusArgument::beginMap(int kid, int vid)
+void QDBusArgument::beginMap(QMetaType keyMetaType, QMetaType valueMetaType)
 {
     if (QDBusArgumentPrivate::checkWrite(d))
-        d = d->marshaller()->beginMap(kid, vid);
+        d = d->marshaller()->beginMap(keyMetaType, valueMetaType);
 }
 
 /*!
@@ -1107,7 +1107,7 @@ bool QDBusArgument::atEnd() const
     argument (for example, by calling asVariant() in it).
 
     For example, if the current argument is an INT32, this function
-    will return a QVariant with an argument of type QVariant::Int. For
+    will return a QVariant with an argument of type QMetaType::Int. For
     an array of INT32, it will return a QVariant containing a
     QDBusArgument.
 

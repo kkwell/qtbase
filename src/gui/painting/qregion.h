@@ -70,12 +70,11 @@ public:
     QRegion(const QPolygon &pa, Qt::FillRule fillRule = Qt::OddEvenFill);
     QRegion(const QRegion &region);
     QRegion(QRegion &&other) noexcept
-        : d(other.d) { other.d = const_cast<QRegionData*>(&shared_empty); }
+        : d(qExchange(other.d, const_cast<QRegionData*>(&shared_empty))) {}
     QRegion(const QBitmap &bitmap);
     ~QRegion();
     QRegion &operator=(const QRegion &);
-    inline QRegion &operator=(QRegion &&other) noexcept
-    { qSwap(d, other.d); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QRegion);
     inline void swap(QRegion &other) noexcept { qSwap(d, other.d); }
     bool isEmpty() const;
     bool isNull() const;
@@ -97,15 +96,15 @@ public:
 
     void translate(int dx, int dy);
     inline void translate(const QPoint &p) { translate(p.x(), p.y()); }
-    Q_REQUIRED_RESULT QRegion translated(int dx, int dy) const;
-    Q_REQUIRED_RESULT inline QRegion translated(const QPoint &p) const { return translated(p.x(), p.y()); }
+    [[nodiscard]] QRegion translated(int dx, int dy) const;
+    [[nodiscard]] inline QRegion translated(const QPoint &p) const { return translated(p.x(), p.y()); }
 
-    Q_REQUIRED_RESULT QRegion united(const QRegion &r) const;
-    Q_REQUIRED_RESULT QRegion united(const QRect &r) const;
-    Q_REQUIRED_RESULT QRegion intersected(const QRegion &r) const;
-    Q_REQUIRED_RESULT QRegion intersected(const QRect &r) const;
-    Q_REQUIRED_RESULT QRegion subtracted(const QRegion &r) const;
-    Q_REQUIRED_RESULT QRegion xored(const QRegion &r) const;
+    [[nodiscard]] QRegion united(const QRegion &r) const;
+    [[nodiscard]] QRegion united(const QRect &r) const;
+    [[nodiscard]] QRegion intersected(const QRegion &r) const;
+    [[nodiscard]] QRegion intersected(const QRect &r) const;
+    [[nodiscard]] QRegion subtracted(const QRegion &r) const;
+    [[nodiscard]] QRegion xored(const QRegion &r) const;
 
     bool intersects(const QRegion &r) const;
     bool intersects(const QRect &r) const;

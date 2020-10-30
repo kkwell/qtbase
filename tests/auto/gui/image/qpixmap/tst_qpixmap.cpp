@@ -118,6 +118,7 @@ private slots:
     void refUnref();
 
     void copy();
+    void move();
     void deepCopyPreservesDpr();
     void dprPassthrough();
     void depthOfNullObjects();
@@ -1063,7 +1064,7 @@ void tst_QPixmap::onlyNullPixmapsOutsideGuiThread()
     class Thread : public QThread
     {
     public:
-        void run()
+        void run() override
         {
             QTest::ignoreMessage(QtWarningMsg,
                                  "QPixmap: It is not safe to use pixmaps outside the GUI thread");
@@ -1140,6 +1141,20 @@ void tst_QPixmap::copy()
 
     QPixmap transCopy = trans.copy();
     QCOMPARE(trans, transCopy);
+}
+
+void tst_QPixmap::move()
+{
+    QPixmap moveFrom(32, 32);
+
+    QPixmap moveAssigned;
+    moveAssigned = std::move(moveFrom);
+    QVERIFY(!moveAssigned.isNull());
+    QVERIFY(moveFrom.isNull());
+
+    QPixmap moveConstructed(std::move(moveAssigned));
+    QVERIFY(moveAssigned.isNull());
+    QVERIFY(!moveConstructed.isNull());
 }
 
 // QTBUG-58653: Force a deep copy of a pixmap by

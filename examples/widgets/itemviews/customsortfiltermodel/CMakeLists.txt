@@ -19,11 +19,15 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(customsortfiltermodel
+qt_add_executable(customsortfiltermodel
     filterwidget.cpp filterwidget.h
     main.cpp
     mysortfilterproxymodel.cpp mysortfilterproxymodel.h
     window.cpp window.h
+)
+set_target_properties(customsortfiltermodel PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(customsortfiltermodel PUBLIC
     Qt::Core

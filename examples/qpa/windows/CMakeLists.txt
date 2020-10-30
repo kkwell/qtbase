@@ -18,9 +18,13 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/qpa/windows")
 find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 
-add_executable(windows
+qt_add_executable(windows
     main.cpp
     window.cpp window.h
+)
+set_target_properties(windows PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(windows PUBLIC
     Qt::Core

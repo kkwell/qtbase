@@ -223,9 +223,14 @@ QT_BEGIN_NAMESPACE
 /*!
     \fn QRect::QRect(const QPoint &topLeft, const QPoint &bottomRight)
 
-    Constructs a rectangle with the given \a topLeft and \a bottomRight corners.
+    Constructs a rectangle with the given \a topLeft and \a bottomRight corners, both included.
 
-    \sa setTopLeft(), setBottomRight()
+    If \a bottomRight is to higher and to the left of \a topLeft, the rectangle defined
+    is instead non-inclusive of the corners.
+
+    \note To ensure both points are included regardless of relative order, use span().
+
+    \sa setTopLeft(), setBottomRight(), span()
 */
 
 
@@ -295,27 +300,22 @@ QT_BEGIN_NAMESPACE
     non-negative width and height.
 
     If width() < 0 the function swaps the left and right corners, and
-    it swaps the top and bottom corners if height() < 0.
+    it swaps the top and bottom corners if height() < 0. The corners
+    are at the same time changed from being non-inclusive to inclusive.
 
     \sa isValid(), isEmpty()
 */
 
 QRect QRect::normalized() const noexcept
 {
-    QRect r;
-    if (x2 < x1 - 1) {                                // swap bad x values
-        r.x1 = x2;
-        r.x2 = x1;
-    } else {
-        r.x1 = x1;
-        r.x2 = x2;
+    QRect r(*this);
+    if (x2 < x1) {                                // swap bad x values
+        r.x1 = x2 + 1;
+        r.x2 = x1 - 1;
     }
-    if (y2 < y1 - 1) {                                // swap bad y values
-        r.y1 = y2;
-        r.y2 = y1;
-    } else {
-        r.y1 = y1;
-        r.y2 = y2;
+    if (y2 < y1) {                                // swap bad y values
+        r.y1 = y2 + 1;
+        r.y2 = y1 - 1;
     }
     return r;
 }
@@ -824,8 +824,8 @@ bool QRect::contains(const QPoint &p, bool proper) const noexcept
 {
     int l, r;
     if (x2 < x1 - 1) {
-        l = x2;
-        r = x1;
+        l = x2 + 1;
+        r = x1 - 1;
     } else {
         l = x1;
         r = x2;
@@ -839,8 +839,8 @@ bool QRect::contains(const QPoint &p, bool proper) const noexcept
     }
     int t, b;
     if (y2 < y1 - 1) {
-        t = y2;
-        b = y1;
+        t = y2 + 1;
+        b = y1 - 1;
     } else {
         t = y1;
         b = y2;
@@ -890,16 +890,16 @@ bool QRect::contains(const QRect &r, bool proper) const noexcept
         return false;
 
     int l1 = x1;
-    int r1 = x1;
-    if (x2 - x1 + 1 < 0)
-        l1 = x2;
+    int r1 = x1 - 1;
+    if (x2 < x1 - 1)
+        l1 = x2 + 1;
     else
         r1 = x2;
 
     int l2 = r.x1;
-    int r2 = r.x1;
-    if (r.x2 - r.x1 + 1 < 0)
-        l2 = r.x2;
+    int r2 = r.x1 - 1;
+    if (r.x2 < r.x1 - 1)
+        l2 = r.x2 + 1;
     else
         r2 = r.x2;
 
@@ -912,16 +912,16 @@ bool QRect::contains(const QRect &r, bool proper) const noexcept
     }
 
     int t1 = y1;
-    int b1 = y1;
-    if (y2 - y1 + 1 < 0)
-        t1 = y2;
+    int b1 = y1 - 1;
+    if (y2 < y1 - 1)
+        t1 = y2 + 1;
     else
         b1 = y2;
 
     int t2 = r.y1;
-    int b2 = r.y1;
-    if (r.y2 - r.y1 + 1 < 0)
-        t2 = r.y2;
+    int b2 = r.y1 - 1;
+    if (r.y2 < r.y1 - 1)
+        t2 = r.y2 + 1;
     else
         b2 = r.y2;
 
@@ -970,30 +970,30 @@ QRect QRect::operator|(const QRect &r) const noexcept
         return *this;
 
     int l1 = x1;
-    int r1 = x1;
-    if (x2 - x1 + 1 < 0)
-        l1 = x2;
+    int r1 = x1 - 1;
+    if (x2 < x1 - 1)
+        l1 = x2 + 1;
     else
         r1 = x2;
 
     int l2 = r.x1;
-    int r2 = r.x1;
-    if (r.x2 - r.x1 + 1 < 0)
-        l2 = r.x2;
+    int r2 = r.x1 - 1;
+    if (r.x2 < r.x1 - 1)
+        l2 = r.x2 + 1;
     else
         r2 = r.x2;
 
     int t1 = y1;
-    int b1 = y1;
-    if (y2 - y1 + 1 < 0)
-        t1 = y2;
+    int b1 = y1 - 1;
+    if (y2 < y1 - 1)
+        t1 = y2 + 1;
     else
         b1 = y2;
 
     int t2 = r.y1;
-    int b2 = r.y1;
-    if (r.y2 - r.y1 + 1 < 0)
-        t2 = r.y2;
+    int b2 = r.y1 - 1;
+    if (r.y2 < r.y1 - 1)
+        t2 = r.y2 + 1;
     else
         b2 = r.y2;
 
@@ -1032,35 +1032,35 @@ QRect QRect::operator&(const QRect &r) const noexcept
         return QRect();
 
     int l1 = x1;
-    int r1 = x1;
-    if (x2 - x1 + 1 < 0)
-        l1 = x2;
-    else
-        r1 = x2;
+    int r1 = x2;
+    if (x2 < x1 - 1) {
+        l1 = x2 + 1;
+        r1 = x1 - 1;
+    }
 
     int l2 = r.x1;
-    int r2 = r.x1;
-    if (r.x2 - r.x1 + 1 < 0)
-        l2 = r.x2;
-    else
-        r2 = r.x2;
+    int r2 = r.x2;
+    if (r.x2 < r.x1 - 1) {
+        l2 = r.x2 + 1;
+        r2 = r.x1 - 1;
+    }
 
     if (l1 > r2 || l2 > r1)
         return QRect();
 
     int t1 = y1;
-    int b1 = y1;
-    if (y2 - y1 + 1 < 0)
-        t1 = y2;
-    else
-        b1 = y2;
+    int b1 = y2;
+    if (y2 < y1 - 1) {
+        t1 = y2 + 1;
+        b1 = y1 - 1;
+    }
 
     int t2 = r.y1;
-    int b2 = r.y1;
-    if (r.y2 - r.y1 + 1 < 0)
-        t2 = r.y2;
-    else
-        b2 = r.y2;
+    int b2 = r.y2;
+    if (r.y2 < r.y1 - 1) {
+        t2 = r.y2 + 1;
+        b2 = r.y1 - 1;
+    }
 
     if (t1 > b2 || t2 > b1)
         return QRect();
@@ -1104,35 +1104,35 @@ bool QRect::intersects(const QRect &r) const noexcept
         return false;
 
     int l1 = x1;
-    int r1 = x1;
-    if (x2 - x1 + 1 < 0)
-        l1 = x2;
-    else
-        r1 = x2;
+    int r1 = x2;
+    if (x2 < x1 - 1) {
+        l1 = x2 + 1;
+        r1 = x1 - 1;
+    }
 
     int l2 = r.x1;
-    int r2 = r.x1;
-    if (r.x2 - r.x1 + 1 < 0)
-        l2 = r.x2;
-    else
-        r2 = r.x2;
+    int r2 = r.x2;
+    if (r.x2 < r.x1 - 1) {
+        l2 = r.x2 + 1;
+        r2 = r.x1 - 1;
+    }
 
     if (l1 > r2 || l2 > r1)
         return false;
 
     int t1 = y1;
-    int b1 = y1;
-    if (y2 - y1 + 1 < 0)
-        t1 = y2;
-    else
-        b1 = y2;
+    int b1 = y2;
+    if (y2 < y1 - 1) {
+        t1 = y2 + 1;
+        b1 = y1 - 1;
+    }
 
     int t2 = r.y1;
-    int b2 = r.y1;
-    if (r.y2 - r.y1 + 1 < 0)
-        t2 = r.y2;
-    else
-        b2 = r.y2;
+    int b2 = r.y2;
+    if (r.y2 < r.y1 - 1) {
+        t2 = r.y2 + 1;
+        b2 = r.y1 - 1;
+    }
 
     if (t1 > b2 || t2 > b1)
         return false;
@@ -1141,8 +1141,7 @@ bool QRect::intersects(const QRect &r) const noexcept
 }
 
 /*!
-    \fn bool operator==(const QRect &r1, const QRect &r2)
-    \relates QRect
+    \fn bool QRect::operator==(const QRect &r1, const QRect &r2)
 
     Returns \c true if the rectangles \a r1 and \a r2 are equal,
     otherwise returns \c false.
@@ -1150,8 +1149,7 @@ bool QRect::intersects(const QRect &r) const noexcept
 
 
 /*!
-    \fn bool operator!=(const QRect &r1, const QRect &r2)
-    \relates QRect
+    \fn bool QRect::operator!=(const QRect &r1, const QRect &r2)
 
     Returns \c true if the rectangles \a r1 and \a r2 are different, otherwise
     returns \c false.
@@ -1225,6 +1223,14 @@ bool QRect::intersects(const QRect &r) const noexcept
     \since 5.1
 */
 
+/*!
+    \fn static QRect QRect::span(const QPoint &p1, const QPoint &p2)
+
+    Returns a rectangle spanning the two points \a p1 and \a p2, including both and
+    everything in between.
+
+    \since 6.0
+*/
 
 /*****************************************************************************
   QRect stream functions
@@ -2122,7 +2128,7 @@ bool QRectF::contains(const QRectF &r) const noexcept
 
     Intersects this rectangle with the given \a rectangle.
 
-    \sa intersected(), operator|=()
+    \sa intersected(), operator&()
 */
 
 
@@ -2360,20 +2366,26 @@ QRect QRectF::toAlignedRect() const noexcept
 */
 
 /*!
-    \fn bool operator==(const QRectF &r1, const QRectF &r2)
-    \relates QRectF
+    \fn bool QRectF::operator==(const QRectF &r1, const QRectF &r2)
 
-    Returns \c true if the rectangles \a r1 and \a r2 are equal,
+    Returns \c true if the rectangles \a r1 and \a r2 are \b approximately equal,
     otherwise returns \c false.
+
+    \warning This function does not check for strict equality; instead,
+    it uses a fuzzy comparison to compare the rectangles' coordinates.
+
+    \sa qFuzzyCompare
 */
 
 
 /*!
-    \fn bool operator!=(const QRectF &r1, const QRectF &r2)
-    \relates QRectF
+    \fn bool QRectF::operator!=(const QRectF &r1, const QRectF &r2)
 
-    Returns \c true if the rectangles \a r1 and \a r2 are different, otherwise
-    returns \c false.
+    Returns \c true if the rectangles \a r1 and \a r2 are sufficiently
+    different, otherwise returns \c false.
+
+    \warning This function does not check for strict inequality; instead,
+    it uses a fuzzy comparison to compare the rectangles' coordinates.
 */
 
 /*!

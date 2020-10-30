@@ -903,11 +903,7 @@ QImage::QImage(const uchar* data, int width, int height, Format format, QImageCl
     setColorCount() or setColorTable() before the image is used.
 */
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QImage::QImage(uchar *data, int width, int height, qsizetype bytesPerLine, Format format, QImageCleanupFunction cleanupFunction, void *cleanupInfo)
-#else
-QImage::QImage(uchar *data, int width, int height, int bytesPerLine, Format format, QImageCleanupFunction cleanupFunction, void *cleanupInfo)
-#endif
     :QPaintDevice()
 {
     d = QImageData::create(data, width, height, bytesPerLine, format, false, cleanupFunction, cleanupInfo);
@@ -938,11 +934,7 @@ QImage::QImage(uchar *data, int width, int height, int bytesPerLine, Format form
     data being changed.
 */
 
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QImage::QImage(const uchar *data, int width, int height, qsizetype bytesPerLine, Format format, QImageCleanupFunction cleanupFunction, void *cleanupInfo)
-#else
-QImage::QImage(const uchar *data, int width, int height, int bytesPerLine, Format format, QImageCleanupFunction cleanupFunction, void *cleanupInfo)
-#endif
     :QPaintDevice()
 {
     d = QImageData::create(const_cast<uchar*>(data), width, height, bytesPerLine, format, true, cleanupFunction, cleanupInfo);
@@ -1554,6 +1546,10 @@ void QImage::setColor(int i, QRgb c)
     it follows the native alignment of 64-bit integers (64-bit for most
     platforms, but notably 32-bit on i386).
 
+    For example, to remove the green component of each pixel in an image:
+
+    \snippet code/src_gui_image_qimage.cpp scanLine
+
     \warning If you are accessing 32-bpp image data, cast the returned
     pointer to \c{QRgb*} (QRgb has a 32-bit size) and use it to
     read/write the pixel value. You cannot use the \c{uchar*} pointer
@@ -2033,7 +2029,20 @@ QImage::Format QImage::format() const
     The specified image conversion \a flags control how the image data
     is handled during the conversion process.
 
-    \sa {Image Formats}
+    \sa convertTo(), {Image Formats}
+*/
+
+/*!
+    \fn QImage QImage::convertedTo(Format format, Qt::ImageConversionFlags flags) const &
+    \fn QImage QImage::convertedTo(Format format, Qt::ImageConversionFlags flags) &&
+    \since 6.0
+
+    Returns a copy of the image in the given \a format.
+
+    The specified image conversion \a flags control how the image data
+    is handled during the conversion process.
+
+    \sa convertTo(), {Image Formats}
 */
 
 /*!
@@ -2235,7 +2244,7 @@ bool QImage::reinterpretAsFormat(Format format)
     The specified image conversion \a flags control how the image data
     is handled during the conversion process.
 
-    \sa convertToFormat()
+    \sa convertedTo()
 */
 
 void QImage::convertTo(Format format, Qt::ImageConversionFlags flags)
@@ -3066,7 +3075,17 @@ QImage QImage::createMaskFromColor(QRgb color, Qt::MaskMode mode) const
 
     Note that the original image is not changed.
 
-    \sa {QImage#Image Transformations}{Image Transformations}
+    \sa mirror(), {QImage#Image Transformations}{Image Transformations}
+*/
+
+/*!
+    \fn void QImage::mirror(bool horizontal = false, bool vertical = true)
+    \since 6.0
+
+    Mirrors of the image in the horizontal and/or the vertical direction depending
+    on whether \a horizontal and \a vertical are set to true or false.
+
+    \sa mirrored(), {QImage#Image Transformations}{Image Transformations}
 */
 
 template<class T> inline void do_mirror_data(QImageData *dst, QImageData *src,
@@ -3278,7 +3297,17 @@ void QImage::mirrored_inplace(bool horizontal, bool vertical)
 
     The original QImage is not changed.
 
-    \sa {QImage#Image Transformations}{Image Transformations}
+    \sa rgbSwap(), {QImage#Image Transformations}{Image Transformations}
+*/
+
+/*!
+    \fn void QImage::rgbSwap()
+    \since 6.0
+
+    Swaps the values of the red and blue components of all pixels, effectively converting
+    an RGB image to an BGR image.
+
+    \sa rgbSwapped(), {QImage#Image Transformations}{Image Transformations}
 */
 
 static inline void rgbSwapped_generic(int width, int height, const QImage *src, QImage *dst, const QPixelLayout* layout)
@@ -4386,8 +4415,15 @@ int QImage::bitPlaneCount() const
 }
 
 /*!
+   \internal
    Returns a smoothly scaled copy of the image. The returned image has a size
    of width \a w by height \a h pixels.
+
+   The function operates internally on \c Format_RGB32, \c Format_ARGB32_Premultiplied,
+   \c Format_RGBX8888, \c Format_RGBA8888_Premultiplied, \c Format_RGBX64,
+   or \c Format_RGBA64_Premultiplied and will convert to those formats
+   if necessary. To avoid unnecessary conversion the result is returned in the format
+   internally used, and not in the original format.
 */
 QImage QImage::smoothScaled(int w, int h) const {
     QImage src = *this;
@@ -4514,8 +4550,8 @@ QImage QImage::transformed(const QTransform &matrix, Qt::TransformationMode mode
     Q_TRACE_SCOPE(QImage_transformed, matrix, mode);
 
     // source image data
-    int ws = width();
-    int hs = height();
+    const int ws = width();
+    const int hs = height();
 
     // target image data
     int wd;
@@ -4525,6 +4561,7 @@ QImage QImage::transformed(const QTransform &matrix, Qt::TransformationMode mode
     QTransform mat = trueMatrix(matrix, ws, hs);
     bool complex_xform = false;
     bool scale_xform = false;
+    bool nonpaintable_scale_xform = false;
     if (mat.type() <= QTransform::TxScale) {
         if (mat.type() == QTransform::TxNone) // identity matrix
             return *this;
@@ -4539,6 +4576,10 @@ QImage QImage::transformed(const QTransform &matrix, Qt::TransformationMode mode
             wd = int(qAbs(mat.m11()) * ws + 0.9999);
         }
         scale_xform = true;
+        // The paint-based scaling is only bilinear, and has problems
+        // with scaling smoothly more than 2x down.
+        if (hd * 2 < hs || wd * 2 < ws)
+            nonpaintable_scale_xform = true;
     } else {
         if (mat.type() <= QTransform::TxRotate && mat.m11() == 0 && mat.m22() == 0) {
             if (mat.m12() == 1. && mat.m21() == -1.)
@@ -4558,16 +4599,40 @@ QImage QImage::transformed(const QTransform &matrix, Qt::TransformationMode mode
     if (wd == 0 || hd == 0)
         return QImage();
 
-    // Make use of the optimized algorithm when we're scaling
     if (scale_xform && mode == Qt::SmoothTransformation) {
-        if (mat.m11() < 0.0F && mat.m22() < 0.0F) { // horizontal/vertical flip
-            return smoothScaled(wd, hd).mirrored(true, true);
-        } else if (mat.m11() < 0.0F) { // horizontal flip
-            return smoothScaled(wd, hd).mirrored(true, false);
-        } else if (mat.m22() < 0.0F) { // vertical flip
-            return smoothScaled(wd, hd).mirrored(false, true);
-        } else { // no flipping
-            return smoothScaled(wd, hd);
+        switch (format()) {
+        case QImage::Format_RGB32:
+        case QImage::Format_ARGB32_Premultiplied:
+#if Q_BYTE_ORDER == Q_LITTLE_ENDIAN
+        case QImage::Format_RGBX8888:
+#endif
+        case QImage::Format_RGBA8888_Premultiplied:
+#if QT_CONFIG(raster_64bit)
+        case QImage::Format_RGBX64:
+        case QImage::Format_RGBA64_Premultiplied:
+#endif
+            // Use smoothScaled for scaling when we can do so without conversion.
+            if (mat.m11() > 0.0F && mat.m22() > 0.0F)
+                return smoothScaled(wd, hd);
+            break;
+        default:
+            break;
+        }
+        // Otherwise only use it when the scaling factor demands it, or the image is large enough to scale multi-threaded
+        if (nonpaintable_scale_xform
+#if QT_CONFIG(thread) && !defined(Q_OS_WASM)
+            || (ws * hs) >= (1<<20)
+#endif
+            ) {
+            if (mat.m11() < 0.0F && mat.m22() < 0.0F) { // horizontal/vertical flip
+                return smoothScaled(wd, hd).mirrored(true, true).convertToFormat(format());
+            } else if (mat.m11() < 0.0F) { // horizontal flip
+                return smoothScaled(wd, hd).mirrored(true, false).convertToFormat(format());
+            } else if (mat.m22() < 0.0F) { // vertical flip
+                return smoothScaled(wd, hd).mirrored(false, true).convertToFormat(format());
+            } else { // no flipping
+                return smoothScaled(wd, hd).convertToFormat(format());
+            }
         }
     }
 
@@ -4579,7 +4644,7 @@ QImage QImage::transformed(const QTransform &matrix, Qt::TransformationMode mode
     QImage::Format target_format = d->format;
 
     if (complex_xform || mode == Qt::SmoothTransformation) {
-        if (d->format < QImage::Format_RGB32 || !hasAlphaChannel()) {
+        if (d->format < QImage::Format_RGB32 || (!hasAlphaChannel() && complex_xform)) {
             target_format = qt_alphaVersion(d->format);
         }
     }

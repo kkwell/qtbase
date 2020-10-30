@@ -6,6 +6,7 @@ SUBDIRS=\
     qeventdispatcher \
     qeventloop \
     qmath \
+    qmetacontainer \
     qmetaobject \
     qmetaobjectbuilder \
     qmetamethod \
@@ -27,7 +28,9 @@ SUBDIRS=\
     qproperty
 
 !qtHaveModule(gui): SUBDIRS -= \
-    qmimedata
+    qmimedata \
+    qvariant \
+    qmetatype
 
 !qtHaveModule(network): SUBDIRS -= \
     qeventloop \

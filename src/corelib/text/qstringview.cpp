@@ -278,11 +278,9 @@ QT_BEGIN_NAMESPACE
     \fn template <typename Char, size_t N> QStringView::QStringView(const Char (&string)[N])
 
     Constructs a string view on the character string literal \a string.
-    The length is set to \c{N-1}, excluding the trailing \{Char(0)}.
-    If you need the full array, use the constructor from pointer and
-    size instead:
-
-    \snippet code/src_corelib_text_qstringview.cpp 2
+    The view covers the array until the first \c{Char(0)} is encountered,
+    or \c N, whichever comes first.
+    If you need the full array, use fromArray() instead.
 
     \a string must remain valid for the lifetime of this string view
     object.
@@ -292,6 +290,8 @@ QT_BEGIN_NAMESPACE
     type. The compatible character types are: \c QChar, \c ushort, \c
     char16_t and (on platforms, such as Windows, where it is a 16-bit
     type) \c wchar_t.
+
+    \sa fromArray
 */
 
 /*!
@@ -305,7 +305,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn template <typename StdBasicString> QStringView::QStringView(const StdBasicString &str)
+    \fn template <typename Container, if_compatible_container<Container>> QStringView::QStringView(const Container &str)
 
     Constructs a string view on \a str. The length is taken from \c{str.size()}.
 
@@ -321,6 +321,25 @@ QT_BEGIN_NAMESPACE
     have to return \nullptr for this).
 
     \sa isNull(), isEmpty()
+*/
+
+/*!
+    \fn template <typename Char, size_t Size> static QStringView QStringView::fromArray(const Char (&string)[Size]) noexcept
+
+    Constructs a string view on the full character string literal \a string,
+    including any trailing \c{Char(0)}. If you don't want the
+    null-terminator included in the view then you can chop() it off
+    when you are certain it is at the end. Alternatively you can use
+    the constructor overload taking an array literal which will create
+    a view up to, but not including, the first null-terminator in the data.
+
+    \a string must remain valid for the lifetime of this string view
+    object.
+
+    This function will work with any array literal if \c Char is a
+    compatible character type. The compatible character types are: \c QChar, \c ushort, \c
+    char16_t and (on platforms, such as Windows, where it is a 16-bit
+    type) \c wchar_t.
 */
 
 /*!
@@ -650,7 +669,7 @@ QT_BEGIN_NAMESPACE
 
     \note The behavior is undefined when \a n < 0 or \a n > size().
 
-    \sa last(), subString(), startsWith(), chopped(), chop(), truncate()
+    \sa last(), sliced(), startsWith(), chopped(), chop(), truncate()
 */
 
 /*!
@@ -661,7 +680,7 @@ QT_BEGIN_NAMESPACE
 
     \note The behavior is undefined when \a n < 0 or \a n > size().
 
-    \sa first(), subString(), endsWith(), chopped(), chop(), truncate()
+    \sa first(), sliced(), endsWith(), chopped(), chop(), truncate()
 */
 
 /*!
@@ -763,6 +782,19 @@ QT_BEGIN_NAMESPACE
     otherwise the comparison is case-insensitive.
 
     \sa operator==(), operator<(), operator>()
+*/
+
+/*!
+    \fn QStringView::operator==(QStringView lhs, QStringView rhs)
+    \fn QStringView::operator!=(QStringView lhs, QStringView rhs)
+    \fn QStringView::operator< (QStringView lhs, QStringView rhs)
+    \fn QStringView::operator<=(QStringView lhs, QStringView rhs)
+    \fn QStringView::operator> (QStringView lhs, QStringView rhs)
+    \fn QStringView::operator>=(QStringView lhs, QStringView rhs)
+
+    Operators for comparing \a lhs to \a rhs.
+
+    \sa compare()
 */
 
 /*!
@@ -1208,11 +1240,11 @@ QT_BEGIN_NAMESPACE
 
 
 /*!
-    \fn QStringView::tokenize(Needle &&sep, Flags...flags) const
-    \fn QLatin1String::tokenize(Needle &&sep, Flags...flags) const
-    \fn QString::tokenize(Needle &&sep, Flags...flags) const &
-    \fn QString::tokenize(Needle &&sep, Flags...flags) const &&
-    \fn QString::tokenize(Needle &&sep, Flags...flags) &&
+    \fn template <typename Needle, typename...Flags> auto QStringView::tokenize(Needle &&sep, Flags...flags) const
+    \fn template <typename Needle, typename...Flags> auto QLatin1String::tokenize(Needle &&sep, Flags...flags) const
+    \fn template <typename Needle, typename...Flags> auto QString::tokenize(Needle &&sep, Flags...flags) const &
+    \fn template <typename Needle, typename...Flags> auto QString::tokenize(Needle &&sep, Flags...flags) const &&
+    \fn template <typename Needle, typename...Flags> auto QString::tokenize(Needle &&sep, Flags...flags) &&
 
     Splits the string into substring views wherever \a sep occurs, and
     returns a lazy sequence of those strings.

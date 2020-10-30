@@ -17,9 +17,13 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/dbus/pingpong")
 
 find_package(Qt6 COMPONENTS DBus)
 
-add_qt_gui_executable(ping
+qt_add_executable(ping
     ping.cpp
     ping-common.h
+)
+set_target_properties(ping PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(ping PUBLIC
     # Remove: gui
@@ -48,9 +52,13 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/dbus/pingpong")
 
 find_package(Qt6 COMPONENTS DBus)
 
-add_qt_gui_executable(pong
+qt_add_executable(pong
     ping-common.h
     pong.cpp pong.h
+)
+set_target_properties(pong PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(pong PUBLIC
     # Remove: gui

@@ -8,7 +8,7 @@
 # this module are imported into the scope of the calling feature.
 #
 # Target is without leading "Qt". So e.g. the "QtCore" module has the target "Core".
-function(qt_add_module target)
+function(qt_internal_add_module target)
     qt_internal_module_info(module "${target}")
 
     # Process arguments:
@@ -54,7 +54,7 @@ function(qt_add_module target)
         set(is_framework 1)
         set_target_properties(${target} PROPERTIES
             FRAMEWORK TRUE
-            FRAMEWORK_VERSION ${PROJECT_VERSION_MAJOR}
+            FRAMEWORK_VERSION "A" # Not based on Qt major version
             MACOSX_FRAMEWORK_IDENTIFIER org.qt-project.Qt${target}
             MACOSX_FRAMEWORK_BUNDLE_VERSION ${PROJECT_VERSION}
             MACOSX_FRAMEWORK_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
@@ -139,26 +139,27 @@ function(qt_add_module target)
             )
         else()
             set_target_properties(${target} PROPERTIES
-                OUTPUT_NAME "${INSTALL_CMAKE_NAMESPACE}${target}"
+                OUTPUT_NAME "${INSTALL_CMAKE_NAMESPACE}${target}${QT_LIBINFIX}"
             )
         endif()
 
         qt_internal_apply_win_prefix_and_suffix("${target}")
 
         if (WIN32 AND BUILD_SHARED_LIBS)
-            qt6_generate_win32_rc_file(${target})
+            _qt_internal_generate_win32_rc_file(${target})
         endif()
+    endif()
+
+    if(arg_MODULE_INCLUDE_NAME)
+        set(module_include_name ${arg_MODULE_INCLUDE_NAME})
+    else()
+        set(module_include_name ${module})
     endif()
 
     # Module headers:
     if(${arg_NO_MODULE_HEADERS} OR ${arg_NO_SYNC_QT})
         set_target_properties("${target}" PROPERTIES INTERFACE_MODULE_HAS_HEADERS OFF)
     else()
-        if(arg_MODULE_INCLUDE_NAME)
-            set(module_include_name ${arg_MODULE_INCLUDE_NAME})
-        else()
-            set(module_include_name ${module})
-        endif()
         set_target_properties("${target}" PROPERTIES INTERFACE_MODULE_INCLUDE_NAME "${module_include_name}")
 
         # Use QT_BUILD_DIR for the syncqt call.
@@ -181,7 +182,7 @@ function(qt_add_module target)
         ### FIXME: Can we replace headers.pri?
         set(module_include_dir "${QT_BUILD_DIR}/include/${module_include_name}")
         qt_read_headers_pri("${module_include_dir}" "module_headers")
-        set(module_depends_header "${module_include_dir}/${module}Depends")
+        set(module_depends_header "${module_include_dir}/${module_include_name}Depends")
         if(is_framework)
             if(NOT is_interface_lib)
                 set(public_headers_to_copy "${module_headers_public}" "${module_depends_header}")
@@ -296,6 +297,14 @@ function(qt_add_module target)
     if(NOT arg_NO_MODULE_HEADERS AND NOT arg_NO_SYNC_QT)
         # For the syncqt headers
         list(APPEND ${public_headers_list} "$<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}/${module}>")
+
+        # To support finding Qt module includes that are not installed into the main Qt prefix.
+        # Use case: A Qt module built by Conan installed into a prefix other than the main prefix.
+        # This does duplicate the include path set on Qt6::Platform target, but CMake is smart
+        # enough to deduplicate the include paths on the command line.
+        # Frameworks are automatically handled by CMake in cmLocalGenerator::GetIncludeFlags()
+        # by additionally passing the 'QtFoo.framework/..' dir with an -iframework argument.
+        list(APPEND ${public_headers_list} "$<INSTALL_INTERFACE:${INSTALL_INCLUDEDIR}>")
     endif()
     list(APPEND ${public_headers_list} ${arg_PUBLIC_INCLUDE_DIRECTORIES})
 
@@ -322,11 +331,11 @@ function(qt_add_module target)
             QT_DEPRECATED_WARNINGS
             QT_BUILDING_QT
             QT_BUILD_${module_define}_LIB ### FIXME: use QT_BUILD_ADDON for Add-ons or remove if we don't have add-ons anymore
-            "${deprecation_define}"
+            ${deprecation_define}
             )
     endif()
 
-    qt_extend_target("${target}"
+    qt_internal_extend_target("${target}"
         ${header_module}
         SOURCES ${arg_SOURCES}
         INCLUDE_DIRECTORIES
@@ -418,6 +427,20 @@ function(qt_add_module target)
         list(APPEND extra_cmake_includes "${INSTALL_CMAKE_NAMESPACE}${target}Macros.cmake")
     endif()
     if (EXISTS "${CMAKE_CURRENT_LIST_DIR}/${INSTALL_CMAKE_NAMESPACE}${target}ConfigExtras.cmake.in")
+        if(target STREQUAL Core)
+            set(extra_cmake_code "")
+            # Add some variables for compatibility with Qt5 config files.
+            if(QT_FEATURE_reduce_exports)
+                string(APPEND qtcore_extra_cmake_code "
+set(QT_VISIBILITY_AVAILABLE TRUE)")
+            endif()
+            if(QT_LIBINFIX)
+                string(APPEND qtcore_extra_cmake_code "
+set(QT_LIBINFIX \"${QT_LIBINFIX}\")")
+            endif()
+
+        endif()
+
         configure_file("${CMAKE_CURRENT_LIST_DIR}/${INSTALL_CMAKE_NAMESPACE}${target}ConfigExtras.cmake.in"
             "${config_build_dir}/${INSTALL_CMAKE_NAMESPACE}${target}ConfigExtras.cmake"
             @ONLY)
@@ -453,7 +476,7 @@ set(QT_CMAKE_EXPORT_NAMESPACE ${QT_CMAKE_EXPORT_NAMESPACE})")
         else()
             set(args INSTALL_DIR "${metatypes_install_dir}")
         endif()
-        qt6_generate_meta_types_json_file(${target} ${args})
+        qt6_extract_metatypes(${target} ${args})
     endif()
     configure_package_config_file(
         "${QT_CMAKE_DIR}/QtModuleConfig.cmake.in"
@@ -493,8 +516,8 @@ set(QT_CMAKE_EXPORT_NAMESPACE ${QT_CMAKE_EXPORT_NAMESPACE})")
         LIBRARY DESTINATION ${INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${INSTALL_LIBDIR}
         FRAMEWORK DESTINATION ${INSTALL_LIBDIR}
-        PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/${module}
-        PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/${module}/${PROJECT_VERSION}/${module}/private
+        PUBLIC_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/${module_include_name}
+        PRIVATE_HEADER DESTINATION ${INSTALL_INCLUDEDIR}/${module_include_name}/${PROJECT_VERSION}/${module}/private
         )
 
     qt_apply_rpaths(TARGET "${target}" INSTALL_PATH "${INSTALL_LIBDIR}" RELATIVE_RPATH)
@@ -509,6 +532,11 @@ set(QT_CMAKE_EXPORT_NAMESPACE ${QT_CMAKE_EXPORT_NAMESPACE})")
     qt_install(EXPORT ${export_name}
                NAMESPACE ${QT_CMAKE_EXPORT_NAMESPACE}::
                DESTINATION ${config_install_dir})
+
+    qt_internal_export_additional_targets_file(
+        TARGETS ${exported_targets}
+        EXPORT_NAME_PREFIX ${INSTALL_CMAKE_NAMESPACE}${target}
+        CONFIG_INSTALL_DIR "${config_install_dir}")
 
     qt_internal_export_modern_cmake_config_targets_file(
         TARGETS ${exported_targets}
@@ -575,8 +603,20 @@ set(QT_CMAKE_EXPORT_NAMESPACE ${QT_CMAKE_EXPORT_NAMESPACE})")
         qt_finalize_framework_headers_copy(${target})
     endif()
 
+    set(pdb_install_dir "${INSTALL_BINDIR}")
+    if(NOT is_shared_lib)
+        set(pdb_install_dir "${INSTALL_LIBDIR}")
+    endif()
+    qt_internal_install_pdb_files(${target} "${pdb_install_dir}")
+
+    if (arg_NO_PRIVATE_MODULE)
+        set(arg_NO_PRIVATE_MODULE "NO_PRIVATE_MODULE")
+    else()
+        unset(arg_NO_PRIVATE_MODULE)
+    endif()
+
     qt_describe_module(${target})
-    qt_add_list_file_finalizer(qt_finalize_module ${target} ${arg_INTERNAL_MODULE} ${header_module})
+    qt_add_list_file_finalizer(qt_finalize_module ${target} ${arg_INTERNAL_MODULE} ${arg_NO_PRIVATE_MODULE} ${header_module})
 endfunction()
 
 function(qt_finalize_module target)

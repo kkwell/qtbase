@@ -71,7 +71,7 @@ public:
     constexpr inline int top() const noexcept;
     constexpr inline int right() const noexcept;
     constexpr inline int bottom() const noexcept;
-    Q_REQUIRED_RESULT QRect normalized() const noexcept;
+    [[nodiscard]] QRect normalized() const noexcept;
 
     constexpr inline int x() const noexcept;
     constexpr inline int y() const noexcept;
@@ -105,9 +105,9 @@ public:
 
     constexpr inline void translate(int dx, int dy) noexcept;
     constexpr inline void translate(const QPoint &p) noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRect translated(int dx, int dy) const noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRect translated(const QPoint &p) const noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRect transposed() const noexcept;
+    [[nodiscard]] constexpr inline QRect translated(int dx, int dy) const noexcept;
+    [[nodiscard]] constexpr inline QRect translated(const QPoint &p) const noexcept;
+    [[nodiscard]] constexpr inline QRect transposed() const noexcept;
 
     constexpr inline void moveTo(int x, int t) noexcept;
     constexpr inline void moveTo(const QPoint &p) noexcept;
@@ -119,7 +119,7 @@ public:
     constexpr inline void getCoords(int *x1, int *y1, int *x2, int *y2) const;
 
     constexpr inline void adjust(int x1, int y1, int x2, int y2) noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRect adjusted(int x1, int y1, int x2, int y2) const noexcept;
+    [[nodiscard]] constexpr inline QRect adjusted(int x1, int y1, int x2, int y2) const noexcept;
 
     constexpr inline QSize size() const noexcept;
     constexpr inline int width() const noexcept;
@@ -130,15 +130,15 @@ public:
 
     QRect operator|(const QRect &r) const noexcept;
     QRect operator&(const QRect &r) const noexcept;
-    inline QRect& operator|=(const QRect &r) noexcept;
-    inline QRect& operator&=(const QRect &r) noexcept;
+    inline QRect &operator|=(const QRect &r) noexcept;
+    inline QRect &operator&=(const QRect &r) noexcept;
 
     bool contains(const QRect &r, bool proper = false) const noexcept;
-    bool contains(const QPoint &p, bool proper=false) const noexcept;
+    bool contains(const QPoint &p, bool proper = false) const noexcept;
     inline bool contains(int x, int y) const noexcept;
     inline bool contains(int x, int y, bool proper) const noexcept;
-    Q_REQUIRED_RESULT inline QRect united(const QRect &other) const noexcept;
-    Q_REQUIRED_RESULT inline QRect intersected(const QRect &other) const noexcept;
+    [[nodiscard]] inline QRect united(const QRect &other) const noexcept;
+    [[nodiscard]] inline QRect intersected(const QRect &other) const noexcept;
     bool intersects(const QRect &r) const noexcept;
 
     constexpr inline QRect marginsAdded(const QMargins &margins) const noexcept;
@@ -146,12 +146,16 @@ public:
     constexpr inline QRect &operator+=(const QMargins &margins) noexcept;
     constexpr inline QRect &operator-=(const QMargins &margins) noexcept;
 
-    friend constexpr inline bool operator==(const QRect &, const QRect &) noexcept;
-    friend constexpr inline bool operator!=(const QRect &, const QRect &) noexcept;
+    [[nodiscard]] static constexpr inline QRect span(const QPoint &p1, const QPoint &p2) noexcept;
+
+    friend constexpr inline bool operator==(const QRect &r1, const QRect &r2) noexcept
+    { return r1.x1==r2.x1 && r1.x2==r2.x2 && r1.y1==r2.y1 && r1.y2==r2.y2; }
+    friend constexpr inline bool operator!=(const QRect &r1, const QRect &r2) noexcept
+    { return r1.x1!=r2.x1 || r1.x2!=r2.x2 || r1.y1!=r2.y1 || r1.y2!=r2.y2; }
     friend constexpr inline size_t qHash(const QRect &, size_t) noexcept;
 
 #if defined(Q_OS_DARWIN) || defined(Q_QDOC)
-    Q_REQUIRED_RESULT CGRect toCGRect() const noexcept;
+    [[nodiscard]] CGRect toCGRect() const noexcept;
 #endif
 
 private:
@@ -161,9 +165,6 @@ private:
     int y2;
 };
 Q_DECLARE_TYPEINFO(QRect, Q_MOVABLE_TYPE);
-
-constexpr inline bool operator==(const QRect &, const QRect &) noexcept;
-constexpr inline bool operator!=(const QRect &, const QRect &) noexcept;
 
 
 /*****************************************************************************
@@ -426,13 +427,13 @@ inline bool QRect::contains(int ax, int ay) const noexcept
     return contains(QPoint(ax, ay), false);
 }
 
-inline QRect& QRect::operator|=(const QRect &r) noexcept
+inline QRect &QRect::operator|=(const QRect &r) noexcept
 {
     *this = *this | r;
     return *this;
 }
 
-inline QRect& QRect::operator&=(const QRect &r) noexcept
+inline QRect &QRect::operator&=(const QRect &r) noexcept
 {
     *this = *this & r;
     return *this;
@@ -446,16 +447,6 @@ inline QRect QRect::intersected(const QRect &other) const noexcept
 inline QRect QRect::united(const QRect &r) const noexcept
 {
     return *this | r;
-}
-
-constexpr inline bool operator==(const QRect &r1, const QRect &r2) noexcept
-{
-    return r1.x1==r2.x1 && r1.x2==r2.x2 && r1.y1==r2.y1 && r1.y2==r2.y2;
-}
-
-constexpr inline bool operator!=(const QRect &r1, const QRect &r2) noexcept
-{
-    return r1.x1!=r2.x1 || r1.x2!=r2.x2 || r1.y1!=r2.y1 || r1.y2!=r2.y2;
 }
 
 constexpr inline size_t qHash(const QRect &r, size_t seed = 0) noexcept
@@ -505,6 +496,12 @@ constexpr inline QRect &QRect::operator-=(const QMargins &margins) noexcept
     return *this;
 }
 
+constexpr QRect QRect::span(const QPoint &p1, const QPoint &p2) noexcept
+{
+    return QRect(QPoint(qMin(p1.x(), p2.x()), qMin(p1.y(), p2.y())),
+                 QPoint(qMax(p1.x(), p2.x()), qMax(p1.y(), p2.y())));
+}
+
 #ifndef QT_NO_DEBUG_STREAM
 Q_CORE_EXPORT QDebug operator<<(QDebug, const QRect &);
 #endif
@@ -522,7 +519,7 @@ public:
     constexpr inline bool isNull() const noexcept;
     constexpr inline bool isEmpty() const noexcept;
     constexpr inline bool isValid() const noexcept;
-    Q_REQUIRED_RESULT QRectF normalized() const noexcept;
+    [[nodiscard]] QRectF normalized() const noexcept;
 
     constexpr inline qreal left() const noexcept { return xp; }
     constexpr inline qreal top() const noexcept { return yp; }
@@ -562,10 +559,10 @@ public:
     constexpr inline void translate(qreal dx, qreal dy) noexcept;
     constexpr inline void translate(const QPointF &p) noexcept;
 
-    Q_REQUIRED_RESULT constexpr inline QRectF translated(qreal dx, qreal dy) const noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRectF translated(const QPointF &p) const noexcept;
+    [[nodiscard]] constexpr inline QRectF translated(qreal dx, qreal dy) const noexcept;
+    [[nodiscard]] constexpr inline QRectF translated(const QPointF &p) const noexcept;
 
-    Q_REQUIRED_RESULT constexpr inline QRectF transposed() const noexcept;
+    [[nodiscard]] constexpr inline QRectF transposed() const noexcept;
 
     constexpr inline void moveTo(qreal x, qreal y) noexcept;
     constexpr inline void moveTo(const QPointF &p) noexcept;
@@ -577,7 +574,7 @@ public:
     constexpr inline void getCoords(qreal *x1, qreal *y1, qreal *x2, qreal *y2) const;
 
     constexpr inline void adjust(qreal x1, qreal y1, qreal x2, qreal y2) noexcept;
-    Q_REQUIRED_RESULT constexpr inline QRectF adjusted(qreal x1, qreal y1, qreal x2, qreal y2) const noexcept;
+    [[nodiscard]] constexpr inline QRectF adjusted(qreal x1, qreal y1, qreal x2, qreal y2) const noexcept;
 
     constexpr inline QSizeF size() const noexcept;
     constexpr inline qreal width() const noexcept;
@@ -588,14 +585,14 @@ public:
 
     QRectF operator|(const QRectF &r) const noexcept;
     QRectF operator&(const QRectF &r) const noexcept;
-    inline QRectF& operator|=(const QRectF &r) noexcept;
-    inline QRectF& operator&=(const QRectF &r) noexcept;
+    inline QRectF &operator|=(const QRectF &r) noexcept;
+    inline QRectF &operator&=(const QRectF &r) noexcept;
 
     bool contains(const QRectF &r) const noexcept;
     bool contains(const QPointF &p) const noexcept;
     inline bool contains(qreal x, qreal y) const noexcept;
-    Q_REQUIRED_RESULT inline QRectF united(const QRectF &other) const noexcept;
-    Q_REQUIRED_RESULT inline QRectF intersected(const QRectF &other) const noexcept;
+    [[nodiscard]] inline QRectF united(const QRectF &other) const noexcept;
+    [[nodiscard]] inline QRectF intersected(const QRectF &other) const noexcept;
     bool intersects(const QRectF &r) const noexcept;
 
     constexpr inline QRectF marginsAdded(const QMarginsF &margins) const noexcept;
@@ -603,15 +600,23 @@ public:
     constexpr inline QRectF &operator+=(const QMarginsF &margins) noexcept;
     constexpr inline QRectF &operator-=(const QMarginsF &margins) noexcept;
 
-    friend constexpr inline bool operator==(const QRectF &, const QRectF &) noexcept;
-    friend constexpr inline bool operator!=(const QRectF &, const QRectF &) noexcept;
+    friend constexpr inline bool operator==(const QRectF &r1, const QRectF &r2) noexcept
+    {
+        return r1.topLeft() == r2.topLeft()
+            && r1.size() == r2.size();
+    }
+    friend constexpr inline bool operator!=(const QRectF &r1, const QRectF &r2) noexcept
+    {
+        return r1.topLeft() != r2.topLeft()
+            || r1.size() != r2.size();
+    }
 
-    Q_REQUIRED_RESULT constexpr inline QRect toRect() const noexcept;
-    Q_REQUIRED_RESULT QRect toAlignedRect() const noexcept;
+    [[nodiscard]] constexpr inline QRect toRect() const noexcept;
+    [[nodiscard]] QRect toAlignedRect() const noexcept;
 
 #if defined(Q_OS_DARWIN) || defined(Q_QDOC)
-    Q_REQUIRED_RESULT static QRectF fromCGRect(CGRect rect) noexcept;
-    Q_REQUIRED_RESULT CGRect toCGRect() const noexcept;
+    [[nodiscard]] static QRectF fromCGRect(CGRect rect) noexcept;
+    [[nodiscard]] CGRect toCGRect() const noexcept;
 #endif
 
 private:
@@ -621,9 +626,6 @@ private:
     qreal h;
 };
 Q_DECLARE_TYPEINFO(QRectF, Q_MOVABLE_TYPE);
-
-constexpr inline bool operator==(const QRectF &, const QRectF &) noexcept;
-constexpr inline bool operator!=(const QRectF &, const QRectF &) noexcept;
 
 
 /*****************************************************************************
@@ -830,13 +832,13 @@ inline bool QRectF::contains(qreal ax, qreal ay) const noexcept
     return contains(QPointF(ax, ay));
 }
 
-inline QRectF& QRectF::operator|=(const QRectF &r) noexcept
+inline QRectF &QRectF::operator|=(const QRectF &r) noexcept
 {
     *this = *this | r;
     return *this;
 }
 
-inline QRectF& QRectF::operator&=(const QRectF &r) noexcept
+inline QRectF &QRectF::operator&=(const QRectF &r) noexcept
 {
     *this = *this & r;
     return *this;
@@ -852,21 +854,16 @@ inline QRectF QRectF::united(const QRectF &r) const noexcept
     return *this | r;
 }
 
-constexpr inline bool operator==(const QRectF &r1, const QRectF &r2) noexcept
-{
-    return qFuzzyCompare(r1.xp, r2.xp) && qFuzzyCompare(r1.yp, r2.yp)
-           && qFuzzyCompare(r1.w, r2.w) && qFuzzyCompare(r1.h, r2.h);
-}
-
-constexpr inline bool operator!=(const QRectF &r1, const QRectF &r2) noexcept
-{
-    return !qFuzzyCompare(r1.xp, r2.xp) || !qFuzzyCompare(r1.yp, r2.yp)
-           || !qFuzzyCompare(r1.w, r2.w) || !qFuzzyCompare(r1.h, r2.h);
-}
-
 constexpr inline QRect QRectF::toRect() const noexcept
 {
-    return QRect(QPoint(qRound(xp), qRound(yp)), QPoint(qRound(xp + w) - 1, qRound(yp + h) - 1));
+    // This rounding is designed to minimize the maximum possible difference
+    // in topLeft(), bottomRight(), and size() after rounding.
+    // All dimensions are at most off by 0.75, and topLeft by at most 0.5.
+    const int nxp = qRound(xp);
+    const int nyp = qRound(yp);
+    const int nw = qRound(w + (xp - nxp) / 2);
+    const int nh = qRound(h + (yp - nyp) / 2);
+    return QRect(nxp, nyp, nw, nh);
 }
 
 constexpr inline QRectF operator+(const QRectF &lhs, const QMarginsF &rhs) noexcept

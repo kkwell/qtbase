@@ -21,10 +21,14 @@ find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS OpenGL)
 find_package(Qt6 COMPONENTS OpenGLWidgets)
 
-add_qt_gui_executable(cube
+qt_add_executable(cube
     geometryengine.cpp geometryengine.h
     main.cpp
     mainwidget.cpp mainwidget.h
+)
+set_target_properties(cube PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(cube PUBLIC
     Qt::Core

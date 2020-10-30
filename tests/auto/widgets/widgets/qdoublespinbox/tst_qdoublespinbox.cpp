@@ -49,28 +49,28 @@ class DoubleSpinBox : public QDoubleSpinBox
 {
     Q_OBJECT
 public:
-    DoubleSpinBox(QWidget *parent = 0)
+    DoubleSpinBox(QWidget *parent = nullptr)
         : QDoubleSpinBox(parent)
     { /*connect(this, SIGNAL(valueChanged(double)), this, SLOT(foo(double)));*/ }
-    QString textFromValue(double v) const
+    QString textFromValue(double v) const override
     {
         return QDoubleSpinBox::textFromValue(v);
     }
-    QValidator::State validate(QString &text, int &pos) const
+    QValidator::State validate(QString &text, int &pos) const override
     {
         return QDoubleSpinBox::validate(text, pos);
     }
-    double valueFromText(const QString &text) const
+    double valueFromText(const QString &text) const override
     {
         return QDoubleSpinBox::valueFromText(text);
     }
 #if QT_CONFIG(wheelevent)
-    void wheelEvent(QWheelEvent *event)
+    void wheelEvent(QWheelEvent *event) override
     {
         QDoubleSpinBox::wheelEvent(event);
     }
 #endif
-    void initStyleOption(QStyleOptionSpinBox *option) const
+    void initStyleOption(QStyleOptionSpinBox *option) const override
     {
         QDoubleSpinBox::initStyleOption(option);
     }
@@ -779,17 +779,17 @@ void tst_QDoubleSpinBox::valueFromTextAndValidate_data()
     QTest::newRow("data1") << QString() << Intermediate << 0.0 << 100.0 << (int)QLocale::C << QString();
     QTest::newRow("data2") << QString("asd") << Invalid << 0.0 << 100.0 << (int)QLocale::C << QString();
     QTest::newRow("data3") << QString("2.2") << Acceptable << 0.0 << 100.0 << (int)QLocale::C << QString();
-    QTest::newRow("data4") << QString(" ") << Intermediate << 0.0 << 100.0 << (int)QLocale::Norwegian << QString();
+    QTest::newRow("data4") << QString(" ") << Intermediate << 0.0 << 100.0 << (int)QLocale::NorwegianBokmal << QString();
     QTest::newRow("data5") << QString(" ") << Intermediate << 0.0 << 100.0 << (int)QLocale::C << QString();
-    QTest::newRow("data6") << QString(",") << Intermediate << 0.0 << 100.0 << (int)QLocale::Norwegian << QString();
+    QTest::newRow("data6") << QString(",") << Intermediate << 0.0 << 100.0 << (int)QLocale::NorwegianBokmal << QString();
     QTest::newRow("data7") << QString(",") << Invalid << 0.0 << 100.0 << (int)QLocale::C << QString();
-    QTest::newRow("data8") << QString("1 ") << Acceptable << 0.0 << 1000.0 << (int)QLocale::Norwegian << QString("1");
+    QTest::newRow("data8") << QString("1 ") << Acceptable << 0.0 << 1000.0 << (int)QLocale::NorwegianBokmal << QString("1");
     QTest::newRow("data9") << QString("1 ") << Acceptable << 0.0 << 100.0 << (int)QLocale::C << QString("1");
-    QTest::newRow("data10") << QString(" 1") << Acceptable << 0.0 << 100.0 << (int)QLocale::Norwegian << QString("1");
+    QTest::newRow("data10") << QString(" 1") << Acceptable << 0.0 << 100.0 << (int)QLocale::NorwegianBokmal << QString("1");
     QTest::newRow("data11") << QString(" 1") << Acceptable << 0.0 << 100.0 << (int)QLocale::C << QString("1");
-    QTest::newRow("data12") << QString("1,") << Acceptable << 0.0 << 100.0 << (int)QLocale::Norwegian << QString();
+    QTest::newRow("data12") << QString("1,") << Acceptable << 0.0 << 100.0 << (int)QLocale::NorwegianBokmal << QString();
     QTest::newRow("data13") << QString("1,") << Acceptable << 0.0 << 1000.0 << (int)QLocale::C << QString();
-    QTest::newRow("data14") << QString("1, ") << Acceptable << 0.0 << 100.0 << (int)QLocale::Norwegian << QString("1,");
+    QTest::newRow("data14") << QString("1, ") << Acceptable << 0.0 << 100.0 << (int)QLocale::NorwegianBokmal << QString("1,");
     QTest::newRow("data15") << QString("1, ") << Invalid << 0.0 << 100.0 << (int)QLocale::C << QString();
     QTest::newRow("data16") << QString("2") << Intermediate << 100.0 << 102.0 << (int)QLocale::C << QString();
     QTest::newRow("data17") << QString("22.0") << Intermediate << 100.0 << 102.0 << (int)QLocale::C << QString();
@@ -828,7 +828,7 @@ void tst_QDoubleSpinBox::valueFromTextAndValidate_data()
     QTest::newRow("data50") << QString("2.2") << Acceptable << 0.0 << 1000.0 << (int)QLocale::C << QString();
     QTest::newRow("data51") << QString("2.2,00") << Invalid << 0.0 << 1000.0 << (int)QLocale::C << QString();
     QTest::newRow("data52") << QString("2..2,00") << Invalid << 0.0 << 1000.0 << (int)QLocale::German << QString();
-    QTest::newRow("data53") << QString("2.2") << Invalid << 0.0 << 1000.0 << (int)QLocale::Norwegian << QString();
+    QTest::newRow("data53") << QString("2.2") << Invalid << 0.0 << 1000.0 << (int)QLocale::NorwegianBokmal << QString();
     QTest::newRow("data54") << QString("  2.2") << Acceptable << 0.0 << 1000.0 << (int)QLocale::C << QString();
     QTest::newRow("data55") << QString("2.2  ") << Acceptable << 0.0 << 1000.0 << (int)QLocale::C << QString("2.2");
     QTest::newRow("data56") << QString("  2.2  ") << Acceptable << 0.0 << 1000.0 << (int)QLocale::C << QString("2.2");
@@ -1047,7 +1047,7 @@ void tst_QDoubleSpinBox::undoRedo()
     QVERIFY(spin.lineEdit()->isUndoAvailable());
 
     //testing CTRL+Z (undo)
-    int val = QKeySequence(QKeySequence::Undo)[0];
+    int val = QKeySequence(QKeySequence::Undo)[0].toCombined();
     if (val != 0) {
         Qt::KeyboardModifiers mods = (Qt::KeyboardModifiers)(val & Qt::KeyboardModifierMask);
         QTest::keyClick(&spin, val & ~mods, mods);
@@ -1060,7 +1060,7 @@ void tst_QDoubleSpinBox::undoRedo()
 
 
     //testing CTRL+Y (redo)
-    val = QKeySequence(QKeySequence::Redo)[0];
+    val = QKeySequence(QKeySequence::Redo)[0].toCombined();
     if (val != 0) {
         Qt::KeyboardModifiers mods = (Qt::KeyboardModifiers)(val & Qt::KeyboardModifierMask);
         QTest::keyClick(&spin, val & ~mods, mods);
@@ -1081,7 +1081,7 @@ void tst_QDoubleSpinBox::undoRedo()
 
 struct task199226_DoubleSpinBox : public QDoubleSpinBox
 {
-    task199226_DoubleSpinBox(QWidget *parent = 0) : QDoubleSpinBox(parent) {}
+    task199226_DoubleSpinBox(QWidget *parent = nullptr) : QDoubleSpinBox(parent) {}
     QLineEdit *lineEdit() { return QAbstractSpinBox::lineEdit(); }
 };
 
@@ -1172,7 +1172,7 @@ void tst_QDoubleSpinBox::taskQTBUG_5008_textFromValueAndValidate()
         }
 
         //we use the French delimiters here
-        QString textFromValue (double value) const
+        QString textFromValue (double value) const override
         {
             return locale().toString(value);
         }
@@ -1790,7 +1790,7 @@ void tst_QDoubleSpinBox::stepModifierPressAndHold()
     QTest::mouseRelease(&spin, Qt::LeftButton, modifiers, buttonRect.center());
 
     const auto value = spy.last().at(0);
-    QVERIFY(value.type() == QVariant::Double);
+    QVERIFY(value.userType() == QMetaType::Double);
     QCOMPARE(value.toDouble(), spy.length() * expectedStepModifier);
 }
 

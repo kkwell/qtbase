@@ -75,6 +75,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \class QRhiMetalInitParams
     \inmodule QtRhi
+    \internal
     \brief Metal specific initialization parameters.
 
     A Metal-based QRhi needs no special parameters for initialization.
@@ -106,12 +107,14 @@ QT_BEGIN_NAMESPACE
 /*!
     \class QRhiMetalNativeHandles
     \inmodule QtRhi
+    \internal
     \brief Holds the Metal device used by the QRhi.
  */
 
 /*!
     \class QRhiMetalCommandBufferNativeHandles
     \inmodule QtRhi
+    \internal
     \brief Holds the MTLCommandBuffer and MTLRenderCommandEncoder objects that are backing a QRhiCommandBuffer.
 
     \note The command buffer object is only guaranteed to be valid while
@@ -562,7 +565,7 @@ bool QRhiMetal::isFeatureSupported(QRhi::Feature feature) const
         return true;
     case QRhi::RenderToNonBaseMipLevel:
         return true;
-    case QRhi::UIntAttributes:
+    case QRhi::IntAttributes:
         return true;
     case QRhi::ScreenSpaceDerivatives:
         return true;
@@ -587,6 +590,20 @@ int QRhiMetal::resourceLimit(QRhi::ResourceLimit limit) const
         return QMTL_FRAMES_IN_FLIGHT;
     case QRhi::MaxAsyncReadbackFrames:
         return QMTL_FRAMES_IN_FLIGHT;
+    case QRhi::MaxThreadGroupsPerDimension:
+        return 65535;
+    case QRhi::MaxThreadsPerThreadGroup:
+        Q_FALLTHROUGH();
+    case QRhi::MaxThreadGroupX:
+        Q_FALLTHROUGH();
+    case QRhi::MaxThreadGroupY:
+        Q_FALLTHROUGH();
+    case QRhi::MaxThreadGroupZ:
+#if defined(Q_OS_MACOS)
+        return 1024;
+#else
+        return 512;
+#endif
     default:
         Q_UNREACHABLE();
         return 0;
@@ -1677,7 +1694,8 @@ void QRhiMetal::enqueueResourceUpdates(QRhiCommandBuffer *cb, QRhiResourceUpdate
     QRhiResourceUpdateBatchPrivate *ud = QRhiResourceUpdateBatchPrivate::get(resourceUpdates);
     QRhiProfilerPrivate *rhiP = profilerPrivateOrNull();
 
-    for (const QRhiResourceUpdateBatchPrivate::BufferOp &u : ud->bufferOps) {
+    for (int opIdx = 0; opIdx < ud->activeBufferOpCount; ++opIdx) {
+        const QRhiResourceUpdateBatchPrivate::BufferOp &u(ud->bufferOps[opIdx]);
         if (u.type == QRhiResourceUpdateBatchPrivate::BufferOp::DynamicUpdate) {
             QMetalBuffer *bufD = QRHI_RES(QMetalBuffer, u.buf);
             Q_ASSERT(bufD->m_type == QRhiBuffer::Dynamic);
@@ -1715,7 +1733,8 @@ void QRhiMetal::enqueueResourceUpdates(QRhiCommandBuffer *cb, QRhiResourceUpdate
         }
     };
 
-    for (const QRhiResourceUpdateBatchPrivate::TextureOp &u : ud->textureOps) {
+    for (int opIdx = 0; opIdx < ud->activeTextureOpCount; ++opIdx) {
+        const QRhiResourceUpdateBatchPrivate::TextureOp &u(ud->textureOps[opIdx]);
         if (u.type == QRhiResourceUpdateBatchPrivate::TextureOp::Upload) {
             QMetalTexture *utexD = QRHI_RES(QMetalTexture, u.dst);
             qsizetype stagingSize = 0;
@@ -1882,7 +1901,8 @@ void QRhiMetal::beginPass(QRhiCommandBuffer *cb,
                           QRhiRenderTarget *rt,
                           const QColor &colorClearValue,
                           const QRhiDepthStencilClearValue &depthStencilClearValue,
-                          QRhiResourceUpdateBatch *resourceUpdates)
+                          QRhiResourceUpdateBatch *resourceUpdates,
+                          QRhiCommandBuffer::BeginPassFlags)
 {
     QMetalCommandBuffer *cbD = QRHI_RES(QMetalCommandBuffer, cb);
     Q_ASSERT(cbD->recordingPass == QMetalCommandBuffer::NoPass);
@@ -1997,7 +2017,9 @@ void QRhiMetal::endPass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resource
         enqueueResourceUpdates(cb, resourceUpdates);
 }
 
-void QRhiMetal::beginComputePass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceUpdates)
+void QRhiMetal::beginComputePass(QRhiCommandBuffer *cb,
+                                 QRhiResourceUpdateBatch *resourceUpdates,
+                                 QRhiCommandBuffer::BeginPassFlags)
 {
     QMetalCommandBuffer *cbD = QRHI_RES(QMetalCommandBuffer, cb);
     Q_ASSERT(cbD->recordingPass == QMetalCommandBuffer::NoPass);
@@ -2233,6 +2255,32 @@ QRhiBuffer::NativeBuffer QMetalBuffer::nativeBuffer()
         return b;
     }
     return { { &d->buf[0] }, 1 };
+}
+
+char *QMetalBuffer::beginFullDynamicBufferUpdateForCurrentFrame()
+{
+    // Shortcut the entire buffer update mechanism and allow the client to do
+    // the host writes directly to the buffer. This will lead to unexpected
+    // results when combined with QRhiResourceUpdateBatch-based updates for the
+    // buffer, but provides a fast path for dynamic buffers that have all their
+    // content changed in every frame.
+    Q_ASSERT(m_type == Dynamic);
+    QRHI_RES_RHI(QRhiMetal);
+    Q_ASSERT(rhiD->inFrame);
+    const int slot = rhiD->currentFrameSlot;
+    void *p = [d->buf[slot] contents];
+    return static_cast<char *>(p);
+}
+
+void QMetalBuffer::endFullDynamicBufferUpdateForCurrentFrame()
+{
+#ifdef Q_OS_MACOS
+    if (d->managed) {
+        QRHI_RES_RHI(QRhiMetal);
+        const int slot = rhiD->currentFrameSlot;
+        [d->buf[slot] didModifyRange: NSMakeRange(0, NSUInteger(m_size))];
+    }
+#endif
 }
 
 static inline MTLPixelFormat toMetalTextureFormat(QRhiTexture::Format format, QRhiTexture::Flags flags, const QRhiMetalData *d)
@@ -2993,6 +3041,12 @@ bool QMetalShaderResourceBindings::create()
     if (!sortedBindings.isEmpty())
         destroy();
 
+    QRHI_RES_RHI(QRhiMetal);
+    if (!rhiD->sanityCheckShaderResourceBindings(this))
+        return false;
+
+    rhiD->updateLayoutDesc(this);
+
     std::copy(m_bindings.cbegin(), m_bindings.cend(), std::back_inserter(sortedBindings));
     std::sort(sortedBindings.begin(), sortedBindings.end(),
               [](const QRhiShaderResourceBinding &a, const QRhiShaderResourceBinding &b)
@@ -3072,6 +3126,14 @@ static inline MTLVertexFormat toMetalAttributeFormat(QRhiVertexInputAttribute::F
         return MTLVertexFormatUInt2;
     case QRhiVertexInputAttribute::UInt:
         return MTLVertexFormatUInt;
+    case QRhiVertexInputAttribute::SInt4:
+        return MTLVertexFormatInt4;
+    case QRhiVertexInputAttribute::SInt3:
+        return MTLVertexFormatInt3;
+    case QRhiVertexInputAttribute::SInt2:
+        return MTLVertexFormatInt2;
+    case QRhiVertexInputAttribute::SInt:
+        return MTLVertexFormatInt;
     default:
         Q_UNREACHABLE();
         return MTLVertexFormatFloat4;

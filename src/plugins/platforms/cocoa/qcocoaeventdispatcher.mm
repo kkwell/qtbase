@@ -196,7 +196,7 @@ void QCocoaEventDispatcherPrivate::maybeStopCFRunLoopTimer()
     runLoopTimerRef = nullptr;
 }
 
-void QCocoaEventDispatcher::registerTimer(int timerId, int interval, Qt::TimerType timerType, QObject *obj)
+void QCocoaEventDispatcher::registerTimer(int timerId, qint64 interval, Qt::TimerType timerType, QObject *obj)
 {
 #ifndef QT_NO_DEBUG
     if (timerId < 1 || interval < 0 || !obj) {
@@ -286,13 +286,6 @@ void QCocoaEventDispatcher::unregisterSocketNotifier(QSocketNotifier *notifier)
 {
     Q_D(QCocoaEventDispatcher);
     d->cfSocketNotifier.unregisterSocketNotifier(notifier);
-}
-
-bool QCocoaEventDispatcher::hasPendingEvents()
-{
-    extern uint qGlobalPostedEventsCount();
-    extern bool qt_is_gui_used; //qapplication.cpp
-    return qGlobalPostedEventsCount() || (qt_is_gui_used && !CFRunLoopIsWaiting(CFRunLoopGetMain()));
 }
 
 static bool isUserInputEvent(NSEvent* event)
@@ -968,9 +961,6 @@ void QCocoaEventDispatcher::interrupt()
     // events on the floor before we get a chance to reestablish a new session.
     d->cancelWaitForMoreEvents();
 }
-
-void QCocoaEventDispatcher::flush()
-{ }
 
 // QTBUG-56746: The behavior of processEvents() has been changed to not clear
 // the interrupt flag. Use this function to clear it.

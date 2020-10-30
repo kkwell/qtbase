@@ -142,7 +142,7 @@ EmbeddingWindow::EmbeddingWindow(QWindow *window) : m_window(window)
     fileMenu->addSeparator();
     action = fileMenu->addAction("Quit", qApp, &QCoreApplication::quit);
     toolbar->addAction(action);
-    action->setShortcut(Qt::CTRL + Qt::Key_Q);
+    action->setShortcut(Qt::CTRL | Qt::Key_Q);
 }
 
 void EmbeddingWindow::releaseForeignWindow()
@@ -226,9 +226,6 @@ static inline bool isOptionSet(int argc, char *argv[], const char *option)
 
 int main(int argc, char *argv[])
 {
-    // Check for no scaling before QApplication is instantiated.
-    if (isOptionSet(argc, argv, "-s"))
-        QCoreApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
     QCoreApplication::setApplicationVersion(QLatin1String(QT_VERSION_STR));
     QGuiApplication::setApplicationDisplayName("Foreign window tester");
 

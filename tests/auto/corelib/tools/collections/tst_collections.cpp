@@ -812,7 +812,7 @@ void tst_Collections::vector()
     QVERIFY(LargeStatic::count == originalLargeStaticCount);
     {
         QVector<LargeStatic> vector;
-        LargeStatic *dummy = 0;
+        LargeStatic *dummy = nullptr;
         for (int i = 0; i < 10000; ++i) {
             delete dummy;
             dummy = new LargeStatic;
@@ -834,7 +834,7 @@ void tst_Collections::vector()
     QVERIFY(Movable::count == originalMovableCount);
     {
         QVector<Movable> vector;
-        Movable *dummy = 0;
+        Movable *dummy = nullptr;
         for (int i = 0; i < 10000; ++i) {
             delete dummy;
             dummy = new Movable;
@@ -2361,7 +2361,7 @@ template <class Container>
 void testLinkedListLikeStlIterators()
 {
     Container fake;
-    typename Container::value_type t;
+    typename Container::value_type t = {};
     fake << t;
 
     typename Container::iterator i1 = fake.begin(), i2 = i1 + 1;
@@ -2394,7 +2394,7 @@ void testListLikeStlIterators()
     testLinkedListLikeStlIterators<Container>();
 
     Container fake;
-    typename Container::value_type t;
+    typename Container::value_type t = {};
     fake << t;
 
     typename Container::iterator i1 = fake.begin(), i2 = i1 + 1;
@@ -2583,7 +2583,7 @@ void tst_Collections::list_stl()
 }
 
 template <typename T>
-T qtInit(T * = 0)
+T qtInit(T * = nullptr)
 {
     return T();
 }
@@ -2593,9 +2593,9 @@ void tst_Collections::q_init()
     QCOMPARE(qtInit<int>(), 0);
     QCOMPARE(qtInit<double>(), 0.0);
     QCOMPARE(qtInit<QString>(), QString());
-    QCOMPARE(qtInit<int *>(), static_cast<int *>(0));
-    QCOMPARE(qtInit<double *>(), static_cast<double *>(0));
-    QCOMPARE(qtInit<QString *>(), static_cast<QString *>(0));
+    QCOMPARE(qtInit<int *>(), static_cast<int *>(nullptr));
+    QCOMPARE(qtInit<double *>(), static_cast<double *>(nullptr));
+    QCOMPARE(qtInit<QString *>(), static_cast<QString *>(nullptr));
     QCOMPARE(qtInit<Pod>().i1, 0);
     QCOMPARE(qtInit<Pod>().i2, 0);
 }
@@ -2962,7 +2962,7 @@ public:
 
     inline bool operator==(const AlignedClass &other) const { return i == other.i; }
     inline bool operator<(const AlignedClass &other) const { return i < other.i; }
-    friend inline int qHash(const AlignedClass &a) { return qHash(a.i); }
+    friend inline size_t qHash(const AlignedClass &a) { return qHash(a.i); }
 };
 
 using Aligned4 = AlignedClass<4>;

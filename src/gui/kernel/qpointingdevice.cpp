@@ -49,6 +49,7 @@
 QT_BEGIN_NAMESPACE
 
 Q_DECLARE_LOGGING_CATEGORY(lcQpaInputDevices)
+Q_DECLARE_LOGGING_CATEGORY(lcPointerGrab)
 
 /*!
     \class QPointingDevice
@@ -103,6 +104,9 @@ Q_DECLARE_LOGGING_CATEGORY(lcQpaInputDevices)
         A device that is similar to a flat mouse with a transparent circle with
         cross-hairs.
 
+    \value Keyboard
+        A keyboard.
+
     \value AllDevices
         Any of the above (used as a default filter value).
 */
@@ -133,38 +137,10 @@ Q_DECLARE_LOGGING_CATEGORY(lcQpaInputDevices)
     \value Eraser
         The other end of the stylus (if it has a virtual eraser on the other end).
     \value Cursor
-        A transparent circle with cross-hairs as found on a \l {DeviceType.Puck}{Puck} device.
+        A transparent circle with cross-hairs as found on a
+        \l {QInputDevice::DeviceType}{Puck} device.
     \value AllPointerTypes
         Any of the above (used as a default filter value).
-*/
-
-/*! \enum QPointingDevice::Capability
-
-    This enum is used with QPointingDevice::capabilities() to indicate what kind of information the
-    touch device or its driver can provide.
-
-    \value Position
-        Indicates that position information is available, meaning that the
-        pos() family of functions in the touch points return valid points.
-
-    \value Area
-        Indicates that touch area information is available, meaning that the
-        rect() family of functions in the touch points return valid rectangles.
-
-    \value Pressure
-        Indicates that pressure information is available, meaning that
-        QPointerEvent::EventPoint::pressure() returns a valid value.
-
-    \value Velocity
-        Indicates that velocity information is available, meaning that
-        QPointerEvent::EventPoint::velocity() returns a valid vector.
-
-    \value NormalizedPosition
-        Indicates that the normalized position is available, meaning that
-        QPointerEvent::EventPoint::normalizedPos() returns a valid value.
-
-    \value MouseEmulation
-        Indicates that the device synthesizes mouse events.
 */
 
 /*!
@@ -183,8 +159,8 @@ QPointingDevice::~QPointingDevice()
 
 /*!
     Creates a new pointing device instance with the given
-    \a deviceType, \a pointerType, \a capabilities, \a maxPoints,
-    \a buttonCount, \a name, \a id and \a seatId.
+    \a name, \a deviceType, \a pointerType, \a capabilities, \a maxPoints,
+    \a buttonCount, \a seatName, \a uniqueId and \a parent.
 */
 QPointingDevice::QPointingDevice(const QString &name, qint64 id, QInputDevice::DeviceType deviceType,
                                  QPointingDevice::PointerType pointerType, Capabilities capabilities, int maxPoints, int buttonCount,
@@ -376,6 +352,251 @@ const QPointingDevice *QPointingDevicePrivate::queryTabletDevice(QInputDevice::D
         }
     }
     return nullptr;
+}
+
+/*!
+    \internal
+    First, ensure that the \a cancelEvent's QTouchEvent::points() list contains
+    all points that have exclusive grabs. Then send the event to each object
+    that has an exclusive grab of any of the points.
+*/
+void QPointingDevicePrivate::sendTouchCancelEvent(QTouchEvent *cancelEvent)
+{
+    // An incoming TouchCancel event will typically not contain any points, but
+    // QQuickPointerHandler::onGrabChanged needs to be called for each point
+    // that has an exclusive grabber. Adding those points to the event makes it
+    // an easy iteration there.
+    if (cancelEvent->points().isEmpty()) {
+        for (auto &epd : activePoints.values()) {
+            if (epd.exclusiveGrabber)
+                QMutableTouchEvent::from(cancelEvent)->addPoint(epd.eventPoint);
+        }
+    }
+    for (auto &epd : activePoints.values()) {
+        if (epd.exclusiveGrabber)
+            QCoreApplication::sendEvent(epd.exclusiveGrabber, cancelEvent);
+        // The next touch event can only be a TouchBegin, so clean up.
+        cancelEvent->setExclusiveGrabber(epd.eventPoint, nullptr);
+        cancelEvent->clearPassiveGrabbers(epd.eventPoint);
+    }
+}
+
+/*! \internal
+    Returns the active EventPointData instance with the given \a id, if available,
+    or \c nullptr if not.
+*/
+QPointingDevicePrivate::EventPointData *QPointingDevicePrivate::queryPointById(int id) const
+{
+    auto it = activePoints.find(id);
+    if (it == activePoints.end())
+        return nullptr;
+    return &it.value();
+}
+
+/*! \internal
+    Returns the active EventPointData instance with the given \a id, if available;
+    if not, appends a new instance and returns it.
+*/
+QPointingDevicePrivate::EventPointData *QPointingDevicePrivate::pointById(int id) const
+{
+    auto it = activePoints.find(id);
+    if (it == activePoints.end()) {
+        Q_Q(const QPointingDevice);
+        QPointingDevicePrivate::EventPointData epd;
+        QMutableEventPoint::from(epd.eventPoint).setId(id);
+        QMutableEventPoint::from(epd.eventPoint).setDevice(q);
+        return &activePoints.insert(id, epd).first.value();
+    }
+    return &it.value();
+}
+
+/*! \internal
+    Remove the active EventPointData instance with the given \a id.
+*/
+void QPointingDevicePrivate::removePointById(int id)
+{
+    activePoints.remove(id);
+}
+
+/*!
+    \internal
+    Find the first non-null target (widget) via QMutableEventPoint::target()
+    in the active points. This is the widget that will receive any event that
+    comes from a touchpad, even if some of the touchpoints fall spatially on
+    other windows.
+*/
+QObject *QPointingDevicePrivate::firstActiveTarget() const
+{
+    for (auto &pt : activePoints.values()) {
+        if (auto target = QMutableEventPoint::constFrom(pt.eventPoint).target())
+            return target;
+    }
+    return nullptr;
+}
+
+/*! \internal
+    Find the first non-null QWindow instance via QMutableEventPoint::window()
+    in the active points. This is the window that will receive any event that
+    comes from a touchpad, even if some of the touchpoints fall spatially on
+    other windows.
+*/
+QWindow *QPointingDevicePrivate::firstActiveWindow() const
+{
+    for (auto &pt : activePoints.values()) {
+        if (auto window = QMutableEventPoint::constFrom(pt.eventPoint).window())
+            return window;
+    }
+    return nullptr;
+}
+
+/*! \internal
+    Return the exclusive grabber of the first point in activePoints.
+    This is mainly for autotests that try to verify the "current" grabber
+    outside the context of event delivery, which is something that the rest
+    of the codebase should not be doing.
+*/
+QObject *QPointingDevicePrivate::firstPointExclusiveGrabber() const
+{
+    if (activePoints.isEmpty())
+        return nullptr;
+    return activePoints.values().first().exclusiveGrabber;
+}
+
+void QPointingDevicePrivate::setExclusiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *exclusiveGrabber)
+{
+    Q_Q(QPointingDevice);
+    auto persistentPoint = queryPointById(point.id());
+    if (!persistentPoint) {
+        qWarning() << "point is not in activePoints" << point;
+        return;
+    }
+    if (persistentPoint->exclusiveGrabber == exclusiveGrabber)
+        return;
+    auto oldGrabber = persistentPoint->exclusiveGrabber;
+    persistentPoint->exclusiveGrabber = exclusiveGrabber;
+    if (oldGrabber)
+        emit q->grabChanged(oldGrabber, exclusiveGrabber ? QPointingDevice::CancelGrabExclusive : QPointingDevice::UngrabExclusive,
+                            event, persistentPoint->eventPoint);
+    if (Q_UNLIKELY(lcPointerGrab().isDebugEnabled())) {
+        qCDebug(lcPointerGrab) << name << "point" << point.id() << point.state()
+                               << "@" << point.scenePosition()
+                               << ": grab" << oldGrabber << "->" << exclusiveGrabber;
+    }
+    QMutableEventPoint::from(persistentPoint->eventPoint).setGlobalGrabPosition(point.globalPosition());
+    if (exclusiveGrabber)
+        emit q->grabChanged(exclusiveGrabber, QPointingDevice::GrabExclusive, event, point);
+}
+
+/*!
+    \internal
+    Call QEventPoint::setExclusiveGrabber(nullptr) on each active point that has a grabber.
+*/
+bool QPointingDevicePrivate::removeExclusiveGrabber(const QPointerEvent *event, const QObject *grabber)
+{
+    bool ret = false;
+    for (auto &pt : activePoints.values()) {
+        if (pt.exclusiveGrabber == grabber) {
+            setExclusiveGrabber(event, pt.eventPoint, nullptr);
+            ret = true;
+        }
+    }
+    return ret;
+}
+
+bool QPointingDevicePrivate::addPassiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *grabber)
+{
+    Q_Q(QPointingDevice);
+    auto persistentPoint = queryPointById(point.id());
+    if (!persistentPoint) {
+        qWarning() << "point is not in activePoints" << point;
+        return false;
+    }
+    if (persistentPoint->passiveGrabbers.contains(grabber))
+        return false;
+    if (Q_UNLIKELY(lcPointerGrab().isDebugEnabled())) {
+        qCDebug(lcPointerGrab) << name << "point" << point.id() << point.state()
+                               << ": grab (passive)" << grabber;
+    }
+    persistentPoint->passiveGrabbers << grabber;
+    emit q->grabChanged(grabber, QPointingDevice::GrabPassive, event, point);
+    return true;
+}
+
+bool QPointingDevicePrivate::removePassiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *grabber)
+{
+    Q_Q(QPointingDevice);
+    auto persistentPoint = queryPointById(point.id());
+    if (!persistentPoint) {
+        qWarning() << "point is not in activePoints" << point;
+        return false;
+    }
+    int i = persistentPoint->passiveGrabbers.indexOf(grabber);
+    if (i >= 0) {
+        if (Q_UNLIKELY(lcPointerGrab().isDebugEnabled())) {
+            qCDebug(lcPointerGrab) << name << "point" << point.id() << point.state()
+                                   << ": removing passive grabber" << grabber;
+        }
+        emit q->grabChanged(grabber, QPointingDevice::UngrabPassive, event, point);
+        persistentPoint->passiveGrabbers.removeAt(i);
+        return true;
+    }
+    return false;
+}
+
+void QPointingDevicePrivate::clearPassiveGrabbers(const QPointerEvent *event, const QEventPoint &point)
+{
+    Q_Q(QPointingDevice);
+    auto persistentPoint = queryPointById(point.id());
+    if (!persistentPoint) {
+        qWarning() << "point is not in activePoints" << point;
+        return;
+    }
+    if (persistentPoint->passiveGrabbers.isEmpty())
+        return;
+    if (Q_UNLIKELY(lcPointerGrab().isDebugEnabled())) {
+        qCDebug(lcPointerGrab) << name << "point" << point.id() << point.state()
+                               << ": clearing" << persistentPoint->passiveGrabbers;
+    }
+    for (auto g : persistentPoint->passiveGrabbers)
+        emit q->grabChanged(g, QPointingDevice::UngrabPassive, event, point);
+    persistentPoint->passiveGrabbers.clear();
+}
+
+/*!
+    \internal
+    Removes the given \a grabber as both passive and exclusive grabber from all
+    points in activePoints where it's currently found. If \a cancel is \c true,
+    the transition emitted from the grabChanged() signal will be
+    \c CancelGrabExclusive or \c CancelGrabPassive. Otherwise it will be
+    \c UngrabExclusive or \c UngrabPassive.
+
+    \note This function provides a way to work around the limitation that we
+    normally change grabbers only during event delivery; but it's also more expensive.
+*/
+void QPointingDevicePrivate::removeGrabber(QObject *grabber, bool cancel)
+{
+    Q_Q(QPointingDevice);
+    for (auto ap : activePoints) {
+        auto &epd = ap.second;
+        if (epd.exclusiveGrabber.data() == grabber) {
+            qCDebug(lcPointerGrab) << name << "point" << epd.eventPoint.id() << epd.eventPoint.state()
+                                   << "@" << epd.eventPoint.scenePosition()
+                                   << ": grab" << grabber << "-> nullptr";
+            epd.exclusiveGrabber.clear();
+            emit q->grabChanged(grabber,
+                                cancel ? QPointingDevice::CancelGrabExclusive : QPointingDevice::UngrabExclusive,
+                                nullptr, epd.eventPoint);
+        }
+        int pi = epd.passiveGrabbers.indexOf(grabber);
+        if (pi >= 0) {
+            qCDebug(lcPointerGrab) << name << "point" << epd.eventPoint.id() << epd.eventPoint.state()
+                                   << ": removing passive grabber" << grabber;
+            epd.passiveGrabbers.removeAt(pi);
+            emit q->grabChanged(grabber,
+                                cancel ? QPointingDevice::CancelGrabPassive : QPointingDevice::UngrabPassive,
+                                nullptr, epd.eventPoint);
+        }
+    }
 }
 
 /*!

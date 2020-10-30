@@ -336,7 +336,6 @@ public:
     QString text;
     Qt::Alignment textAlignment;
     bool textVisible;
-    Qt::Orientation orientation; // ### Qt 6: remove
     bool invertedAppearance;
     bool bottomToTop;
 
@@ -670,8 +669,6 @@ public:
     enum StyleOptionVersion { Version = 1 };
 
     QRectF exposedRect;
-    QTransform matrix;
-    qreal levelOfDetail;
 
     QStyleOptionGraphicsItem();
     QStyleOptionGraphicsItem(const QStyleOptionGraphicsItem &other) : QStyleOption(Version, Type) { *this = other; }

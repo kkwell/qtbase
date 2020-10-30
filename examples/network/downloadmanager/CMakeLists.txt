@@ -18,10 +18,14 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/network/downloadmanager")
 find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Network)
 
-add_executable(downloadmanager
+qt_add_executable(downloadmanager
     downloadmanager.cpp downloadmanager.h
     main.cpp
     textprogressbar.cpp textprogressbar.h
+)
+set_target_properties(downloadmanager PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
 )
 target_link_libraries(downloadmanager PUBLIC
     Qt::Core

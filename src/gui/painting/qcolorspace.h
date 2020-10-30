@@ -51,6 +51,8 @@ QT_BEGIN_NAMESPACE
 class QColorSpacePrivate;
 class QPointF;
 
+QT_DECLARE_QESDP_SPECIALIZATION_DTOR_WITH_EXPORT(QColorSpacePrivate, Q_GUI_EXPORT)
+
 class Q_GUI_EXPORT QColorSpace
 {
     Q_GADGET
@@ -80,7 +82,7 @@ public:
     };
     Q_ENUM(TransferFunction)
 
-    QColorSpace();
+    QColorSpace() noexcept = default;
     QColorSpace(NamedColorSpace namedColorSpace);
     QColorSpace(Primaries primaries, TransferFunction fun, float gamma = 0.0f);
     QColorSpace(Primaries primaries, float gamma);
@@ -89,18 +91,16 @@ public:
                 TransferFunction fun, float gamma = 0.0f);
     ~QColorSpace();
 
-    QColorSpace(const QColorSpace &colorSpace);
-    QColorSpace &operator=(const QColorSpace &colorSpace);
-
-    QColorSpace(QColorSpace &&colorSpace) noexcept
-            : d_ptr(qExchange(colorSpace.d_ptr, nullptr))
-    { }
-    QColorSpace &operator=(QColorSpace &&colorSpace) noexcept
+    QColorSpace(const QColorSpace &colorSpace) noexcept;
+    QColorSpace &operator=(const QColorSpace &colorSpace) noexcept
     {
-        // Make the deallocation of this->d_ptr happen in ~QColorSpace()
-        QColorSpace(std::move(colorSpace)).swap(*this);
+        QColorSpace copy(colorSpace);
+        swap(copy);
         return *this;
     }
+
+    QColorSpace(QColorSpace &&colorSpace) noexcept = default;
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QColorSpace)
 
     void swap(QColorSpace &colorSpace) noexcept
     { qSwap(d_ptr, colorSpace.d_ptr); }
@@ -116,10 +116,13 @@ public:
     void setPrimaries(const QPointF &whitePoint, const QPointF &redPoint,
                       const QPointF &greenPoint, const QPointF &bluePoint);
 
+    void detach();
     bool isValid() const noexcept;
 
-    friend Q_GUI_EXPORT bool operator==(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2);
-    friend inline bool operator!=(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2);
+    friend inline bool operator==(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
+    { return colorSpace1.equals(colorSpace2); }
+    friend inline bool operator!=(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
+    { return !(colorSpace1 == colorSpace2); }
 
     static QColorSpace fromIccProfile(const QByteArray &iccProfile);
     QByteArray iccProfile() const;
@@ -129,19 +132,15 @@ public:
     operator QVariant() const;
 
 private:
-    Q_DECLARE_PRIVATE(QColorSpace)
-    QColorSpacePrivate *d_ptr = nullptr;
+    friend class QColorSpacePrivate;
+    bool equals(const QColorSpace &other) const;
+
+    QExplicitlySharedDataPointer<QColorSpacePrivate> d_ptr;
 
 #ifndef QT_NO_DEBUG_STREAM
     friend Q_GUI_EXPORT QDebug operator<<(QDebug dbg, const QColorSpace &colorSpace);
 #endif
 };
-
-bool Q_GUI_EXPORT operator==(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2);
-inline bool operator!=(const QColorSpace &colorSpace1, const QColorSpace &colorSpace2)
-{
-    return !(colorSpace1 == colorSpace2);
-}
 
 Q_DECLARE_SHARED(QColorSpace)
 

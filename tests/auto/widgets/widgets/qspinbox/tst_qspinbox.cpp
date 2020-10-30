@@ -61,28 +61,28 @@
 class SpinBox : public QSpinBox
 {
 public:
-    SpinBox(QWidget *parent = 0)
+    SpinBox(QWidget *parent = nullptr)
         : QSpinBox(parent)
     {}
-    QString textFromValue(int v) const
+    QString textFromValue(int v) const override
     {
         return QSpinBox::textFromValue(v);
     }
-    QValidator::State validate(QString &text, int &pos) const
+    QValidator::State validate(QString &text, int &pos) const override
     {
         return QSpinBox::validate(text, pos);
     }
-    int valueFromText(const QString &text) const
+    int valueFromText(const QString &text) const override
     {
         return QSpinBox::valueFromText(text);
     }
 #if QT_CONFIG(wheelevent)
-    void wheelEvent(QWheelEvent *event)
+    void wheelEvent(QWheelEvent *event) override
     {
         QSpinBox::wheelEvent(event);
     }
 #endif
-    void initStyleOption(QStyleOptionSpinBox *option) const
+    void initStyleOption(QStyleOptionSpinBox *option) const override
     {
         QSpinBox::initStyleOption(option);
     }
@@ -508,9 +508,10 @@ void tst_QSpinBox::valueChangedHelper(int value)
 class ReadOnlyChangeTracker: public QSpinBox
 {
 public:
-    ReadOnlyChangeTracker(QWidget *parent = 0) : QSpinBox(parent) {}
+    ReadOnlyChangeTracker(QWidget *parent = nullptr) : QSpinBox(parent) {}
 
-    void changeEvent(QEvent *ev) {
+    void changeEvent(QEvent *ev) override
+    {
         if (ev->type() == QEvent::ReadOnlyChange)
             ++readOnlyChangeEventCount;
     }
@@ -878,7 +879,7 @@ void tst_QSpinBox::locale_data()
     QTest::addColumn<QString>("text");
     QTest::addColumn<int>("valFromText");
 
-    QTest::newRow("data0") << QLocale(QLocale::Norwegian, QLocale::Norway) << 1234 << QString("1234") << QString("2345") << 2345;
+    QTest::newRow("data0") << QLocale(QLocale::NorwegianBokmal, QLocale::Norway) << 1234 << QString("1234") << QString("2345") << 2345;
     QTest::newRow("data1") << QLocale(QLocale::German, QLocale::Germany) << 1234 << QString("1234") << QString("2345") << 2345;
 }
 
@@ -1046,7 +1047,7 @@ void tst_QSpinBox::undoRedo()
     QVERIFY(spin.lineEdit()->isUndoAvailable());
 
     //testing CTRL+Z (undo)
-    int val = QKeySequence(QKeySequence::Undo)[0];
+    int val = QKeySequence(QKeySequence::Undo)[0].toCombined();
     Qt::KeyboardModifiers mods = (Qt::KeyboardModifiers)(val & Qt::KeyboardModifierMask);
     QTest::keyClick(&spin, val & ~mods, mods);
 
@@ -1055,7 +1056,7 @@ void tst_QSpinBox::undoRedo()
     QVERIFY(spin.lineEdit()->isRedoAvailable());
 
     //testing CTRL+Y (redo)
-    val = QKeySequence(QKeySequence::Redo)[0];
+    val = QKeySequence(QKeySequence::Redo)[0].toCombined();
     mods = (Qt::KeyboardModifiers)(val & Qt::KeyboardModifierMask);
     QTest::keyClick(&spin, val & ~mods, mods);
     QCOMPARE(spin.value(), 1);
@@ -1138,7 +1139,7 @@ void tst_QSpinBox::textFromValue()
 class sizeHint_SpinBox : public QSpinBox
 {
 public:
-    QSize sizeHint() const
+    QSize sizeHint() const override
     {
         ++sizeHintRequests;
         return QSpinBox::sizeHint();
@@ -1198,7 +1199,7 @@ void tst_QSpinBox::taskQTBUG_5008_textFromValueAndValidate()
         }
 
         //we use the French delimiters here
-        QString textFromValue (int value) const
+        QString textFromValue (int value) const override
         {
             return locale().toString(value);
         }
@@ -1850,7 +1851,7 @@ void tst_QSpinBox::stepModifierPressAndHold()
     QTest::mouseRelease(&spin, Qt::LeftButton, modifiers, buttonRect.center());
 
     const auto value = spy.last().at(0);
-    QVERIFY(value.type() == QVariant::Int);
+    QVERIFY(value.metaType().id() == QMetaType::Int);
     QCOMPARE(value.toInt(), spy.length() * expectedStepModifier);
 }
 

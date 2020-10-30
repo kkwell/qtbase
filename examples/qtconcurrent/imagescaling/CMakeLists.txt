@@ -20,9 +20,13 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Concurrent)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(imagescaling
+qt_add_executable(imagescaling
     imagescaling.cpp imagescaling.h
     main.cpp
+)
+set_target_properties(imagescaling PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(imagescaling PUBLIC
     Qt::Concurrent

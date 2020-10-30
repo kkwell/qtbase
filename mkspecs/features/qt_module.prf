@@ -117,8 +117,6 @@ unset(QT_FOR_PRIVATE)
 QMAKE_USE_PRIVATE += $$QMAKE_USE_FOR_PRIVATE
 unset(QMAKE_USE_FOR_PRIVATE)
 
-CONFIG += create_cmake
-
 contains(TARGET, QtAddOn.*): \
     DEFINES += QT_BUILD_ADDON_$${ucmodule}_LIB
 else: \
@@ -128,7 +126,7 @@ else: \
 lib_bundle {
    # Set the CFBundleIdentifier prefix for Qt frameworks
    QMAKE_TARGET_BUNDLE_PREFIX = org.qt-project
-   #QMAKE_FRAMEWORK_VERSION = 4.0
+   QMAKE_FRAMEWORK_VERSION = "A" # Not based on Qt major version
    CONFIG += sliced_bundle
    header_module {
         CONFIG += bundle

@@ -102,8 +102,8 @@ private:
 class MyButton : public QAbstractButton
 {
 public:
-    MyButton(QWidget *p = 0) : QAbstractButton(p) {}
-    void paintEvent(QPaintEvent *)
+    MyButton(QWidget *p = nullptr) : QAbstractButton(p) {}
+    void paintEvent(QPaintEvent *) override
     {
         QPainter p(this);
         QRect r = rect();
@@ -124,7 +124,7 @@ public:
 #endif
         }
     }
-    QSize sizeHint() const
+    QSize sizeHint() const override
     {
         QSize sh(8, 8);
         if (!text().isEmpty())
@@ -139,7 +139,7 @@ private:
 
     int timerEvents;
 
-    void timerEvent(QTimerEvent *event)
+    void timerEvent(QTimerEvent *event) override
     {
         ++timerEvents;
         QAbstractButton::timerEvent(event);

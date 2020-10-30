@@ -47,6 +47,10 @@
 #include <QtCore/qglobal.h>
 #include <QtCore/qalgorithms.h>
 
+#if __has_include(<bit>) && __cplusplus > 201703L
+#include <bit>
+#endif
+
 #ifndef _USE_MATH_DEFINES
 #  define _USE_MATH_DEFINES
 #  define undef_USE_MATH_DEFINES
@@ -225,7 +229,7 @@ inline qreal qFastCos(qreal x)
 
 constexpr inline float qDegreesToRadians(float degrees)
 {
-    return degrees * float(M_PI/180);
+    return degrees * float(M_PI / 180);
 }
 
 constexpr inline double qDegreesToRadians(double degrees)
@@ -246,7 +250,7 @@ constexpr inline double qDegreesToRadians(T degrees)
 
 constexpr inline float qRadiansToDegrees(float radians)
 {
-    return radians * float(180/M_PI);
+    return radians * float(180 / M_PI);
 }
 
 constexpr inline double qRadiansToDegrees(double radians)
@@ -264,7 +268,8 @@ constexpr inline long double qRadiansToDegrees(long double radians)
 // using integral datatypes...
 
 namespace QtPrivate {
-constexpr inline quint32 qConstexprNextPowerOfTwo(quint32 v) {
+constexpr inline quint32 qConstexprNextPowerOfTwo(quint32 v)
+{
     v |= v >> 1;
     v |= v >> 2;
     v |= v >> 4;
@@ -274,7 +279,8 @@ constexpr inline quint32 qConstexprNextPowerOfTwo(quint32 v) {
     return v;
 }
 
-constexpr inline quint64 qConstexprNextPowerOfTwo(quint64 v) {
+constexpr inline quint64 qConstexprNextPowerOfTwo(quint64 v)
+{
     v |= v >> 1;
     v |= v >> 2;
     v |= v >> 4;
@@ -298,7 +304,9 @@ constexpr inline quint64 qConstexprNextPowerOfTwo(qint64 v)
 
 constexpr inline quint32 qNextPowerOfTwo(quint32 v)
 {
-#if defined(QT_HAS_BUILTIN_CLZ)
+#if defined(__cpp_lib_int_pow2) && __cpp_lib_int_pow2 >= 202002L
+    return std::bit_ceil(v + 1);
+#elif defined(QT_HAS_BUILTIN_CLZ)
     if (v == 0)
         return 1;
     return 2U << (31 ^ QAlgorithmsPrivate::qt_builtin_clz(v));
@@ -309,7 +317,9 @@ constexpr inline quint32 qNextPowerOfTwo(quint32 v)
 
 constexpr inline quint64 qNextPowerOfTwo(quint64 v)
 {
-#if defined(QT_HAS_BUILTIN_CLZLL)
+#if defined(__cpp_lib_int_pow2) && __cpp_lib_int_pow2 >= 202002L
+    return std::bit_ceil(v + 1);
+#elif defined(QT_HAS_BUILTIN_CLZLL)
     if (v == 0)
         return 1;
     return Q_UINT64_C(2) << (63 ^ QAlgorithmsPrivate::qt_builtin_clzll(v));

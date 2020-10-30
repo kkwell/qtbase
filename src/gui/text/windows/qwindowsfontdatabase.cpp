@@ -651,6 +651,21 @@ static int QT_WIN_CALLBACK storeFont(const LOGFONT *logFont, const TEXTMETRIC *t
     return 1;
 }
 
+bool QWindowsFontDatabase::populateFamilyAliases(const QString &missingFamily)
+{
+    Q_UNUSED(missingFamily);
+
+    if (m_hasPopulatedAliases)
+        return false;
+
+    QStringList families = QFontDatabase::families();
+    for (const QString &family : families)
+        populateFamily(family);
+    m_hasPopulatedAliases = true;
+
+    return true;
+}
+
 void QWindowsFontDatabase::populateFamily(const QString &familyName)
 {
     qCDebug(lcQpaFonts) << familyName;
@@ -1124,7 +1139,7 @@ QFontEngine *QWindowsFontDatabase::createEngine(const QFontDef &request, const Q
                                                 int dpi,
                                                 const QSharedPointer<QWindowsFontEngineData> &data)
 {
-    QFontEngine *fe = 0;
+    QFontEngine *fe = nullptr;
 
     LOGFONT lf = fontDefToLOGFONT(request, faceName);
     const bool preferClearTypeAA = lf.lfQuality == CLEARTYPE_QUALITY;

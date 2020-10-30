@@ -89,6 +89,8 @@
 #endif
 #ifdef Q_OS_WASM
 #include "qnetworkreplywasmimpl_p.h"
+#include "qhttpmultipart.h"
+#include "qhttpmultipart_p.h"
 #endif
 
 #include "qnetconmonitor_p.h"
@@ -823,7 +825,7 @@ QNetworkReply *QNetworkAccessManager::post(const QNetworkRequest &request, const
     return reply;
 }
 
-#if QT_CONFIG(http)
+#if QT_CONFIG(http) || defined(Q_OS_WASM)
 /*!
     \since 4.8
 
@@ -929,9 +931,9 @@ QNetworkReply *QNetworkAccessManager::deleteResource(const QNetworkRequest &requ
     \a sslConfiguration. This function is useful to complete the TCP and SSL handshake
     to a host before the HTTPS request is made, resulting in a lower network latency.
 
-    \note Preconnecting a SPDY connection can be done by calling setAllowedNextProtocols()
-    on \a sslConfiguration with QSslConfiguration::NextProtocolSpdy3_0 contained in
-    the list of allowed protocols. When using SPDY, one single connection per host is
+    \note Preconnecting a HTTP/2 connection can be done by calling setAllowedNextProtocols()
+    on \a sslConfiguration with QSslConfiguration::ALPNProtocolHTTP2 contained in
+    the list of allowed protocols. When using HTTP/2, one single connection per host is
     enough, i.e. calling this method multiple times per host will not result in faster
     network transactions.
 
@@ -955,9 +957,9 @@ void QNetworkAccessManager::connectToHostEncrypted(const QString &hostName, quin
     validation. This function is useful to complete the TCP and SSL handshake
     to a host before the HTTPS request is made, resulting in a lower network latency.
 
-    \note Preconnecting a SPDY connection can be done by calling setAllowedNextProtocols()
-    on \a sslConfiguration with QSslConfiguration::NextProtocolSpdy3_0 contained in
-    the list of allowed protocols. When using SPDY, one single connection per host is
+    \note Preconnecting a HTTP/2 connection can be done by calling setAllowedNextProtocols()
+    on \a sslConfiguration with QSslConfiguration::ALPNProtocolHTTP2 contained in
+    the list of allowed protocols. When using HTTP/2, one single connection per host is
     enough, i.e. calling this method multiple times per host will not result in faster
     network transactions.
 
@@ -978,10 +980,10 @@ void QNetworkAccessManager::connectToHostEncrypted(const QString &hostName, quin
     if (sslConfiguration != QSslConfiguration::defaultConfiguration())
         request.setSslConfiguration(sslConfiguration);
 
-    // There is no way to enable HTTP2 via a request, so we need to check
-    // the ssl configuration whether HTTP2 is allowed here.
-    if (sslConfiguration.allowedNextProtocols().contains(QSslConfiguration::ALPNProtocolHTTP2))
-        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, true);
+    // There is no way to enable HTTP2 via a request after having established the connection,
+    // so we need to check the ssl configuration whether HTTP2 is allowed here.
+    if (!sslConfiguration.allowedNextProtocols().contains(QSslConfiguration::ALPNProtocolHTTP2))
+        request.setAttribute(QNetworkRequest::Http2AllowedAttribute, false);
 
     request.setPeerVerifyName(peerName);
     get(request);
@@ -1090,7 +1092,7 @@ QNetworkReply *QNetworkAccessManager::sendCustomRequest(const QNetworkRequest &r
     return reply;
 }
 
-#if QT_CONFIG(http)
+#if QT_CONFIG(http) || defined(Q_OS_WASM)
 /*!
     \since 5.8
 
@@ -1189,13 +1191,14 @@ QNetworkReply *QNetworkAccessManager::createRequest(QNetworkAccessManager::Opera
     }
 #endif
     QNetworkRequest request = req;
+#ifndef Q_OS_WASM // Content-length header is not allowed to be set by user in wasm
     if (!request.header(QNetworkRequest::ContentLengthHeader).isValid() &&
         outgoingData && !outgoingData->isSequential()) {
         // request has no Content-Length
         // but the data that is outgoing is random-access
         request.setHeader(QNetworkRequest::ContentLengthHeader, outgoingData->size());
     }
-
+#endif
     if (static_cast<QNetworkRequest::LoadControl>
         (request.attribute(QNetworkRequest::CookieLoadControlAttribute,
                            QNetworkRequest::Automatic).toInt()) == QNetworkRequest::Automatic) {
@@ -1505,9 +1508,10 @@ void QNetworkAccessManagerPrivate::authenticationRequired(QAuthenticator *authen
     // also called when last URL is empty, e.g. on first call
     if (allowAuthenticationReuse && (urlForLastAuthentication->isEmpty()
             || url != *urlForLastAuthentication)) {
-        // if credentials are included in the url, then use them
-        if (!url.userName().isEmpty()
-            && !url.password().isEmpty()) {
+        // if credentials are included in the url, then use them, unless they were already used
+        if (!url.userName().isEmpty() && !url.password().isEmpty()
+            && (url.userName() != authenticator->user()
+                || url.password() != authenticator->password())) {
             authenticator->setUser(url.userName(QUrl::FullyDecoded));
             authenticator->setPassword(url.password(QUrl::FullyDecoded));
             *urlForLastAuthentication = url;
@@ -1516,7 +1520,8 @@ void QNetworkAccessManagerPrivate::authenticationRequired(QAuthenticator *authen
         }
 
         QNetworkAuthenticationCredential cred = authenticationManager->fetchCachedCredentials(url, authenticator);
-        if (!cred.isNull()) {
+        if (!cred.isNull()
+            && (cred.user != authenticator->user() || cred.password != authenticator->password())) {
             authenticator->setUser(cred.user);
             authenticator->setPassword(cred.password);
             *urlForLastAuthentication = url;
@@ -1644,7 +1649,9 @@ void QNetworkAccessManagerPrivate::destroyThread()
     }
 }
 
-#if QT_CONFIG(http)
+
+#if QT_CONFIG(http) || defined(Q_OS_WASM)
+
 QNetworkRequest QNetworkAccessManagerPrivate::prepareMultipart(const QNetworkRequest &request, QHttpMultiPart *multiPart)
 {
     // copy the request, we probably need to add some headers

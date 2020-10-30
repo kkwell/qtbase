@@ -20,9 +20,13 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Sql)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(sqlwidgetmapper
+qt_add_executable(sqlwidgetmapper
     main.cpp
     window.cpp window.h
+)
+set_target_properties(sqlwidgetmapper PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(sqlwidgetmapper PUBLIC
     Qt::Core

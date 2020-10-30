@@ -125,9 +125,9 @@ struct ThreadWrapper
 void tst_QPromise::promise()
 {
     const auto testCanCreatePromise = [] (auto promise) {
-        promise.reportStarted();
+        promise.start();
         promise.suspendIfRequested();  // should not block on its own
-        promise.reportFinished();
+        promise.finish();
     };
 
     RUN_TEST_FUNC(testCanCreatePromise, QPromise<void>());
@@ -144,11 +144,11 @@ void tst_QPromise::futureFromPromise()
         auto future = promise.future();
         QVERIFY(!future.isValid());
 
-        promise.reportStarted();
+        promise.start();
         QCOMPARE(future.isStarted(), true);
         QVERIFY(future.isValid());
 
-        promise.reportFinished();
+        promise.finish();
         QCOMPARE(future.isFinished(), true);
         QVERIFY(future.isValid());
 
@@ -169,34 +169,41 @@ void tst_QPromise::addResult()
     auto f = promise.future();
 
     // add as lvalue
+    int resultAt0 = 456;
     {
-        int result = 456;
-        promise.addResult(result);
+        QVERIFY(promise.addResult(resultAt0));
         QCOMPARE(f.resultCount(), 1);
-        QCOMPARE(f.result(), result);
-        QCOMPARE(f.resultAt(0), result);
+        QCOMPARE(f.result(), resultAt0);
+        QCOMPARE(f.resultAt(0), resultAt0);
     }
     // add as rvalue
     {
         int result = 789;
-        promise.addResult(789);
+        QVERIFY(promise.addResult(789));
         QCOMPARE(f.resultCount(), 2);
         QCOMPARE(f.resultAt(1), result);
     }
     // add at position
     {
         int result = 56238;
-        promise.addResult(result, 2);
+        QVERIFY(promise.addResult(result, 2));
         QCOMPARE(f.resultCount(), 3);
         QCOMPARE(f.resultAt(2), result);
     }
-    // add at position and overwrite
+    // add as lvalue at position and overwrite
     {
         int result = -1;
         const auto originalCount = f.resultCount();
-        promise.addResult(result, 0);
+        QVERIFY(!promise.addResult(result, 0));
         QCOMPARE(f.resultCount(), originalCount);
-        QCOMPARE(f.resultAt(0), result);
+        QCOMPARE(f.resultAt(0), resultAt0); // overwrite does not work
+    }
+    // add as rvalue at position and overwrite
+    {
+        const auto originalCount = f.resultCount();
+        QVERIFY(!promise.addResult(-1, 0));
+        QCOMPARE(f.resultCount(), originalCount);
+        QCOMPARE(f.resultAt(0), resultAt0); // overwrite does not work
     }
 }
 
@@ -216,9 +223,9 @@ void tst_QPromise::addResultOutOfOrder()
     {
         QPromise<int> promise;
         auto f = promise.future();
-        promise.addResult(456, 1);
+        QVERIFY(promise.addResult(456, 1));
         QCOMPARE(f.resultCount(), 0);
-        promise.addResult(123, 0);
+        QVERIFY(promise.addResult(123, 0));
 
         QList<int> expected({123, 456});
         RUN_TEST_FUNC(compareResults, f, expected);
@@ -229,16 +236,16 @@ void tst_QPromise::addResultOutOfOrder()
     {
         QPromise<int> promise;
         auto f = promise.future();
-        promise.addResult(0, 0);
-        promise.addResult(1, 1);
-        promise.addResult(3, 3);  // intentional gap here
+        QVERIFY(promise.addResult(0, 0));
+        QVERIFY(promise.addResult(1, 1));
+        QVERIFY(promise.addResult(3, 3));  // intentional gap here
 
         QList<int> expectedWhenGapExists({0, 1});
         RUN_TEST_FUNC(compareResults, f, expectedWhenGapExists);
         QCOMPARE(f.resultAt(3), 3);
 
         QList<int> expectedWhenNoGap({0, 1, 2, 3});
-        promise.addResult(2, 2);  // fill a gap with a value
+        QVERIFY(promise.addResult(2, 2));  // fill a gap with a value
         RUN_TEST_FUNC(compareResults, f, expectedWhenNoGap);
         QCOMPARE(f.results(), expectedWhenNoGap);
     }
@@ -250,9 +257,9 @@ void tst_QPromise::setException()
     struct TestException {};  // custom exception class
     const auto testExceptionCaught = [] (auto promise, const auto& exception) {
         auto f = promise.future();
-        promise.reportStarted();
+        promise.start();
         promise.setException(exception);
-        promise.reportFinished();
+        promise.finish();
 
         bool caught = false;
         try {
@@ -317,7 +324,7 @@ void tst_QPromise::progress()
 void tst_QPromise::addInThread()
 {
     const auto testAddResult = [] (auto promise, const auto &result) {
-        promise.reportStarted();
+        promise.start();
         auto f = promise.future();
         // move construct QPromise
         ThreadWrapper thr([p = std::move(promise), &result] () mutable {
@@ -336,7 +343,7 @@ void tst_QPromise::addInThread()
 void tst_QPromise::addInThreadMoveOnlyObject()
 {
     QPromise<MoveOnlyType> promise;
-    promise.reportStarted();
+    promise.start();
     auto f = promise.future();
 
     ThreadWrapper thr([p = std::move(promise)] () mutable {
@@ -352,7 +359,7 @@ void tst_QPromise::reportFromMultipleThreads()
 {
     QPromise<int> promise;
     auto f = promise.future();
-    promise.reportStarted();
+    promise.start();
 
     ThreadWrapper threads[] = {
         ThreadWrapper([&promise] () mutable { promise.addResult(42); }),
@@ -361,7 +368,7 @@ void tst_QPromise::reportFromMultipleThreads()
     };
     for (auto& t : threads)
         t.join();
-    promise.reportFinished();
+    promise.finish();
 
     QList<int> expected = {42, 43, 44};
     for (auto actual : f.results()) {
@@ -379,7 +386,7 @@ void tst_QPromise::reportFromMultipleThreadsByMovedPromise()
         // move-constructed) must be able to set results, QFuture must still
         // hold correct references to results.
         auto promise = std::move(initialPromise);
-        promise.reportStarted();
+        promise.start();
         ThreadWrapper threads[] = {
             ThreadWrapper([&promise] () mutable { promise.addResult(42); }),
             ThreadWrapper([&promise] () mutable { promise.addResult(43); }),
@@ -387,7 +394,7 @@ void tst_QPromise::reportFromMultipleThreadsByMovedPromise()
         };
         for (auto& t : threads)
             t.join();
-        promise.reportFinished();
+        promise.finish();
     }
 
     QCOMPARE(f.isFinished(), true);
@@ -404,10 +411,10 @@ void tst_QPromise::doNotCancelWhenFinished()
 {
     const auto testFinishedPromise = [] (auto promise) {
         auto f = promise.future();
-        promise.reportStarted();
+        promise.start();
 
         // Finish QPromise inside thread, destructor must not call cancel()
-        ThreadWrapper([p = std::move(promise)] () mutable { p.reportFinished(); }).join();
+        ThreadWrapper([p = std::move(promise)] () mutable { p.finish(); }).join();
 
         f.waitForFinished();
 
@@ -429,7 +436,7 @@ void tst_QPromise::cancelWhenDestroyed()
     try {
         // Move QPromise to local scope. On destruction, it must call cancel().
         auto promise = std::move(initialPromise);
-        promise.reportStarted();
+        promise.start();
         ThreadWrapper threads[] = {
             ThreadWrapper([&promise] () mutable { promise.addResult(42); }),
             ThreadWrapper([&promise] () mutable { promise.addResult(43); }),
@@ -437,8 +444,8 @@ void tst_QPromise::cancelWhenDestroyed()
         };
         for (auto& t : threads)
             t.join();
-        throw "Throw in the middle, we lose our promise here, reportFinished() not called!";
-        promise.reportFinished();
+        throw "Throw in the middle, we lose our promise here, finish() not called!";
+        promise.finish();
     } catch (...) {}
 
     QCOMPARE(f.isFinished(), true);
@@ -457,7 +464,7 @@ void tst_QPromise::cancelWhenReassigned()
 {
     QPromise<int> promise;
     auto f = promise.future();
-    promise.reportStarted();
+    promise.start();
 
     ThreadWrapper thr([p = std::move(promise)] () mutable {
         QThread::msleep(100);
@@ -474,11 +481,11 @@ void tst_QPromise::finishWhenSwapped()
 {
     QPromise<int> promise1;
     auto f1 = promise1.future();
-    promise1.reportStarted();
+    promise1.start();
 
     QPromise<int> promise2;
     auto f2 = promise2.future();
-    promise2.reportStarted();
+    promise2.start();
 
     ThreadWrapper thr([&promise1, &promise2] () mutable {
         QThread::msleep(100);
@@ -487,8 +494,8 @@ void tst_QPromise::finishWhenSwapped()
         swap(promise1, promise2);  // ADL must resolve this
         promise1.addResult(2);
         promise2.addResult(3);
-        promise1.reportFinished();  // this finish is for future #2
-        promise2.reportFinished();  // this finish is for future #1
+        promise1.finish();  // this finish is for future #2
+        promise2.finish();  // this finish is for future #1
     });
 
     f1.waitForFinished();
@@ -512,17 +519,17 @@ void tst_QPromise::cancelWhenMoved()
 {
     QPromise<int> promise1;
     auto f1 = promise1.future();
-    promise1.reportStarted();
+    promise1.start();
 
     QPromise<int> promise2;
     auto f2 = promise2.future();
-    promise2.reportStarted();
+    promise2.start();
 
     // Move promises to local scope to test cancellation behavior
     ThreadWrapper thr([p1 = std::move(promise1), p2 = std::move(promise2)] () mutable {
         QThread::msleep(100);
         p1 = std::move(p2);
-        p1.reportFinished();  // this finish is for future #2
+        p1.finish();  // this finish is for future #2
     });
 
     f1.waitForFinished();
@@ -540,14 +547,14 @@ void tst_QPromise::cancelWhenMoved()
 void tst_QPromise::waitUntilResumed()
 {
     QPromise<int> promise;
-    promise.reportStarted();
+    promise.start();
     auto f = promise.future();
     f.suspend();
 
     ThreadWrapper thr([p = std::move(promise)] () mutable {
         p.suspendIfRequested();
         p.addResult(42);  // result added after suspend
-        p.reportFinished();
+        p.finish();
     });
 
     while (!f.isSuspended()) {  // busy wait until worker thread suspends
@@ -565,14 +572,14 @@ void tst_QPromise::waitUntilResumed()
 void tst_QPromise::waitUntilCanceled()
 {
     QPromise<int> promise;
-    promise.reportStarted();
+    promise.start();
     auto f = promise.future();
     f.suspend();
 
     ThreadWrapper thr([p = std::move(promise)] () mutable {
         p.suspendIfRequested();
         p.addResult(42);  // result not added due to QFuture::cancel()
-        p.reportFinished();
+        p.finish();
     });
 
     while (!f.isSuspended()) {  // busy wait until worker thread suspends

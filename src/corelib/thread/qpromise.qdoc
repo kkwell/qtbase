@@ -98,8 +98,8 @@
 
     Destroys the promise.
 
-    \note The promise implicitly transitions to a cancelled state on destruction
-    unless reportFinished() is called beforehand by the user.
+    \note The promise implicitly transitions to a canceled state on destruction
+    unless finish() is called beforehand by the user.
 */
 
 /*! \fn template <typename T> QFuture<T> QPromise<T>::future() const
@@ -107,10 +107,17 @@
     Returns a future associated with this promise.
 */
 
-/*! \fn template <typename T> void QPromise<T>::addResult(const T &result, int index = -1)
+/*! \fn template <typename T> bool QPromise<T>::addResult(const T &result, int index = -1)
+    \fn template <typename T> bool QPromise<T>::addResult(T &&result, int index = -1)
 
     Adds \a result to the internal result collection at \a index position. If
     index is unspecified, \a result is added to the end of the collection.
+
+    Returns \c true when \a result is added to the collection.
+
+    Returns \c false when this promise is in canceled or finished state or when
+    \a result is rejected. addResult() rejects \a result if there's already
+    another result in the collection stored at the same index.
 
     You can get a result at a specific index by calling QFuture::resultAt().
 
@@ -121,11 +128,6 @@
     thinking if there are index gaps or not, use QFuture::results().
 */
 
-/*! \fn template <typename T> void QPromise<T>::addResult(T &&result, int index = -1)
-
-    \overload
-*/
-
 /*! \fn template<typename T> void QPromise<T>::setException(const QException &e)
 
     Sets exception \a e to be the result of the computation.
@@ -134,7 +136,7 @@
     execution.
 
     \note This method must not be used after QFuture::cancel() or
-    reportFinished().
+    finish().
 
     \sa isCanceled()
 */
@@ -144,31 +146,31 @@
     \overload
 */
 
-/*! \fn template<typename T> void QPromise<T>::reportStarted()
+/*! \fn template<typename T> void QPromise<T>::start()
 
     Reports that the computation is started. Calling this method is important to
     state the beginning of the computation as QFuture methods rely on this
     information.
 
-    \note Extra attention is required when reportStarted() is called from a
+    \note Extra attention is required when start() is called from a
     newly created thread. In such case, the call might naturally be delayed due
     to the implementation details of the thread scheduling.
 
-    \sa QFuture::isStarted(), QFuture::waitForFinished(), reportFinished()
+    \sa QFuture::isStarted(), QFuture::waitForFinished(), finish()
 */
 
-/*! \fn template<typename T> void QPromise<T>::reportFinished()
+/*! \fn template<typename T> void QPromise<T>::finish()
 
     Reports that the computation is finished. Once finished, no new results will
-    be added when calling addResult(). This method accompanies reportStarted().
+    be added when calling addResult(). This method accompanies start().
 
-    \sa QFuture::isFinished(), QFuture::waitForFinished(), reportStarted()
+    \sa QFuture::isFinished(), QFuture::waitForFinished(), start()
 */
 
 /*! \fn template<typename T> void QPromise<T>::suspendIfRequested()
 
     Conditionally suspends current thread of execution and waits until resumed
-    or cancelled by the corresponding methods of QFuture. This method does not
+    or canceled by the corresponding methods of QFuture. This method does not
     block unless the computation is requested to be suspended by
     QFuture::suspend() or another related method. If you want to check that the
     execution has been suspended, use QFuture::isSuspended().
@@ -202,9 +204,9 @@
 
 /*! \fn template<typename T> bool QPromise<T>::isCanceled() const
 
-    Returns whether the computation has been cancelled with the
+    Returns whether the computation has been canceled with the
     QFuture::cancel() function. The returned value \c true indicates that the
-    computation should be finished and reportFinished() called.
+    computation should be finished and finish() called.
 
     \note After cancellation, results currently available may still be accessed
     by a future, but new results will not be added when calling addResult().
@@ -233,11 +235,11 @@
     progressValue and \a progressText respectively. It is possible to only
     increment the progress value.
 
-    \note This function has no effect if the promise is in cancelled or finished
+    \note This function has no effect if the promise is in canceled or finished
     state.
 
     \sa QFuture::progressValue(), QFuture::progressText(), QFuture::cancel(),
-    reportFinished()
+    finish()
 */
 
 /*! \fn template<typename T> void QPromise<T>::swap(QPromise<T> &other) noexcept

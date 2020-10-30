@@ -131,6 +131,9 @@ QXcbVirtualDesktop::QXcbVirtualDesktop(QXcbConnection *connection, xcb_screen_t 
 QXcbVirtualDesktop::~QXcbVirtualDesktop()
 {
     delete m_xSettings;
+
+    for (auto cmap : qAsConst(m_visualColormaps))
+        xcb_free_colormap(xcb_connection(), cmap);
 }
 
 QDpi QXcbVirtualDesktop::dpi() const
@@ -493,9 +496,24 @@ quint8 QXcbVirtualDesktop::depthOfVisual(xcb_visualid_t visualid) const
     return *it;
 }
 
+xcb_colormap_t QXcbVirtualDesktop::colormapForVisual(xcb_visualid_t visualid) const
+{
+    auto it = m_visualColormaps.constFind(visualid);
+    if (it != m_visualColormaps.constEnd())
+        return *it;
+
+    auto cmap = xcb_generate_id(xcb_connection());
+    xcb_create_colormap(xcb_connection(),
+                        XCB_COLORMAP_ALLOC_NONE,
+                        cmap,
+                        screen()->root,
+                        visualid);
+    m_visualColormaps.insert(visualid, cmap);
+    return cmap;
+}
+
 QXcbScreen::QXcbScreen(QXcbConnection *connection, QXcbVirtualDesktop *virtualDesktop,
-                       xcb_randr_output_t outputId, xcb_randr_get_output_info_reply_t *output,
-                       const xcb_xinerama_screen_info_t *xineramaScreenInfo, int xineramaScreenIdx)
+                       xcb_randr_output_t outputId, xcb_randr_get_output_info_reply_t *output)
     : QXcbObject(connection)
     , m_virtualDesktop(virtualDesktop)
     , m_output(outputId)
@@ -511,13 +529,6 @@ QXcbScreen::QXcbScreen(QXcbConnection *connection, QXcbVirtualDesktop *virtualDe
             updateGeometry(QRect(crtc->x, crtc->y, crtc->width, crtc->height), crtc->rotation);
             updateRefreshRate(crtc->mode);
         }
-    } else if (xineramaScreenInfo) {
-        m_geometry = QRect(xineramaScreenInfo->x_org, xineramaScreenInfo->y_org,
-                           xineramaScreenInfo->width, xineramaScreenInfo->height);
-        m_availableGeometry = m_geometry & m_virtualDesktop->workArea();
-        m_sizeMillimeters = sizeInMillimeters(m_geometry.size(), m_virtualDesktop->dpi());
-        if (xineramaScreenIdx > -1)
-            m_outputName += QLatin1Char('-') + QString::number(xineramaScreenIdx);
     }
 
     if (m_geometry.isEmpty())
@@ -698,12 +709,12 @@ QDpi QXcbScreen::logicalDpi() const
     if (forcedDpi > 0)
         return QDpi(forcedDpi, forcedDpi);
 
-    // Fall back to physical virtual desktop DPI, but prevent
-    // using DPI values lower than 96. This ensuers that connecting
-    // to e.g. a TV works somewhat predictabilly.
-    QDpi virtualDesktopPhysicalDPi = m_virtualDesktop->dpi();
-    return QDpi(std::max(virtualDesktopPhysicalDPi.first, 96.0),
-                std::max(virtualDesktopPhysicalDPi.second, 96.0));
+    // Fall back to 96 DPI in case no logical DPI is set. We don't want to
+    // return physical DPI here, since that is a differnt type of DPI: Logical
+    // DPI typically accounts for user preference and viewing distance, and is
+    // quantized into DPI classes (96, 144, 192, etc); pysical DPI is an exact
+    // physical measure.
+    return QDpi(96, 96);
 }
 
 QPlatformCursor *QXcbScreen::cursor() const

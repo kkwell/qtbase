@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -131,12 +131,6 @@ private:
     virtual QFutureInterfaceBase &futureInterface() = 0;
 };
 
-namespace QtPrivate {
-
-template<class T>
-using EnableForNonVoid = std::enable_if_t<!std::is_same_v<T, void>>;
-}
-
 template <typename T>
 class QFutureWatcher : public QFutureWatcherBase
 {
@@ -216,7 +210,7 @@ private:
 template <typename T>
 Q_INLINE_TEMPLATE void QFutureWatcher<T>::setFuture(const QFuture<T> &_future)
 {
-    if (_future == m_future)
+    if (_future.d == m_future.d)
         return;
 
     disconnectOutputInterface(true);

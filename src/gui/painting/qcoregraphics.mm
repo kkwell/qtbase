@@ -145,7 +145,7 @@ QT_END_NAMESPACE
     // NSImage.
     auto nsImage = [[NSImage alloc] initWithSize:NSZeroSize];
     auto *imageRep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
-    imageRep.size = (image.size() / image.devicePixelRatioF()).toCGSize();
+    imageRep.size = (image.size() / image.devicePixelRatio()).toCGSize();
     [nsImage addRepresentation:[imageRep autorelease]];
     Q_ASSERT(CGSizeEqualToSize(nsImage.size, imageRep.size));
 
@@ -178,7 +178,7 @@ QT_END_NAMESPACE
             continue;
 
         auto *imageRep = [[NSBitmapImageRep alloc] initWithCGImage:cgImage];
-        imageRep.size = (image.size() / image.devicePixelRatioF()).toCGSize();
+        imageRep.size = (image.size() / image.devicePixelRatio()).toCGSize();
         [nsImage addRepresentation:[imageRep autorelease]];
     }
 
@@ -510,7 +510,7 @@ void QMacCGContext::initialize(const QImage *image, QPainter *painter)
                 clip &= painterClip;
         }
 
-        qt_mac_clip_cg(context, clip, 0);
+        qt_mac_clip_cg(context, clip, nullptr);
 
         CGContextTranslateCTM(context, deviceTransform.dx(), deviceTransform.dy());
     }

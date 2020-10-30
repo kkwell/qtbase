@@ -81,6 +81,8 @@
 #include <unistd.h>
 #endif
 
+#include <memory>
+
 #include "private/qhostinfo_p.h"
 
 #include "../../../network-settings.h"
@@ -271,7 +273,7 @@ class SocketPair: public QObject
 public:
     QTcpSocket *endPoints[2];
 
-    SocketPair(QObject *parent = 0)
+    SocketPair(QObject *parent = nullptr)
         : QObject(parent)
     {
         endPoints[0] = endPoints[1] = 0;
@@ -1375,7 +1377,7 @@ public:
     }
 
 protected:
-    void run()
+    void run() override
     {
         bool timedOut = false;
         while (!quit) {
@@ -1865,7 +1867,7 @@ public:
     }
 
 protected:
-    inline void run()
+    inline void run() override
     {
 #ifndef QT_NO_SSL
         QFETCH_GLOBAL(bool, ssl);
@@ -2098,7 +2100,7 @@ void tst_QTcpSocket::connectToHostError_data()
 
 void tst_QTcpSocket::connectToHostError()
 {
-    QTcpSocket *socket = newSocket();
+    std::unique_ptr<QTcpSocket> socket(newSocket());
 
     QAbstractSocket::SocketError error = QAbstractSocket::UnknownSocketError;
 
@@ -2106,15 +2108,14 @@ void tst_QTcpSocket::connectToHostError()
     QFETCH(int, port);
     QFETCH(QAbstractSocket::SocketError, expectedError);
 
-    connect(socket, &QAbstractSocket::errorOccurred, [&](QAbstractSocket::SocketError socketError){
+    connect(socket.get(), &QAbstractSocket::errorOccurred, [&](QAbstractSocket::SocketError socketError){
         error = socketError;
     });
     socket->connectToHost(host, port); // no service running here, one suspects
-    QTRY_COMPARE(socket->state(), QTcpSocket::UnconnectedState);
+    QTRY_COMPARE_WITH_TIMEOUT(socket->state(), QTcpSocket::UnconnectedState, 7000);
     if (error != expectedError && error == QAbstractSocket::ConnectionRefusedError)
         QEXPECT_FAIL("unreachable", "CI firewall interfers with this test", Continue);
     QCOMPARE(error, expectedError);
-    delete socket;
 }
 
 //----------------------------------------------------------------------------------
@@ -2163,7 +2164,7 @@ public:
     bool networkTimeout;
     int count;
 
-    inline Foo(QObject *parent = 0) : QObject(parent)
+    inline Foo(QObject *parent = nullptr) : QObject(parent)
     {
         attemptedToConnect = false;
         networkTimeout = false;
@@ -2265,7 +2266,7 @@ class TestThread2 : public QThread
 {
     Q_OBJECT
 public:
-    void run()
+    void run() override
     {
         QFile fileWriter("fifo");
         QVERIFY(fileWriter.open(QFile::WriteOnly));
@@ -2880,7 +2881,7 @@ public:
         lastQuery = QNetworkProxyQuery();
     }
 
-    virtual QList<QNetworkProxy> queryProxy(const QNetworkProxyQuery &query)
+    virtual QList<QNetworkProxy> queryProxy(const QNetworkProxyQuery &query) override
     {
         lastQuery = query;
         ++callCount;

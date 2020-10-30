@@ -43,9 +43,6 @@
 #include <QtNetwork/qtnetworkglobal.h>
 #include <QtCore/QString>
 #include <QtCore/QMetaType>
-#if QT_DEPRECATED_SINCE(5, 6)
-#include <QtCore/QHash>
-#endif
 #include <QtCore/qhashfunctions.h>
 
 QT_BEGIN_NAMESPACE
@@ -64,8 +61,8 @@ public:
     Q_NETWORK_EXPORT static QSslEllipticCurve fromShortName(const QString &name);
     Q_NETWORK_EXPORT static QSslEllipticCurve fromLongName(const QString &name);
 
-    Q_REQUIRED_RESULT Q_NETWORK_EXPORT QString shortName() const;
-    Q_REQUIRED_RESULT Q_NETWORK_EXPORT QString longName() const;
+    [[nodiscard]] Q_NETWORK_EXPORT QString shortName() const;
+    [[nodiscard]] Q_NETWORK_EXPORT QString longName() const;
 
     constexpr bool isValid() const noexcept
     {

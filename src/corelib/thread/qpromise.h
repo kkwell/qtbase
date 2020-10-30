@@ -80,25 +80,23 @@ public:
         // potential waits
         if (!(state & QFutureInterfaceBase::State::Finished)) {
             d.cancel();
-            reportFinished();  // required to finalize the state
+            finish();  // required to finalize the state
         }
     }
 
     // Core QPromise APIs
     QFuture<T> future() const { return d.future(); }
-    template<typename U = T,
-             typename = QtPrivate::EnableForNonVoid<std::decay_t<U>>,
-             typename = QtPrivate::EnableIfSameOrConvertible<std::decay_t<U>, std::decay_t<T>>>
-    void addResult(U &&result, int index = -1)
+    template<typename U, typename = QtPrivate::EnableIfSameOrConvertible<U, T>>
+    bool addResult(U &&result, int index = -1)
     {
-        d.reportResult(std::forward<U>(result), index);
+        return d.reportResult(std::forward<U>(result), index);
     }
 #ifndef QT_NO_EXCEPTIONS
     void setException(const QException &e) { d.reportException(e); }
     void setException(std::exception_ptr e) { d.reportException(e); }
 #endif
-    void reportStarted() { d.reportStarted(); }
-    void reportFinished() { d.reportFinished(); }
+    void start() { d.reportStarted(); }
+    void finish() { d.reportFinished(); }
 
     void suspendIfRequested() { d.suspendIfRequested(); }
 
@@ -118,8 +116,8 @@ public:
     }
 
 #if defined(Q_CLANG_QDOC)  // documentation-only simplified signatures
-    void addResult(const T &result, int index = -1) { }
-    void addResult(T &&result, int index = -1) { }
+    bool addResult(const T &result, int index = -1) { }
+    bool addResult(T &&result, int index = -1) { }
 #endif
 private:
     mutable QFutureInterface<T> d = QFutureInterface<T>();

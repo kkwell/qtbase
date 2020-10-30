@@ -272,12 +272,22 @@ public:
         return {};
     }
 
-    // CHANGE: non-member equality comparison
-    template <typename AKey, typename AT>
-    friend QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMap<AKey, AT> &lhs, const QMap<AKey, AT> &rhs);
-    template <typename AKey, typename AT>
-    friend QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMap<AKey, AT> &lhs, const QMap<AKey, AT> &rhs);
+    template <typename AKey = Key, typename AT = T> friend
+    QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMap &lhs, const QMap &rhs)
+    {
+        if (lhs.d == rhs.d)
+            return true;
+        if (!lhs.d)
+            return rhs == lhs;
+        Q_ASSERT(lhs.d);
+        return rhs.d ? (lhs.d->m == rhs.d->m) : lhs.d->m.empty();
+    }
 
+    template <typename AKey = Key, typename AT = T> friend
+    QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMap &lhs, const QMap &rhs)
+    {
+        return !(lhs == rhs);
+    }
     // TODO: add the other comparison operators; std::map has them.
 
     size_type size() const { return d ? size_type(d->m.size()) : size_type(0); }
@@ -355,8 +365,6 @@ public:
         return i != d->m.end();
     }
 
-    // ### Qt 6: deprecate value->key lookup.
-    //Q_DECL_DEPRECATED_X("This function is inefficient; don't use it")
     Key key(const T &value, const Key &defaultKey = Key()) const
     {
         if (!d)
@@ -390,7 +398,6 @@ public:
         return value(key);
     }
 
-    // ### Qt 6: this stuff should be deprecated as well
     QList<Key> keys() const
     {
         if (!d)
@@ -495,7 +502,7 @@ public:
         typedef const T &reference;
 
         const_iterator() = default;
-        /* implicit */ const_iterator(const iterator &o) { i = o.i; }
+        Q_IMPLICIT const_iterator(const iterator &o) { i = o.i; }
 
         const Key &key() const { return i->first; }
         const T &value() const { return i->second; }
@@ -731,24 +738,6 @@ public:
 Q_DECLARE_ASSOCIATIVE_ITERATOR(Map)
 Q_DECLARE_MUTABLE_ASSOCIATIVE_ITERATOR(Map)
 
-template <typename AKey, typename AT>
-QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMap<AKey, AT> &lhs, const QMap<AKey, AT> &rhs)
-{
-    if (lhs.d == rhs.d)
-        return true;
-    if (!lhs.d)
-        return rhs == lhs;
-    Q_ASSERT(lhs.d);
-    return rhs.d ? (lhs.d->m == rhs.d->m) : lhs.d->m.empty();
-}
-
-template <typename AKey, typename AT>
-QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMap<AKey, AT> &lhs, const QMap<AKey, AT> &rhs)
-{
-    return !(lhs == rhs);
-}
-
-
 //
 // QMultiMap
 //
@@ -845,12 +834,22 @@ public:
         return {};
     }
 
-    // CHANGE: non-member equality comparison
-    template <typename AKey, typename AT>
-    friend QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMultiMap<AKey, AT> &lhs, const QMultiMap<AKey, AT> &rhs);
-    template <typename AKey, typename AT>
-    friend QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMultiMap<AKey, AT> &lhs, const QMultiMap<AKey, AT> &rhs);
+    template <typename AKey = Key, typename AT = T> friend
+    QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMultiMap &lhs, const QMultiMap &rhs)
+    {
+        if (lhs.d == rhs.d)
+            return true;
+        if (!lhs.d)
+            return rhs == lhs;
+        Q_ASSERT(lhs.d);
+        return rhs.d ? (lhs.d->m == rhs.d->m) : lhs.d->m.empty();
+    }
 
+    template <typename AKey = Key, typename AT = T> friend
+    QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMultiMap &lhs, const QMultiMap &rhs)
+    {
+        return !(lhs == rhs);
+    }
     // TODO: add the other comparison operators; std::multimap has them.
 
     size_type size() const { return d ? size_type(d->m.size()) : size_type(0); }
@@ -965,8 +964,6 @@ public:
         return find(key, value) != end();
     }
 
-    // ### Qt 6: deprecate value->key lookup.
-    //Q_DECL_DEPRECATED_X("This function is inefficient; don't use it")
     Key key(const T &value, const Key &defaultKey = Key()) const
     {
         if (!d)
@@ -985,7 +982,6 @@ public:
         return defaultValue;
     }
 
-    // ### Qt 6: deprecate value->key lookup.
     QList<Key> keys() const
     {
         if (!d)
@@ -1122,7 +1118,7 @@ public:
         typedef const T &reference;
 
         const_iterator() = default;
-        /* implicit */ const_iterator(const iterator &o) { i = o.i; }
+        Q_IMPLICIT const_iterator(const iterator &o) { i = o.i; }
 
         const Key &key() const { return i->first; }
         const T &value() const { return i->second; }
@@ -1322,55 +1318,30 @@ public:
         return iterator(d->m.insert(detachedPos, {key, value}));
     }
 
-    // CHANGE: provide insertMulti for compatibility
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_DEPRECATED_VERSION_X_6_0("Use insert() instead")
     iterator insertMulti(const Key &key, const T &value)
     {
         return insert(key, value);
     }
-
+    QT_DEPRECATED_VERSION_X_6_0("Use insert() instead")
     iterator insertMulti(const_iterator pos, const Key &key, const T &value)
     {
         return insert(pos, key, value);
     }
 
+    QT_DEPRECATED_VERSION_X_6_0("Use unite() instead")
     void insert(const QMultiMap<Key, T> &map)
     {
-        if (map.isEmpty())
-            return;
-
-        detach();
-
-        auto copy = map.d->m;
-#ifdef __cpp_lib_node_extract
-        copy.merge(std::move(d->m));
-#else
-        copy.insert(std::make_move_iterator(d->m.begin()),
-                    std::make_move_iterator(d->m.end()));
-#endif
-        d->m = std::move(copy);
+        unite(map);
     }
 
+    QT_DEPRECATED_VERSION_X_6_0("Use unite() instead")
     void insert(QMultiMap<Key, T> &&map)
     {
-        if (!map.d || map.d->m.empty())
-            return;
-
-        if (map.d.isShared()) {
-            // fall back to a regular copy
-            insert(map);
-            return;
-        }
-
-        detach();
-
-#ifdef __cpp_lib_node_extract
-        map.d->m.merge(std::move(d->m));
-#else
-        map.d->m.insert(std::make_move_iterator(d->m.begin()),
-                        std::make_move_iterator(d->m.end()));
-#endif
-        *this = std::move(map);
+        unite(std::move(map));
     }
+#endif
 
     iterator replace(const Key &key, const T &value)
     {
@@ -1408,30 +1379,48 @@ public:
 
     QMultiMap &unite(const QMultiMap &other)
     {
-        insert(other);
+        if (other.isEmpty())
+            return *this;
+
+        detach();
+
+        auto copy = other.d->m;
+#ifdef __cpp_lib_node_extract
+        copy.merge(std::move(d->m));
+#else
+        copy.insert(std::make_move_iterator(d->m.begin()),
+                    std::make_move_iterator(d->m.end()));
+#endif
+        d->m = std::move(copy);
+        return *this;
+    }
+
+    QMultiMap &unite(QMultiMap<Key, T> &&other)
+    {
+        if (!other.d || other.d->m.empty())
+            return *this;
+
+        if (other.d.isShared()) {
+            // fall back to a regular copy
+            unite(other);
+            return *this;
+        }
+
+        detach();
+
+#ifdef __cpp_lib_node_extract
+        other.d->m.merge(std::move(d->m));
+#else
+        other.d->m.insert(std::make_move_iterator(d->m.begin()),
+                          std::make_move_iterator(d->m.end()));
+#endif
+        *this = std::move(other);
         return *this;
     }
 };
 
 Q_DECLARE_ASSOCIATIVE_ITERATOR(MultiMap)
 Q_DECLARE_MUTABLE_ASSOCIATIVE_ITERATOR(MultiMap)
-
-template <typename AKey, typename AT>
-QTypeTraits::compare_eq_result<AKey, AT> operator==(const QMultiMap<AKey, AT> &lhs, const QMultiMap<AKey, AT> &rhs)
-{
-    if (lhs.d == rhs.d)
-        return true;
-    if (!lhs.d)
-        return rhs == lhs;
-    Q_ASSERT(lhs.d);
-    return rhs.d ? (lhs.d->m == rhs.d->m) : lhs.d->m.empty();
-}
-
-template <typename AKey, typename AT>
-QTypeTraits::compare_eq_result<AKey, AT> operator!=(const QMultiMap<AKey, AT> &lhs, const QMultiMap<AKey, AT> &rhs)
-{
-    return !(lhs == rhs);
-}
 
 template <typename Key, typename T>
 QMultiMap<Key, T> operator+(const QMultiMap<Key, T> &lhs, const QMultiMap<Key, T> &rhs)

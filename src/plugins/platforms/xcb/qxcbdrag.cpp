@@ -95,9 +95,9 @@ static xcb_window_t xdndProxy(QXcbConnection *c, xcb_window_t w)
     if (reply && reply->type == XCB_ATOM_WINDOW) {
         xcb_window_t p = *((xcb_window_t *)xcb_get_property_value(reply.get()));
         if (proxy != p)
-            proxy = 0;
+            proxy = XCB_NONE;
     } else {
-        proxy = 0;
+        proxy = XCB_NONE;
     }
 
     return proxy;
@@ -112,9 +112,9 @@ public:
 protected:
     bool hasFormat_sys(const QString &mimeType) const override;
     QStringList formats_sys() const override;
-    QVariant retrieveData_sys(const QString &mimeType, QVariant::Type type) const override;
+    QVariant retrieveData_sys(const QString &mimeType, QMetaType type) const override;
 
-    QVariant xdndObtainData(const QByteArray &format, QMetaType::Type requestedType) const;
+    QVariant xdndObtainData(const QByteArray &format, QMetaType requestedType) const;
 
     QXcbDrag *drag;
 };
@@ -690,7 +690,7 @@ int QXcbDrag::findTransactionByTime(xcb_timestamp_t timestamp)
 
 #if 0
 // for embedding only
-static QWidget* current_embedding_widget  = 0;
+static QWidget* current_embedding_widget  = nullptr;
 static xcb_client_message_event_t last_enter_event;
 
 
@@ -1066,7 +1066,7 @@ void QXcbDrag::handleDrop(QPlatformWindow *, const xcb_client_message_event_t *e
 
     setExecutedDropAction(response.acceptedAction());
 
-    xcb_client_message_event_t finished;
+    xcb_client_message_event_t finished = {};
     finished.response_type = XCB_CLIENT_MESSAGE;
     finished.sequence = 0;
     finished.window = xdnd_dragsource;
@@ -1342,14 +1342,14 @@ QXcbDropData::~QXcbDropData()
 {
 }
 
-QVariant QXcbDropData::retrieveData_sys(const QString &mimetype, QVariant::Type requestedType) const
+QVariant QXcbDropData::retrieveData_sys(const QString &mimetype, QMetaType requestedType) const
 {
     QByteArray mime = mimetype.toLatin1();
-    QVariant data = xdndObtainData(mime, QMetaType::Type(requestedType));
+    QVariant data = xdndObtainData(mime, requestedType);
     return data;
 }
 
-QVariant QXcbDropData::xdndObtainData(const QByteArray &format, QMetaType::Type requestedType) const
+QVariant QXcbDropData::xdndObtainData(const QByteArray &format, QMetaType requestedType) const
 {
     QByteArray result;
 

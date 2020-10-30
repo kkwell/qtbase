@@ -1,6 +1,6 @@
 # This function can be used to add sources/libraries/etc. to the specified CMake target
 # if the provided CONDITION evaluates to true.
-function(qt_extend_target target)
+function(qt_internal_extend_target target)
     # Don't try to extend_target when cross compiling an imported host target (like a tool).
     qt_is_imported_target("${target}" is_imported)
     if(is_imported)
@@ -175,6 +175,14 @@ endfunction()
 # Set target properties that are the same for all modules, plugins, executables
 # and 3rdparty libraries.
 function(qt_set_common_target_properties target)
+    if(QT_FEATURE_reduce_exports)
+        set_target_properties(${target} PROPERTIES
+            C_VISIBILITY_PRESET hidden
+            CXX_VISIBILITY_PRESET hidden
+            OBJC_VISIBILITY_PRESET hidden
+            OBJCXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN 1)
+    endif()
    if(FEATURE_static_runtime)
        if(MSVC)
            set_property(TARGET ${target} PROPERTY
@@ -183,6 +191,7 @@ function(qt_set_common_target_properties target)
            target_link_options(${target} INTERFACE "LINKER:-static")
        endif()
    endif()
+   qt_internal_set_compile_pdb_names("${target}")
 endfunction()
 
 # Set common, informational target properties.
@@ -304,6 +313,145 @@ function(qt_internal_strip_target_directory_scope_token target out_var)
     set("${out_var}" "${target}" PARENT_SCOPE)
 endfunction()
 
+# Create a Qt*AdditionalTargetInfo.cmake file that is included by Qt*Config.cmake
+# and sets IMPORTED_*_<CONFIG> properties on the exported targets.
+#
+# EXPORT_NAME_PREFIX:
+#    The portion of the file name before AdditionalTargetInfo.cmake
+# CONFIG_INSTALL_DIR:
+#    Installation location for the target info file
+# TARGETS:
+#    The internal target names. Those must be actual targets.
+# TARGET_EXPORT_NAMES:
+#    The target names how they appear in the QtXXXTargets.cmake files.
+#    The names get prefixed by ${QT_CMAKE_EXPORT_NAMESPACE}:: unless they already are.
+#    This argument may be empty, then the target export names are the same as the internal ones.
+#
+# TARGETS and TARGET_EXPORT_NAMES must contain exactly the same number of elements.
+# Example: TARGETS = qmljs_native
+#          TARGET_EXPORT_NAMES = Qt6::qmljs
+#
+function(qt_internal_export_additional_targets_file)
+    cmake_parse_arguments(arg "" "EXPORT_NAME_PREFIX;CONFIG_INSTALL_DIR"
+        "TARGETS;TARGET_EXPORT_NAMES" ${ARGN})
+
+    list(LENGTH arg_TARGETS num_TARGETS)
+    list(LENGTH arg_TARGET_EXPORT_NAMES num_TARGET_EXPORT_NAMES)
+    if(num_TARGET_EXPORT_NAMES GREATER 0)
+        if(NOT num_TARGETS EQUAL num_TARGET_EXPORT_NAMES)
+            message(FATAL_ERROR "qt_internal_export_additional_targets_file: "
+                "TARGET_EXPORT_NAMES is set but has ${num_TARGET_EXPORT_NAMES} elements while "
+                "TARGETS has ${num_TARGETS} elements. "
+                "They must contain the same number of elements.")
+        endif()
+    else()
+        set(arg_TARGET_EXPORT_NAMES ${arg_TARGETS})
+    endif()
+
+    # Determine the release configurations we're currently building
+    if(QT_GENERATOR_IS_MULTI_CONFIG)
+        set(active_configurations ${CMAKE_CONFIGURATION_TYPES})
+    else()
+        set(active_configurations ${CMAKE_BUILD_TYPE})
+    endif()
+    unset(active_release_configurations)
+    foreach(config ${active_configurations})
+        string(TOUPPER ${config} ucconfig)
+        if(NOT ucconfig STREQUAL "DEBUG")
+            list(APPEND active_release_configurations ${config})
+        endif()
+    endforeach()
+
+    if(active_release_configurations)
+        # Use the first active release configuration as *the* release config for imported targets
+        # and for QT_DEFAULT_IMPORT_CONFIGURATION.
+        list(GET active_release_configurations 0 release_cfg)
+        string(TOUPPER ${release_cfg} uc_release_cfg)
+        set(uc_default_cfg ${uc_release_cfg})
+
+        # Determine the release configurations we do *not* build currently
+        set(configurations_to_export Release;RelWithDebInfo;MinSizeRel)
+        list(REMOVE_ITEM configurations_to_export ${active_configurations})
+    else()
+        # There are no active release configurations.
+        # Use the first active configuration for QT_DEFAULT_IMPORT_CONFIGURATION.
+        unset(uc_release_cfg)
+        list(GET active_configurations 0 default_cfg)
+        string(TOUPPER ${default_cfg} uc_default_cfg)
+        unset(configurations_to_export)
+    endif()
+
+    set(content "# Additional target information for ${arg_EXPORT_NAME_PREFIX}
+if(NOT DEFINED QT_DEFAULT_IMPORT_CONFIGURATION)
+    set(QT_DEFAULT_IMPORT_CONFIGURATION ${uc_default_cfg})
+endif()
+")
+    math(EXPR n "${num_TARGETS} - 1")
+    foreach(i RANGE ${n})
+        list(GET arg_TARGETS ${i} target)
+        list(GET arg_TARGET_EXPORT_NAMES ${i} target_export_name)
+        get_target_property(target_type ${target} TYPE)
+        if(target_type STREQUAL "INTERFACE_LIBRARY")
+            continue()
+        endif()
+        set(full_target ${target_export_name})
+        if(NOT full_target MATCHES "^${QT_CMAKE_EXPORT_NAMESPACE}::")
+            string(PREPEND full_target "${QT_CMAKE_EXPORT_NAMESPACE}::")
+        endif()
+        set(properties_retrieved TRUE)
+        if(NOT "${uc_release_cfg}" STREQUAL "")
+            string(APPEND content "get_target_property(_qt_imported_location ${full_target} IMPORTED_LOCATION_${uc_release_cfg})\n")
+            string(APPEND content "get_target_property(_qt_imported_implib ${full_target} IMPORTED_IMPLIB_${uc_release_cfg})\n")
+            string(APPEND content "get_target_property(_qt_imported_soname ${full_target} IMPORTED_SONAME_${uc_release_cfg})\n")
+        endif()
+        string(APPEND content "get_target_property(_qt_imported_location_default ${full_target} IMPORTED_LOCATION_$\\{QT_DEFAULT_IMPORT_CONFIGURATION})\n")
+        string(APPEND content "get_target_property(_qt_imported_implib_default ${full_target} IMPORTED_IMPLIB_$\\{QT_DEFAULT_IMPORT_CONFIGURATION})\n")
+        string(APPEND content "get_target_property(_qt_imported_soname_default ${full_target} IMPORTED_SONAME_$\\{QT_DEFAULT_IMPORT_CONFIGURATION})\n")
+        foreach(config ${configurations_to_export} "")
+            string(TOUPPER "${config}" ucconfig)
+            if("${config}" STREQUAL "")
+                set(property_suffix "")
+                set(var_suffix "_default")
+                string(APPEND content "\n# Default configuration")
+            else()
+                set(property_suffix "_${ucconfig}")
+                set(var_suffix "")
+                string(APPEND content "
+# Import target \"${full_target}\" for configuration \"${config}\"
+set_property(TARGET ${full_target} APPEND PROPERTY IMPORTED_CONFIGURATIONS ${ucconfig})
+")
+            endif()
+            string(APPEND content "
+if(_qt_imported_location${var_suffix})
+    set_property(TARGET ${full_target} PROPERTY IMPORTED_LOCATION${property_suffix} \"$\\{_qt_imported_location${var_suffix}}\")
+endif()
+if(_qt_imported_implib${var_suffix})
+    set_property(TARGET ${full_target} PROPERTY IMPORTED_IMPLIB${property_suffix} \"$\\{_qt_imported_implib${var_suffix}}\")
+endif()
+if(_qt_imported_soname${var_suffix})
+    set_property(TARGET ${full_target} PROPERTY IMPORTED_SONAME${property_suffix} \"$\\{_qt_imported_soname${var_suffix}}\")
+endif()
+")
+        endforeach()
+    endforeach()
+
+    if(properties_retrieved)
+        string(APPEND content "
+unset(_qt_imported_location)
+unset(_qt_imported_location_default)
+unset(_qt_imported_soname)
+unset(_qt_imported_soname_default)")
+    endif()
+
+    qt_path_join(output_file "${arg_CONFIG_INSTALL_DIR}"
+        "${arg_EXPORT_NAME_PREFIX}AdditionalTargetInfo.cmake")
+    if(NOT IS_ABSOLUTE "${output_file}")
+        qt_path_join(output_file "${QT_BUILD_DIR}" "${output_file}")
+    endif()
+    qt_configure_file(OUTPUT "${output_file}" CONTENT "${content}")
+    qt_install(FILES "${output_file}" DESTINATION "${arg_CONFIG_INSTALL_DIR}")
+endfunction()
+
 function(qt_internal_export_modern_cmake_config_targets_file)
     cmake_parse_arguments(__arg "" "EXPORT_NAME_PREFIX;CONFIG_INSTALL_DIR" "TARGETS" ${ARGN})
 
@@ -326,10 +474,105 @@ function(qt_internal_export_modern_cmake_config_targets_file)
     qt_install(EXPORT ${export_name} NAMESPACE Qt:: DESTINATION "${__arg_CONFIG_INSTALL_DIR}")
 endfunction()
 
-function(qt_create_tracepoints name tracePointsFile)
-    #### TODO
-    string(TOLOWER "${name}" name)
+function(qt_internal_create_tracepoints name tracepoints_file)
+    string(TOLOWER "${name}" provider_name)
+    string(PREPEND provider_name "qt")
+    set(header_filename "${provider_name}_tracepoints_p.h")
+    set(header_path "${CMAKE_CURRENT_BINARY_DIR}/${header_filename}")
 
-    file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/qt${name}_tracepoints_p.h" CONTENT
-        "#include <private/qtrace_p.h>")
+    if(QT_FEATURE_lttng OR QT_FEATURE_etw)
+        set(source_path "${CMAKE_CURRENT_BINARY_DIR}/${provider_name}_tracepoints.cpp")
+        qt_configure_file(OUTPUT "${source_path}"
+            CONTENT "#define TRACEPOINT_CREATE_PROBES
+#define TRACEPOINT_DEFINE
+#include \"${header_filename}\"")
+        target_sources(${name} PRIVATE "${source_path}")
+        target_compile_definitions(${name} PRIVATE Q_TRACEPOINT)
+
+        if(QT_FEATURE_lttng)
+            set(tracegen_arg "lttng")
+            target_link_libraries(${name} PRIVATE LTTng::UST)
+        elseif(QT_FEATURE_etw)
+            set(tracegen_arg "etw")
+        endif()
+
+        if(QT_HOST_PATH)
+            qt_path_join(tracegen
+                "${QT_HOST_PATH}"
+                "${QT${PROJECT_VERSION_MAJOR}_HOST_INFO_BINDIR}"
+                "tracegen")
+        else()
+            set(tracegen "${QT_CMAKE_EXPORT_NAMESPACE}::tracegen")
+        endif()
+
+        get_filename_component(tracepoints_filepath "${tracepoints_file}" ABSOLUTE)
+        add_custom_command(OUTPUT "${header_path}"
+            COMMAND ${tracegen} ${tracegen_arg} "${tracepoints_filepath}" "${header_path}"
+            VERBATIM)
+        add_custom_target(${name}_tracepoints_header DEPENDS "${header_path}")
+        add_dependencies(${name} ${name}_tracepoints_header)
+    else()
+        qt_configure_file(OUTPUT "${header_path}" CONTENT "#include <private/qtrace_p.h>\n")
+    endif()
+endfunction()
+
+function(qt_internal_set_compile_pdb_names target)
+    if(MSVC)
+        get_target_property(target_type ${target} TYPE)
+        if(target_type STREQUAL "STATIC_LIBRARY")
+            set_target_properties(${target} PROPERTIES COMPILE_PDB_NAME "${INSTALL_CMAKE_NAMESPACE}${target}")
+            set_target_properties(${target} PROPERTIES COMPILE_PDB_NAME_DEBUG "${INSTALL_CMAKE_NAMESPACE}${target}d")
+        endif()
+    endif()
+endfunction()
+
+# Installs pdb files for given target into the specified install dir.
+#
+# MSVC generates 2 types of pdb files:
+#  - compile-time generated pdb files (compile flag /Zi + /Fd<pdb_name>)
+#  - link-time genereated pdb files (link flag /debug + /PDB:<pdb_name>)
+#
+# CMake allows changing the names of each of those pdb file types by setting
+# the COMPILE_PDB_NAME_<CONFIG> and PDB_NAME_<CONFIG> properties. If they are
+# left empty, CMake will compute the default names itself (or rather in certain cases
+# leave it up to te compiler), without actually setting the property values.
+#
+# For installation purposes, CMake only provides a generator expression to the
+# link time pdb file path, not the compile path one, which means we have to compute the
+# path to the compile path pdb files ourselves.
+# See https://gitlab.kitware.com/cmake/cmake/-/issues/18393 for details.
+#
+# For shared libraries and executables, we install the linker provided pdb file via the
+# TARGET_PDB_FILE generator expression.
+#
+# For static libraries there is no linker invocation, so we need to install the compile
+# time pdb file. We query the ARCHIVE_OUTPUT_DIRECTORY property of the target to get the
+# path to the pdb file, and reconstruct the file name. We use a generator expression
+# to append a possible debug suffix, in order to allow installation of all Release and
+# Debug pdb files when using Ninja Multi-Config.
+function(qt_internal_install_pdb_files target install_dir_path)
+    if(MSVC)
+        get_target_property(target_type ${target} TYPE)
+
+        if(target_type STREQUAL "SHARED_LIBRARY"
+                OR target_type STREQUAL "EXECUTABLE"
+                OR target_type STREQUAL "MODULE_LIBRARY")
+            qt_install(FILES "$<TARGET_PDB_FILE:${target}>"
+                       DESTINATION "${install_dir_path}"
+                       OPTIONAL)
+
+        elseif(target_type STREQUAL "STATIC_LIBRARY")
+            get_target_property(lib_dir "${target}" ARCHIVE_OUTPUT_DIRECTORY)
+            if(NOT lib_dir)
+                message(FATAL_ERROR
+                        "Can't install pdb file for static library ${target}. "
+                        "The ARCHIVE_OUTPUT_DIRECTORY path is not known.")
+            endif()
+            set(pdb_name "${INSTALL_CMAKE_NAMESPACE}${target}$<$<CONFIG:Debug>:d>.pdb")
+            qt_path_join(compile_time_pdb_file_path "${lib_dir}" "${pdb_name}")
+
+            qt_install(FILES "${compile_time_pdb_file_path}"
+                       DESTINATION "${install_dir_path}" OPTIONAL)
+        endif()
+    endif()
 endfunction()

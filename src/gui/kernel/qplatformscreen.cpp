@@ -174,21 +174,16 @@ QSizeF QPlatformScreen::physicalSize() const
     Reimplement this function in subclass to return the logical horizontal
     and vertical dots per inch metrics of the screen.
 
-    The logical dots per inch metrics are used by QFont to convert point sizes
-    to pixel sizes.
+    The logical dots per inch metrics are used by Qt to scale the user interface.
 
-    The default implementation uses the screen pixel size and physical size to
-    compute the metrics.
+    The default implementation returns logicalBaseDpi(), which results in a
+    UI scale factor of 1.0.
 
     \sa physicalSize
 */
 QDpi QPlatformScreen::logicalDpi() const
 {
-    QSizeF ps = physicalSize();
-    QSize s = geometry().size();
-
-    return QDpi(25.4 * s.width() / ps.width(),
-                25.4 * s.height() / ps.height());
+    return logicalBaseDpi();
 }
 
 // Helper function for accessing the platform screen logical dpi
@@ -205,7 +200,7 @@ QPair<qreal, qreal> QPlatformScreen::overrideDpi(const QPair<qreal, qreal> &in)
     default implementation returns 96.
 
     QtGui will use this value (together with logicalDpi) to compute
-    the scale factor when high-DPI scaling is enabled:
+    the scale factor when high-DPI scaling is enabled, as follows:
         factor = logicalDPI / baseDPI
 */
 QDpi QPlatformScreen::logicalBaseDpi() const
@@ -220,27 +215,8 @@ QDpi QPlatformScreen::logicalBaseDpi() const
     implementation returns 1.0.
 
     \sa QPlatformWindow::devicePixelRatio()
-    \sa QPlatformScreen::pixelDensity()
 */
 qreal QPlatformScreen::devicePixelRatio() const
-{
-    return 1.0;
-}
-
-/*!
-    Reimplement this function in subclass to return the pixel density of the
-    screen. This is the scale factor needed to make a low-dpi application
-    usable on this screen. The default implementation returns 1.0.
-
-    Returning something else than 1.0 from this function causes Qt to
-    apply the scale factor to the application's coordinate system.
-    This is different from devicePixelRatio, which reports a scale
-    factor already applied by the windowing system. A platform plugin
-    typically implements one (or none) of these two functions.
-
-    \sa QPlatformWindow::devicePixelRatio()
-*/
-qreal QPlatformScreen::pixelDensity()  const
 {
     return 1.0;
 }

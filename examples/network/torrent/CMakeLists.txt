@@ -20,7 +20,7 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(torrent
+qt_add_executable(torrent
     addtorrentdialog.cpp addtorrentdialog.h
     bencodeparser.cpp bencodeparser.h
     connectionmanager.cpp connectionmanager.h
@@ -34,6 +34,10 @@ add_qt_gui_executable(torrent
     torrentclient.cpp torrentclient.h
     torrentserver.cpp torrentserver.h
     trackerclient.cpp trackerclient.h
+)
+set_target_properties(torrent PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_include_directories(torrent PUBLIC forms) # special case
 target_link_libraries(torrent PUBLIC

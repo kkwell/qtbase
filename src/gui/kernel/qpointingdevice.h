@@ -47,7 +47,10 @@
 QT_BEGIN_NAMESPACE
 
 class QDebug;
+class QEventPoint;
+class QPointerEvent;
 class QPointingDevicePrivate;
+class QPointerEvent;
 class QScreen;
 
 class Q_GUI_EXPORT QPointingDeviceUniqueId
@@ -66,6 +69,13 @@ public:
     qint64 numericId() const noexcept;
 
 private:
+    bool equals(QPointingDeviceUniqueId other) const noexcept;
+
+    friend inline bool operator==(QPointingDeviceUniqueId lhs, QPointingDeviceUniqueId rhs) noexcept
+    { return lhs.equals(rhs); }
+    friend inline bool operator!=(QPointingDeviceUniqueId lhs, QPointingDeviceUniqueId rhs) noexcept
+    { return !operator==(lhs, rhs); }
+
     // TODO: for TUIO 2, or any other type of complex token ID, an internal
     // array (or hash) can be added to hold additional properties.
     // In this case, m_numericId will then turn into an index into that array (or hash).
@@ -73,9 +83,6 @@ private:
 };
 Q_DECLARE_TYPEINFO(QPointingDeviceUniqueId, Q_MOVABLE_TYPE);
 
-Q_GUI_EXPORT bool operator==(QPointingDeviceUniqueId lhs, QPointingDeviceUniqueId rhs) noexcept;
-inline bool operator!=(QPointingDeviceUniqueId lhs, QPointingDeviceUniqueId rhs) noexcept
-{ return !operator==(lhs, rhs); }
 Q_GUI_EXPORT size_t qHash(QPointingDeviceUniqueId key, size_t seed = 0) noexcept;
 
 class Q_GUI_EXPORT QPointingDevice : public QInputDevice
@@ -99,6 +106,17 @@ public:
     };
     Q_DECLARE_FLAGS(PointerTypes, PointerType)
     Q_FLAG(PointerTypes)
+
+    enum GrabTransition : quint8 {
+        GrabPassive = 0x01,
+        UngrabPassive = 0x02,
+        CancelGrabPassive = 0x03,
+        OverrideGrabPassive = 0x04,
+        GrabExclusive = 0x10,
+        UngrabExclusive = 0x20,
+        CancelGrabExclusive = 0x30,
+    };
+    Q_ENUM(GrabTransition)
 
     QPointingDevice();
     ~QPointingDevice();
@@ -125,6 +143,9 @@ public:
     static const QPointingDevice *primaryPointingDevice(const QString& seatName = QString());
 
     bool operator==(const QPointingDevice &other) const;
+
+Q_SIGNALS:
+    void grabChanged(QObject *grabber, GrabTransition transition, const QPointerEvent *event, const QEventPoint &point) const;
 
 protected:
     QPointingDevice(QPointingDevicePrivate &d, QObject *parent = nullptr);

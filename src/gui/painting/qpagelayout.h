@@ -66,7 +66,6 @@ public:
         Cicero
     };
 
-    // NOTE: Must keep in sync with QPrinter::Orientation
     enum Orientation {
         Portrait,
         Landscape
@@ -82,7 +81,7 @@ public:
                 const QMarginsF &margins, Unit units = Point,
                 const QMarginsF &minMargins = QMarginsF(0, 0, 0, 0));
     QPageLayout(const QPageLayout &other);
-    QPageLayout &operator=(QPageLayout &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QPageLayout)
     QPageLayout &operator=(const QPageLayout &other);
     ~QPageLayout();
 
@@ -133,14 +132,17 @@ public:
 
 private:
     friend class QPageLayoutPrivate;
+    bool equals(const QPageLayout &other) const;
+
+    friend inline bool operator==(const QPageLayout &lhs, const QPageLayout &rhs)
+    { return lhs.equals(rhs); }
+    friend inline bool operator!=(const QPageLayout &lhs, const QPageLayout &rhs)
+    { return !lhs.equals(rhs); }
+
     QExplicitlySharedDataPointer<QPageLayoutPrivate> d;
 };
 
 Q_DECLARE_SHARED(QPageLayout)
-
-Q_GUI_EXPORT bool operator==(const QPageLayout &lhs, const QPageLayout &rhs);
-inline bool operator!=(const QPageLayout &lhs, const QPageLayout &rhs)
-{ return !operator==(lhs, rhs); }
 
 #ifndef QT_NO_DEBUG_STREAM
 Q_GUI_EXPORT QDebug operator<<(QDebug dbg, const QPageLayout &pageLayout);

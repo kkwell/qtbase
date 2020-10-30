@@ -218,8 +218,8 @@ QWhatsThat::QWhatsThat(const QString& txt, QWidget* parent, QWidget *showTextFor
             sw = 300;
 
         r = fontMetrics().boundingRect(0, 0, sw, 1000,
-                                        Qt::AlignLeft + Qt::AlignTop
-                                        + Qt::TextWordWrap + Qt::TextExpandTabs,
+                                        Qt::AlignLeft | Qt::AlignTop
+                                        | Qt::TextWordWrap | Qt::TextExpandTabs,
                                         text);
     }
     shadowWidth = dropShadow() ? 0 : 6;
@@ -333,7 +333,7 @@ void QWhatsThat::paintEvent(QPaintEvent*)
     }
     else
     {
-        p.drawText(r, Qt::AlignLeft + Qt::AlignTop + Qt::TextWordWrap + Qt::TextExpandTabs, text);
+        p.drawText(r, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap | Qt::TextExpandTabs, text);
     }
 }
 
@@ -510,7 +510,7 @@ QWhatsThisAction::QWhatsThisAction(QObject *parent) : QAction(tr("What's This?")
     setCheckable(true);
     connect(this, SIGNAL(triggered()), this, SLOT(actionTriggered()));
 #ifndef QT_NO_SHORTCUT
-    setShortcut(Qt::ShiftModifier + Qt::Key_F1);
+    setShortcut(Qt::ShiftModifier | Qt::Key_F1);
 #endif
 }
 

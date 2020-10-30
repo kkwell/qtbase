@@ -19,11 +19,15 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(qttablet
+qt_add_executable(qttablet
     main.cpp
     mainwindow.cpp mainwindow.h
     tabletapplication.cpp tabletapplication.h
     tabletcanvas.cpp tabletcanvas.h
+)
+set_target_properties(qttablet PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(qttablet PUBLIC
     Qt::Core

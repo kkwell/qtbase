@@ -20,11 +20,15 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(lightmaps
+qt_add_executable(lightmaps
     lightmaps.cpp lightmaps.h
     main.cpp
     mapzoom.cpp mapzoom.h
     slippymap.cpp slippymap.h
+)
+set_target_properties(lightmaps PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(lightmaps PUBLIC
     Qt::Core

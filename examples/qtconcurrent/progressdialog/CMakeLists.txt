@@ -20,8 +20,12 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Concurrent)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_executable(progressdialog
+qt_add_executable(progressdialog
     main.cpp
+)
+set_target_properties(progressdialog PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(progressdialog PUBLIC
     Qt::Concurrent

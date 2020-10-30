@@ -1660,7 +1660,7 @@ QList<int> QFontDatabase::pointSizes(const QString &family,
                 const QtFontSize *size = style->pixelSizes + l;
 
                 if (size->pixelSize != 0 && size->pixelSize != SMOOTH_SCALABLE) {
-                    const uint pointSize = qRound(size->pixelSize * 72.0 / dpi);
+                    const int pointSize = qRound(size->pixelSize * 72.0 / dpi);
                     if (! sizes.contains(pointSize))
                         sizes.append(pointSize);
                 }
@@ -1764,7 +1764,7 @@ QList<int> QFontDatabase::smoothSizes(const QString &family,
                 const QtFontSize *size = style->pixelSizes + l;
 
                 if (size->pixelSize != 0 && size->pixelSize != SMOOTH_SCALABLE) {
-                    const uint pointSize = qRound(size->pixelSize * 72.0 / dpi);
+                    const int pointSize = qRound(size->pixelSize * 72.0 / dpi);
                     if (! sizes.contains(pointSize))
                         sizes.append(pointSize);
                 }
@@ -2431,6 +2431,7 @@ QFontEngine *QFontDatabase::findFont(const QFontDef &request, int script)
 
             for (int i = 0; !engine && i < fallbacks.size(); i++) {
                 QFontDef def = request;
+                def.families.clear();
                 def.family = fallbacks.at(i);
                 QFontCache::Key key(def, script, multi ? 1 : 0);
                 engine = fontCache->findEngine(key);

@@ -19,20 +19,35 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(deform
-    # special case: remove files from ../shared
+qt_add_executable(deform
+    # special case begin
+    # remove files from ../shared
+    #../shared/arthurstyle.cpp ../shared/arthurstyle.h
+    #../shared/arthurwidgets.cpp ../shared/arthurwidgets.h
+    #../shared/hoverpoints.cpp ../shared/hoverpoints.h
+    # special case end
     main.cpp
     pathdeform.cpp pathdeform.h
+)
+set_target_properties(deform PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_include_directories(deform PUBLIC
     ../shared
 )
 
+# special case begin
+if(NOT TARGET painting_shared::painting_shared)
+  add_subdirectory(../shared painting_shared)
+endif()
+# special case end
+
 target_link_libraries(deform PUBLIC
     Qt::Core
     Qt::Gui
     Qt::Widgets
-    painting_shared # special case
+    painting_shared::painting_shared # special case
 )
 
 
@@ -200,15 +215,18 @@ qt6_add_resources(deform "deform"
         ${deform_resource_files}
 )
 
-if(QT_FEATURE_opengl)
-    target_sources(deform PUBLIC
-        ../shared/fbopaintdevice.cpp ../shared/fbopaintdevice.h
-    )
+# special case begin
+# remove files from ../shared
+#if(QT_FEATURE_opengl)
+    #target_sources(affine PUBLIC
+        #../shared/fbopaintdevice.cpp ../shared/fbopaintdevice.h
+    #)
 
-    target_link_libraries(deform PUBLIC
-        Qt::OpenGL
-    )
-endif()
+    #target_link_libraries(affine PUBLIC
+        #Qt::OpenGL
+    #)
+#endif()
+# special case end
 
 install(TARGETS deform
     RUNTIME DESTINATION "${INSTALL_EXAMPLEDIR}"

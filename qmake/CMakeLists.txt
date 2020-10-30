@@ -5,7 +5,7 @@
 #####################################################################
 
 qt_get_tool_target_name(target_name qmake)
-qt_add_tool(${target_name}
+qt_internal_add_tool(${target_name}
     NO_QT # special case
     TOOLS_TARGET Core # special case
     # GUI # special case: remove this
@@ -41,6 +41,7 @@ qt_add_tool(${target_name}
         ../src/3rdparty/pcre2/src/pcre2_ucp.h
         ../src/3rdparty/pcre2/src/pcre2_valid_utf.c
         ../src/3rdparty/pcre2/src/pcre2_xclass.c
+        ../src/corelib/global/qcontainerinfo.h
         ../src/corelib/global/qendian.cpp # special case
         ../src/corelib/global/qglobal.cpp ../src/corelib/global/qglobal.h
         ../src/corelib/global/qlibraryinfo.cpp
@@ -65,6 +66,8 @@ qt_add_tool(${target_name}
         ../src/corelib/io/qiodevice.cpp ../src/corelib/io/qiodevice.h
         ../src/corelib/io/qsettings.cpp
         ../src/corelib/io/qtemporaryfile.cpp ../src/corelib/io/qtemporaryfile.h
+        ../src/corelib/kernel/qiterable.cpp ../src/corelib/kernel/qiterable.h
+        ../src/corelib/kernel/qmetacontainer.cpp ../src/corelib/kernel/qmetacontainer.h
         ../src/corelib/kernel/qmetatype.cpp ../src/corelib/kernel/qmetatype.h
         ../src/corelib/kernel/qsystemerror.cpp ../src/corelib/kernel/qsystemerror_p.h
         ../src/corelib/kernel/qvariant.cpp
@@ -111,10 +114,10 @@ qt_add_tool(${target_name}
         ../src/corelib/time/qromancalendar.cpp ../src/corelib/time/qromancalendar_p.h # special case
         ../src/corelib/time/qdatetime.cpp ../src/corelib/time/qdatetime.h ../src/corelib/time/qdatetime_p.h # special case
         ../src/corelib/tools/qhash.cpp ../src/corelib/tools/qhash.h
-        ../src/corelib/tools/qlist.cpp ../src/corelib/tools/qlist.h
+        ../src/corelib/tools/qlist.h
+        ../src/corelib/tools/qmap.h
         ../src/corelib/text/qlocale.cpp ../src/corelib/text/qlocale.h
         ../src/corelib/text/qlocale_tools.cpp ../src/corelib/text/qlocale_tools_p.h
-        ../src/corelib/tools/qmap.h
         ../src/corelib/text/qregularexpression.cpp ../src/corelib/text/qregularexpression.h
         ../src/corelib/tools/qringbuffer.cpp # special case
         ../src/corelib/text/qstring.cpp ../src/corelib/text/qstring.h
@@ -188,7 +191,7 @@ qt_add_tool(${target_name}
 ## Scopes:
 #####################################################################
 
-qt_extend_target(${target_name} CONDITION WIN32
+qt_internal_extend_target(${target_name} CONDITION WIN32
     SOURCES
         ../src/corelib/global/qoperatingsystemversion_win.cpp
         ../src/corelib/io/qfilesystemengine_win.cpp
@@ -212,7 +215,7 @@ qt_extend_target(${target_name} CONDITION WIN32
         ole32
 )
 
-qt_extend_target(${target_name} CONDITION UNIX
+qt_internal_extend_target(${target_name} CONDITION UNIX
     SOURCES
         ../src/corelib/io/qfilesystemengine_unix.cpp
         ../src/corelib/io/qfilesystemiterator_unix.cpp
@@ -221,7 +224,7 @@ qt_extend_target(${target_name} CONDITION UNIX
         ../src/corelib/text/qlocale_unix.cpp
 )
 
-qt_extend_target(${target_name} CONDITION MACOS
+qt_internal_extend_target(${target_name} CONDITION MACOS
     SOURCES
         ../src/corelib/kernel/qcore_foundation.mm # special case
         ../src/corelib/kernel/qcore_mac.mm # special case
@@ -236,7 +239,7 @@ qt_extend_target(${target_name} CONDITION MACOS
 )
 
 # special case big
-extend_target(qmake CONDITION WIN32
+qt_internal_extend_target(qmake CONDITION WIN32
     SOURCES
         ../src/corelib/io/qfilesystemengine_win.cpp
         ../src/corelib/io/qfilesystemiterator_win.cpp
@@ -252,12 +255,12 @@ extend_target(qmake CONDITION WIN32
         ole32 advapi32 kernel32 netapi32
 )
 
-qt_extend_target(${target_name} CONDITION MINGW AND WIN32
+qt_internal_extend_target(${target_name} CONDITION MINGW AND WIN32
     PUBLIC_LIBRARIES
         uuid
 )
 
-qt_extend_target(${target_name} CONDITION CLANG AND WIN32
+qt_internal_extend_target(${target_name} CONDITION CLANG AND WIN32
     COMPILE_OPTIONS
         "-fms-compatibility-version=19.00.23506"
         "-Wno-microsoft-enum-value"
@@ -275,3 +278,10 @@ qt_internal_apply_gc_binaries(${target_name} PRIVATE) # special case
 qt_enable_msvc_cplusplus_define(${target_name} PUBLIC) # special case
 qt_skip_warnings_are_errors(${target_name}) # special case
 qt_internal_apply_intel_cet(Bootstrap PUBLIC) # special case
+
+# special case begin
+qt_internal_add_docs(${target_name}
+    doc/qmake.qdocconf
+)
+# special case end
+

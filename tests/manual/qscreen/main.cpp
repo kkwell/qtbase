@@ -171,15 +171,15 @@ ScreenWatcherMainWindow::ScreenWatcherMainWindow(QScreen *screen)
 
     QMenu *fileMenu = menuBar()->addMenu(QLatin1String("&File"));
     QAction *a = fileMenu->addAction(QLatin1String("Close"));
-    a->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_W));
+    a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_W));
     connect(a, SIGNAL(triggered()), this, SLOT(close()));
     a = fileMenu->addAction(QLatin1String("Quit"));
-    a->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_Q));
+    a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
     connect(a, SIGNAL(triggered()), qApp, SLOT(quit()));
 
     QMenu *toolsMenu = menuBar()->addMenu(QLatin1String("&Tools"));
     a = toolsMenu->addAction(QLatin1String("Mouse Monitor"));
-    a->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_M));
+    a->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
     connect(a, &QAction::triggered, this, &ScreenWatcherMainWindow::startMouseMonitor);
 }
 
@@ -228,12 +228,7 @@ void screenAdded(QScreen* screen)
         (screen->virtualSiblings().isEmpty() ? "none" : qPrintable(screen->virtualSiblings().first()->name())));
     ScreenWatcherMainWindow *w = new ScreenWatcherMainWindow(screen);
 
-    // Set the screen; this corresponds to setScreen() for the underlying
-    // QWindow. This is essential when having separate X screens since the
-    // positioning below is not sufficient to get the windows show up on the
-    // desired screen.
-    w->setParent(qApp->desktop(screen));
-
+    w->setScreen(screen);
     w->show();
 
     // Position the windows so that they end up at the center of the corresponding screen.

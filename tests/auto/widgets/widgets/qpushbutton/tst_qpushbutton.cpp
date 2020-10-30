@@ -63,6 +63,7 @@ private slots:
     void animateClick();
     void toggle();
     void clicked();
+    void touchTap();
     void toggled();
     void defaultAndAutoDefault();
     void sizeHint_data();
@@ -88,6 +89,7 @@ private:
     uint release_count;
 
     QPushButton *testWidget;
+    QPointingDevice *m_touchScreen = QTest::createTouchDevice();
 };
 
 // Testing get/set functions
@@ -338,7 +340,7 @@ void tst_QPushButton::setAccel()
         QSKIP("Wayland: This fails. Figure out why.");
 
     testWidget->setText("&AccelTest");
-    QKeySequence seq( Qt::ALT + Qt::Key_A );
+    QKeySequence seq( Qt::ALT | Qt::Key_A );
     testWidget->setShortcut( seq );
 
     // The shortcut will not be activated unless the button is in a active
@@ -391,6 +393,29 @@ void tst_QPushButton::clicked()
         QTest::mouseClick( testWidget, Qt::LeftButton );
     QCOMPARE( press_count, (uint)10 );
     QCOMPARE( release_count, (uint)10 );
+}
+
+void tst_QPushButton::touchTap()
+{
+    QTest::touchEvent(testWidget, m_touchScreen).press(0, QPoint(10, 10));
+    QVERIFY( press_count == 1 );
+    QVERIFY( release_count == 0 );
+    QTest::touchEvent(testWidget, m_touchScreen).release(0, QPoint(10, 10));
+    QCOMPARE( press_count, (uint)1 );
+    QCOMPARE( release_count, (uint)1 );
+    QCOMPARE( click_count, (uint)1 );
+
+    press_count = 0;
+    release_count = 0;
+    click_count = 0;
+    testWidget->setDown(false);
+    for (uint i = 0; i < 10; i++) {
+        QTest::touchEvent(testWidget, m_touchScreen).press(0, QPoint(10, 10));
+        QTest::touchEvent(testWidget, m_touchScreen).release(0, QPoint(10, 10));
+    }
+    QCOMPARE( press_count, (uint)10 );
+    QCOMPARE( release_count, (uint)10 );
+    QCOMPARE( click_count, (uint)10 );
 }
 
 QPushButton *pb = 0;
@@ -610,7 +635,7 @@ void tst_QPushButton::taskQTBUG_20191_shortcutWithKeypadModifer()
     // add shortcut 'keypad 5' to button2
     spy1.clear();
     QSignalSpy spy2(button2, SIGNAL(clicked()));
-    button2->setShortcut(Qt::Key_5 + Qt::KeypadModifier);
+    button2->setShortcut(Qt::Key_5 | Qt::KeypadModifier);
     QTest::keyClick(&dialog, Qt::Key_5);
     QTest::qWait(300);
     QTest::keyClick(&dialog, Qt::Key_5, Qt::KeypadModifier);
@@ -686,7 +711,12 @@ void tst_QPushButton::hitButton()
     QVBoxLayout *layout = new QVBoxLayout;
     PushButton *button1 = new PushButton("Ok");
     PushButton *button2 = new PushButton("Cancel");
-    button2->setStyleSheet("QPushButton { margin: 10px; border-radius: 4px; border: 1px solid black; }");
+    button2->setStyleSheet("QPushButton {"
+        "padding: 5px;"
+        "margin: 5px;"
+        "border-radius: 4px;"
+        "border: 1px solid black; }"
+    );
 
     layout->addWidget(button1);
     layout->addWidget(button2);
@@ -700,7 +730,8 @@ void tst_QPushButton::hitButton()
 
     const QPoint button2Center = button2->rect().center();
     QVERIFY(button2->hitButton(button2Center));
-    QVERIFY(!button2->hitButton(QPoint(0, 0)));
+    QVERIFY(button2->hitButton(QPoint(6, 6)));
+    QVERIFY(!button2->hitButton(QPoint(2, 2)));
 }
 
 QTEST_MAIN(tst_QPushButton)

@@ -99,7 +99,8 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat format = Qt::TextDate) const;
 # if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format, QCalendar cal = QCalendar()) const;
+    QString toString(const QString &format, QCalendar cal = QCalendar()) const
+    { return toString(qToStringViewIgnoringNull(format), cal); }
 # endif
     QString toString(QStringView format, QCalendar cal = QCalendar()) const;
 #endif
@@ -108,12 +109,12 @@ public:
 
     void getDate(int *year, int *month, int *day) const;
 
-    Q_REQUIRED_RESULT QDate addDays(qint64 days) const;
+    [[nodiscard]] QDate addDays(qint64 days) const;
     // Gregorian-optimized:
-    Q_REQUIRED_RESULT QDate addMonths(int months) const;
-    Q_REQUIRED_RESULT QDate addYears(int years) const;
-    Q_REQUIRED_RESULT QDate addMonths(int months, QCalendar cal) const;
-    Q_REQUIRED_RESULT QDate addYears(int years, QCalendar cal) const;
+    [[nodiscard]] QDate addMonths(int months) const;
+    [[nodiscard]] QDate addYears(int years) const;
+    [[nodiscard]] QDate addMonths(int months, QCalendar cal) const;
+    [[nodiscard]] QDate addYears(int years, QCalendar cal) const;
     qint64 daysTo(QDate d) const;
 
     constexpr bool operator==(QDate other) const { return jd == other.jd; }
@@ -125,11 +126,16 @@ public:
 
     static QDate currentDate();
 #if QT_CONFIG(datestring)
-    static QDate fromString(QStringView s, Qt::DateFormat f = Qt::TextDate);
-    static QDate fromString(QStringView s, QStringView format, QCalendar cal = QCalendar());
+    static QDate fromString(QStringView string, Qt::DateFormat format = Qt::TextDate);
+    static QDate fromString(QStringView string, QStringView format, QCalendar cal = QCalendar())
+    { return fromString(string.toString(), format, cal); }
+    static QDate fromString(const QString &string, QStringView format, QCalendar cal = QCalendar());
 # if QT_STRINGVIEW_LEVEL < 2
-    static QDate fromString(const QString &s, Qt::DateFormat f = Qt::TextDate);
-    static QDate fromString(const QString &s, const QString &format, QCalendar cal = QCalendar());
+    static QDate fromString(const QString &string, Qt::DateFormat format = Qt::TextDate)
+    { return fromString(qToStringViewIgnoringNull(string), format); }
+    static QDate fromString(const QString &string, const QString &format,
+                            QCalendar cal = QCalendar())
+    { return fromString(string, qToStringViewIgnoringNull(format), cal); }
 # endif
 #endif
     static bool isValid(int y, int m, int d);
@@ -175,15 +181,16 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat f = Qt::TextDate) const;
 #if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format) const;
+    QString toString(const QString &format) const
+    { return toString(qToStringViewIgnoringNull(format)); }
 #endif
     QString toString(QStringView format) const;
 #endif
     bool setHMS(int h, int m, int s, int ms = 0);
 
-    Q_REQUIRED_RESULT QTime addSecs(int secs) const;
+    [[nodiscard]] QTime addSecs(int secs) const;
     int secsTo(QTime t) const;
-    Q_REQUIRED_RESULT QTime addMSecs(int ms) const;
+    [[nodiscard]] QTime addMSecs(int ms) const;
     int msecsTo(QTime t) const;
 
     constexpr bool operator==(QTime other) const { return mds == other.mds; }
@@ -198,8 +205,16 @@ public:
 
     static QTime currentTime();
 #if QT_CONFIG(datestring)
-    static QTime fromString(const QString &s, Qt::DateFormat f = Qt::TextDate);
-    static QTime fromString(const QString &s, const QString &format);
+    static QTime fromString(QStringView string, Qt::DateFormat format = Qt::TextDate);
+    static QTime fromString(QStringView string, QStringView format)
+    { return fromString(string.toString(), format); }
+    static QTime fromString(const QString &string, QStringView format);
+# if QT_STRINGVIEW_LEVEL < 2
+    static QTime fromString(const QString &string, Qt::DateFormat format = Qt::TextDate)
+    { return fromString(qToStringViewIgnoringNull(string), format); }
+    static QTime fromString(const QString &string, const QString &format)
+    { return fromString(string, qToStringViewIgnoringNull(format)); }
+# endif
 #endif
     static bool isValid(int h, int m, int s, int ms = 0);
 
@@ -242,7 +257,7 @@ class Q_CORE_EXPORT QDateTime
             CanBeSmall = sizeof(ShortData) * 8 > 50
         };
 
-        Data();
+        Data() noexcept;
         Data(Qt::TimeSpec);
         Data(const Data &other);
         Data(Data &&other);
@@ -260,7 +275,7 @@ class Q_CORE_EXPORT QDateTime
     };
 
 public:
-    QDateTime() noexcept(Data::CanBeSmall);
+    QDateTime() noexcept;
     QDateTime(QDate date, QTime time, Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0);
 #if QT_CONFIG(timezone)
     QDateTime(QDate date, QTime time, const QTimeZone &timeZone);
@@ -269,7 +284,7 @@ public:
     QDateTime(QDateTime &&other) noexcept;
     ~QDateTime();
 
-    QDateTime &operator=(QDateTime &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QDateTime)
     QDateTime &operator=(const QDateTime &other) noexcept;
 
     void swap(QDateTime &other) noexcept { qSwap(d.d, other.d.d); }
@@ -303,15 +318,16 @@ public:
 #if QT_CONFIG(datestring)
     QString toString(Qt::DateFormat format = Qt::TextDate) const;
 # if QT_STRINGVIEW_LEVEL < 2
-    QString toString(const QString &format, QCalendar cal = QCalendar()) const;
+    QString toString(const QString &format, QCalendar cal = QCalendar()) const
+    { return toString(qToStringViewIgnoringNull(format), cal); }
 # endif
     QString toString(QStringView format, QCalendar cal = QCalendar()) const;
 #endif
-    Q_REQUIRED_RESULT QDateTime addDays(qint64 days) const;
-    Q_REQUIRED_RESULT QDateTime addMonths(int months) const;
-    Q_REQUIRED_RESULT QDateTime addYears(int years) const;
-    Q_REQUIRED_RESULT QDateTime addSecs(qint64 secs) const;
-    Q_REQUIRED_RESULT QDateTime addMSecs(qint64 msecs) const;
+    [[nodiscard]] QDateTime addDays(qint64 days) const;
+    [[nodiscard]] QDateTime addMonths(int months) const;
+    [[nodiscard]] QDateTime addYears(int years) const;
+    [[nodiscard]] QDateTime addSecs(qint64 secs) const;
+    [[nodiscard]] QDateTime addMSecs(qint64 msecs) const;
 
     QDateTime toTimeSpec(Qt::TimeSpec spec) const;
     inline QDateTime toLocalTime() const { return toTimeSpec(Qt::LocalTime); }
@@ -335,14 +351,24 @@ public:
     static QDateTime currentDateTime();
     static QDateTime currentDateTimeUtc();
 #if QT_CONFIG(datestring)
-    static QDateTime fromString(const QString &s, Qt::DateFormat f = Qt::TextDate);
-    static QDateTime fromString(const QString &s, const QString &format,
+    static QDateTime fromString(QStringView string, Qt::DateFormat format = Qt::TextDate);
+    static QDateTime fromString(QStringView string, QStringView format,
+                                QCalendar cal = QCalendar())
+    { return fromString(string.toString(), format, cal); }
+    static QDateTime fromString(const QString &string, QStringView format,
                                 QCalendar cal = QCalendar());
+# if QT_STRINGVIEW_LEVEL < 2
+    static QDateTime fromString(const QString &string, Qt::DateFormat format = Qt::TextDate)
+    { return fromString(qToStringViewIgnoringNull(string), format); }
+    static QDateTime fromString(const QString &string, const QString &format,
+                                QCalendar cal = QCalendar())
+    { return fromString(string, qToStringViewIgnoringNull(format), cal); }
+# endif
 #endif
 
     static QDateTime fromMSecsSinceEpoch(qint64 msecs, Qt::TimeSpec spec = Qt::LocalTime,
                                          int offsetFromUtc = 0);
-    static QDateTime fromSecsSinceEpoch(qint64 secs, Qt::TimeSpec spe = Qt::LocalTime,
+    static QDateTime fromSecsSinceEpoch(qint64 secs, Qt::TimeSpec spec = Qt::LocalTime,
                                         int offsetFromUtc = 0);
 
 #if QT_CONFIG(timezone)

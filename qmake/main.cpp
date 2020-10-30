@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2016 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
@@ -67,7 +67,7 @@ Q_DECLARE_TYPEINFO(SedSubst, Q_MOVABLE_TYPE);
 
 static int doSed(int argc, char **argv)
 {
-    QVector<SedSubst> substs;
+    QList<SedSubst> substs;
     QList<const char *> inFiles;
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i], "-e")) {
@@ -448,6 +448,8 @@ bool qmake_setpwd(const QString &p)
 
 int runQMake(int argc, char **argv)
 {
+    qSetGlobalQHashSeed(0);
+
     // stderr is unbuffered by default, but stdout buffering depends on whether
     // there is a terminal attached. Buffering can make output from stderr and stdout
     // appear out of sync, so force stdout to be unbuffered as well.
@@ -455,6 +457,8 @@ int runQMake(int argc, char **argv)
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
 
     // Workaround for inferior/missing command line tools on Windows: make our own!
+    if (argc >= 4 && !strcmp(argv[1], "-qtconf") && !strcmp(argv[3], "-install"))
+        return doInstall(argc - 4, argv + 4);
     if (argc >= 2 && !strcmp(argv[1], "-install"))
         return doInstall(argc - 2, argv + 2);
 

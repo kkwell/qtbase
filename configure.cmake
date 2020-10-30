@@ -431,9 +431,22 @@ qt_feature("optimize_size"
     CONDITION NOT QT_FEATURE_debug OR QT_FEATURE_debug_and_release
 )
 qt_feature_config("optimize_size" QMAKE_PRIVATE_CONFIG)
+# special case begin
+qt_feature("optimize_full"
+    LABEL "Fully optimize release builds (-O3)"
+    AUTODETECT OFF
+)
+qt_feature_config("optimize_full" QMAKE_PRIVATE_CONFIG)
+qt_feature("msvc_obj_debug_info"
+    LABEL "Embed debug info in object files (MSVC)"
+    CONDITION MSVC
+    AUTODETECT OFF
+)
+qt_feature_config("msvc_obj_debug_info" QMAKE_PRIVATE_CONFIG)
+# special case end
 qt_feature("pkg-config" PUBLIC
     LABEL "Using pkg-config"
-    AUTODETECT NOT APPLE AND NOT WIN32
+    AUTODETECT NOT APPLE AND NOT WIN32 AND NOT ANDROID
     CONDITION PKG_CONFIG_FOUND
 )
 qt_feature_config("pkg-config" QMAKE_PUBLIC_QT_CONFIG
@@ -616,11 +629,23 @@ qt_feature("precompile_header"
     CONDITION BUILD_WITH_PCH
 )
 qt_feature_config("precompile_header" QMAKE_PRIVATE_CONFIG)
+set(__qt_ltcg_detected FALSE)
+if(CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    set(__qt_ltcg_detected TRUE)
+else()
+    foreach(config ${CMAKE_BUILD_TYPE} ${CMAKE_CONFIGURATION_TYPES})
+        if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_${config})
+            set(__qt_ltcg_detected TRUE)
+            break()
+        endif()
+    endforeach()
+endif()
 qt_feature("ltcg"
     LABEL "Using LTCG"
-    AUTODETECT 1
-    CONDITION CMAKE_INTERPROCEDURAL_OPTIMIZATION
+    AUTODETECT ON
+    CONDITION __qt_ltcg_detected
 )
+unset(__qt_ltcg_detected)
 qt_feature_config("ltcg" QMAKE_PRIVATE_CONFIG)
 qt_feature("enable_gdb_index"
     LABEL "Generating GDB index"
@@ -630,7 +655,7 @@ qt_feature("enable_gdb_index"
 qt_feature_config("enable_gdb_index" QMAKE_PRIVATE_CONFIG)
 qt_feature("reduce_exports" PRIVATE
     LABEL "Reduce amount of exported symbols"
-    CONDITION NOT WIN32 AND CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY
+    CONDITION NOT MSVC
 )
 qt_feature_definition("reduce_exports" "QT_VISIBILITY_AVAILABLE")
 qt_feature_config("reduce_exports" QMAKE_PUBLIC_QT_CONFIG)
@@ -676,7 +701,7 @@ qt_feature_definition("sse4_2" "QT_COMPILER_SUPPORTS_SSE4_2" VALUE "1")
 qt_feature_config("sse4_2" QMAKE_PRIVATE_CONFIG)
 qt_feature("avx"
     LABEL "AVX"
-    CONDITION QT_FEATURE_sse4_2 AND TEST_subarch_avx
+    CONDITION QT_FEATURE_sse4_2 AND TEST_subarch_avx AND ( NOT ANDROID OR NOT ( TEST_architecture_arch STREQUAL x86_64 ) )
 )
 qt_feature_definition("avx" "QT_COMPILER_SUPPORTS_AVX" VALUE "1")
 qt_feature_config("avx" QMAKE_PRIVATE_CONFIG)
@@ -688,7 +713,7 @@ qt_feature_definition("f16c" "QT_COMPILER_SUPPORTS_F16C" VALUE "1")
 qt_feature_config("f16c" QMAKE_PRIVATE_CONFIG)
 qt_feature("avx2" PRIVATE
     LABEL "AVX2"
-    CONDITION QT_FEATURE_avx AND TEST_subarch_avx2
+    CONDITION QT_FEATURE_avx AND TEST_subarch_avx2 AND ( NOT ANDROID OR NOT ( TEST_architecture_arch STREQUAL x86_64 ) )
 )
 qt_feature_definition("avx2" "QT_COMPILER_SUPPORTS_AVX2" VALUE "1")
 qt_feature_config("avx2" QMAKE_PRIVATE_CONFIG)
@@ -889,11 +914,6 @@ qt_feature("libudev" PRIVATE
     LABEL "udev"
     CONDITION Libudev_FOUND
 )
-qt_feature("compile_examples"
-    LABEL "Compile examples"
-    AUTODETECT NOT WASM
-)
-qt_feature_config("compile_examples" QMAKE_PRIVATE_CONFIG)
 qt_feature("ccache"
     LABEL "Using ccache"
     AUTODETECT 1
@@ -932,6 +952,9 @@ qt_configure_add_summary_entry(
 qt_configure_add_summary_entry(
     ARGS "optimize_size"
     CONDITION NOT QT_FEATURE_debug OR QT_FEATURE_debug_and_release
+)
+qt_configure_add_summary_entry(
+    ARGS "optimize_full"
 )
 qt_configure_add_summary_entry(ARGS "shared")
 qt_configure_add_summary_entry(
@@ -1048,11 +1071,13 @@ qt_configure_add_report_entry(
     MESSAGE "Using static linking will disable the use of dynamically loaded plugins. Make sure to import all needed static plugins, or compile needed modules into the library."
     CONDITION NOT QT_FEATURE_shared
 )
-qt_configure_add_report_entry(
-    TYPE ERROR
-    MESSAGE "Debug build wihtout Release build is not currently supported on ios see QTBUG-71990. Use -debug-and-release."
-    CONDITION IOS AND QT_FEATURE_debug AND NOT QT_FEATURE_debug_and_release
-)
+# special case begin
+# qt_configure_add_report_entry(
+#     TYPE ERROR
+#     MESSAGE "Debug build wihtout Release build is not currently supported on ios see QTBUG-71990. Use -debug-and-release."
+#     CONDITION IOS AND QT_FEATURE_debug AND NOT QT_FEATURE_debug_and_release
+# )
+# special case end
 qt_configure_add_report_entry(
     TYPE WARNING
     MESSAGE "-debug-and-release is only supported on Darwin and Windows platforms.  Qt can be built in release mode with separate debug information, so -debug-and-release is no longer necessary."

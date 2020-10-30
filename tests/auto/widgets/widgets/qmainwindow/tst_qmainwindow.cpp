@@ -65,7 +65,7 @@ public:
     {
         m_timerId = startTimer(200);
     }
-    void timerEvent(QTimerEvent*)
+    void timerEvent(QTimerEvent*) override
     {
         QCoreApplication::postEvent(m_tb, new QMouseEvent(QEvent::MouseButtonPress, QPoint(6, 7), Qt::LeftButton, {}, {}));
         QCoreApplication::postEvent(m_tb, new QMouseEvent(QEvent::MouseMove, QPoint(7, 8), Qt::LeftButton, Qt::LeftButton, {}));
@@ -89,7 +89,7 @@ public:
         m_timerId = startTimer(100);
     }
 
-    void timerEvent(QTimerEvent*)
+    void timerEvent(QTimerEvent*) override
     {
         QCoreApplication::postEvent(m_w, new QMouseEvent(QEvent::MouseButtonPress, QPoint(230, 370), Qt::LeftButton, {}, {}));
         QCoreApplication::postEvent(m_w, new QMouseEvent(QEvent::MouseButtonRelease, QPoint(230, 370), Qt::LeftButton, {}, {}));
@@ -1456,7 +1456,7 @@ void tst_QMainWindow::createPopupMenu()
 class MyDockWidget : public QDockWidget
 {
 public:
-    MyDockWidget(QWidget * = 0) {
+    MyDockWidget(QWidget * = nullptr) {
         create(); // otherwise hide() doesn't result in a hide event
     }
 };
@@ -1464,11 +1464,11 @@ public:
 class MyWidget : public QWidget
 {
 public:
-    MyWidget(QWidget *parent = 0) : QWidget(parent)
+    MyWidget(QWidget *parent = nullptr) : QWidget(parent)
     {
     }
 
-    QSize sizeHint() const
+    QSize sizeHint() const override
     {
         return QSize(200, 200);
     }
@@ -1522,10 +1522,10 @@ void AddDockWidget::apply(QMainWindow *mw) const
     dw->setObjectName(name);
     dw->setWindowTitle(name);
 
-    QDockWidget *other = 0;
+    QDockWidget *other = nullptr;
     if (mode == SplitMode || mode == TabMode) {
         other = mw->findChild<QDockWidget*>(this->other);
-        QVERIFY(other != 0);
+        QVERIFY(other != nullptr);
     }
 
     switch (mode) {

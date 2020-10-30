@@ -4,10 +4,10 @@
 ## testProcessEnvironment Binary:
 #####################################################################
 
-qt_add_executable(testProcessEnvironment
+qt_internal_add_executable(testProcessEnvironment
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
     SOURCES
         main.cpp
-    PUBLIC_LIBRARIES
-        Qt::Gui
+    #PUBLIC_LIBRARIES # special case remove
+        #Qt::Gui # special case remove
 )

@@ -83,7 +83,7 @@ public:
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override
         { return sizeHint(); }
-    void enterEvent(QEvent *event) override;
+    void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
 };
@@ -990,14 +990,16 @@ int QTabBar::insertTab(int index, const QIcon& icon, const QString &text)
     d->tabList.at(index)->shortcutId = grabShortcut(QKeySequence::mnemonic(text));
 #endif
     d->firstVisible = qMax(qMin(index, d->firstVisible), 0);
-    d->lastVisible  = qMax(index, d->lastVisible);
     d->refresh();
     if (d->tabList.count() == 1)
         setCurrentIndex(index);
-    else if (index <= d->currentIndex) {
+    else if (index <= d->currentIndex)
         ++d->currentIndex;
+
+    if (index <= d->lastVisible)
         ++d->lastVisible;
-    }
+    else
+        d->lastVisible = index;
 
     if (d->closeButtonOnTabs) {
         QStyleOptionTab opt;
@@ -2226,8 +2228,8 @@ void QTabBarPrivate::setupMovableTab()
     else
         grabRect.adjust(-taboverlap, 0, taboverlap, 0);
 
-    QPixmap grabImage(grabRect.size() * q->devicePixelRatioF());
-    grabImage.setDevicePixelRatio(q->devicePixelRatioF());
+    QPixmap grabImage(grabRect.size() * q->devicePixelRatio());
+    grabImage.setDevicePixelRatio(q->devicePixelRatio());
     grabImage.fill(Qt::transparent);
     QStylePainter p(&grabImage, q);
 
@@ -2814,7 +2816,7 @@ QSize CloseButton::sizeHint() const
     return QSize(width, height);
 }
 
-void CloseButton::enterEvent(QEvent *event)
+void CloseButton::enterEvent(QEnterEvent *event)
 {
     if (isEnabled())
         update();

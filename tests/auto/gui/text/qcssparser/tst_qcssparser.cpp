@@ -860,9 +860,8 @@ void tst_QCssParser::colorValue_data()
     QTest::newRow("role2") << "color: palette( window-text ) " << qApp->palette().color(QPalette::WindowText);
     QTest::newRow("transparent") << "color: transparent" << QColor(Qt::transparent);
 
-    // ### Qt6: no longer valid
-    QTest::newRow("rgb-invalid") << "color: rgb(10, 20, 30, 40)" << QColor(10, 20, 30, 40);
-    QTest::newRow("rgba-invalid") << "color: rgba(10, 20, 30)" << QColor(10, 20, 30, 255);
+    QTest::newRow("rgb-invalid") << "color: rgb(10, 20, 30, 40)" << QColor();
+    QTest::newRow("rgba-invalid") << "color: rgba(10, 20, 30)" << QColor();
 }
 
 void tst_QCssParser::colorValue()
@@ -887,30 +886,30 @@ public:
         styleSheets.append(sheet);
     }
 
-    virtual QStringList nodeNames(NodePtr node) const { return QStringList(reinterpret_cast<QDomElement *>(node.ptr)->tagName()); }
-    virtual QString attribute(NodePtr node, const QString &name) const { return reinterpret_cast<QDomElement *>(node.ptr)->attribute(name); }
+    virtual QStringList nodeNames(NodePtr node) const override { return QStringList(reinterpret_cast<QDomElement *>(node.ptr)->tagName()); }
+    virtual QString attribute(NodePtr node, const QString &name) const override { return reinterpret_cast<QDomElement *>(node.ptr)->attribute(name); }
     virtual bool hasAttribute(NodePtr node, const QString &name) const { return reinterpret_cast<QDomElement *>(node.ptr)->hasAttribute(name); }
-    virtual bool hasAttributes(NodePtr node) const { return reinterpret_cast<QDomElement *>(node.ptr)->hasAttributes(); }
+    virtual bool hasAttributes(NodePtr node) const override { return reinterpret_cast<QDomElement *>(node.ptr)->hasAttributes(); }
 
-    virtual bool isNullNode(NodePtr node) const {
+    virtual bool isNullNode(NodePtr node) const override {
         return reinterpret_cast<QDomElement *>(node.ptr)->isNull();
     }
-    virtual NodePtr parentNode(NodePtr node) const {
+    virtual NodePtr parentNode(NodePtr node) const override {
         NodePtr parent;
         parent.ptr = new QDomElement(reinterpret_cast<QDomElement *>(node.ptr)->parentNode().toElement());
         return parent;
     }
-    virtual NodePtr duplicateNode(NodePtr node) const {
+    virtual NodePtr duplicateNode(NodePtr node) const override {
         NodePtr n;
         n.ptr = new QDomElement(*reinterpret_cast<QDomElement *>(node.ptr));
         return n;
     }
-    virtual NodePtr previousSiblingNode(NodePtr node) const {
+    virtual NodePtr previousSiblingNode(NodePtr node) const override {
         NodePtr sibling;
         sibling.ptr = new QDomElement(reinterpret_cast<QDomElement *>(node.ptr)->previousSiblingElement());
         return sibling;
     }
-    virtual void freeNode(NodePtr node) const {
+    virtual void freeNode(NodePtr node) const override {
         delete reinterpret_cast<QDomElement *>(node.ptr);
     }
 

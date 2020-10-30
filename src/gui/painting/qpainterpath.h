@@ -54,7 +54,6 @@ QT_BEGIN_NAMESPACE
 class QFont;
 class QPainterPathPrivate;
 struct QPainterPathPrivateDeleter;
-class QPainterPathData;
 class QPainterPathStrokerPrivate;
 class QPen;
 class QPolygonF;
@@ -93,8 +92,7 @@ public:
     explicit QPainterPath(const QPointF &startPoint);
     QPainterPath(const QPainterPath &other);
     QPainterPath &operator=(const QPainterPath &other);
-    inline QPainterPath &operator=(QPainterPath &&other) noexcept
-    { qSwap(d_ptr, other.d_ptr); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QPainterPath)
     ~QPainterPath();
 
     inline void swap(QPainterPath &other) noexcept { d_ptr.swap(other.d_ptr); }
@@ -151,8 +149,8 @@ public:
     void translate(qreal dx, qreal dy);
     inline void translate(const QPointF &offset);
 
-    Q_REQUIRED_RESULT QPainterPath translated(qreal dx, qreal dy) const;
-    Q_REQUIRED_RESULT inline QPainterPath translated(const QPointF &offset) const;
+    [[nodiscard]] QPainterPath translated(qreal dx, qreal dy) const;
+    [[nodiscard]] inline QPainterPath translated(const QPointF &offset) const;
 
     QRectF boundingRect() const;
     QRectF controlPointRect() const;
@@ -162,7 +160,7 @@ public:
 
     bool isEmpty() const;
 
-    Q_REQUIRED_RESULT QPainterPath toReversed() const;
+    [[nodiscard]] QPainterPath toReversed() const;
 
     QList<QPolygonF> toSubpathPolygons(const QTransform &matrix = QTransform()) const;
     QList<QPolygonF> toFillPolygons(const QTransform &matrix = QTransform()) const;
@@ -180,11 +178,11 @@ public:
 
     bool intersects(const QPainterPath &p) const;
     bool contains(const QPainterPath &p) const;
-    Q_REQUIRED_RESULT QPainterPath united(const QPainterPath &r) const;
-    Q_REQUIRED_RESULT QPainterPath intersected(const QPainterPath &r) const;
-    Q_REQUIRED_RESULT QPainterPath subtracted(const QPainterPath &r) const;
+    [[nodiscard]] QPainterPath united(const QPainterPath &r) const;
+    [[nodiscard]] QPainterPath intersected(const QPainterPath &r) const;
+    [[nodiscard]] QPainterPath subtracted(const QPainterPath &r) const;
 
-    Q_REQUIRED_RESULT QPainterPath simplified() const;
+    [[nodiscard]] QPainterPath simplified() const;
 
     bool operator==(const QPainterPath &other) const;
     bool operator!=(const QPainterPath &other) const;
@@ -209,9 +207,8 @@ private:
     void computeBoundingRect() const;
     void computeControlPointRect() const;
 
-    QPainterPathData *d_func() const { return reinterpret_cast<QPainterPathData *>(d_ptr.data()); }
+    QPainterPathPrivate *d_func() const { return d_ptr.data(); }
 
-    friend class QPainterPathData;
     friend class QPainterPathStroker;
     friend class QPainterPathStrokerPrivate;
     friend class QTransform;

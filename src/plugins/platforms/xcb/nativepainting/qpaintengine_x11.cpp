@@ -41,7 +41,6 @@
 
 #include <private/qpixmapcache_p.h>
 #include <private/qpaintengine_p.h>
-#include <private/qpolygonclipper_p.h>
 #include <private/qpainterpath_p.h>
 #include <private/qdrawhelper_p.h>
 #include <private/qfontengineglyphcache_p.h>
@@ -51,6 +50,7 @@
 #endif
 
 #include "qpaintengine_x11_p.h"
+#include "qpolygonclipper_p.h"
 #include "qtessellator_p.h"
 #include "qpixmap_x11_p.h"
 #include "qcolormap_x11_p.h"
@@ -2303,21 +2303,6 @@ void QX11PaintEngine::drawTiledPixmap(const QRectF &r, const QPixmap &pixmap, co
 
 #if QT_CONFIG(xrender)
     if (X11->use_xrender && d->picture && qt_x11PictureHandle(pixmap)) {
-#if 0
-        // ### Qt 5: enable this
-        XRenderPictureAttributes attrs;
-        attrs.repeat = true;
-        XRenderChangePicture(d->dpy, pixmap.x11PictureHandle(), CPRepeat, &attrs);
-
-        if (mono_src) {
-            qt_render_bitmap(d->dpy, d->scrn, pixmap.x11PictureHandle(), d->picture,
-                             sx, sy, x, y, w, h, d->cpen);
-        } else {
-            XRenderComposite(d->dpy, d->composition_mode,
-                             pixmap.x11PictureHandle(), XNone, d->picture,
-                             sx, sy, 0, 0, x, y, w, h);
-        }
-#else
         const int numTiles = (w / pixmap.width()) * (h / pixmap.height());
         if (numTiles < 100) {
             // this is essentially qt_draw_tile(), inlined for
@@ -2400,7 +2385,6 @@ void QX11PaintEngine::drawTiledPixmap(const QRectF &r, const QPixmap &pixmap, co
                                  pmPicture, XNone, d->picture,
                                  sx, sy, 0, 0, x, y, w, h);
         }
-#endif
     } else
 #endif // QT_CONFIG(xrender)
         if (pixmap.depth() > 1 && !static_cast<QX11PlatformPixmap*>(pixmap.handle())->x11_mask) {

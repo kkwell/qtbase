@@ -356,7 +356,7 @@ QVersionNumber QLibraryInfo::version() noexcept
 #endif // QT_BUILD_QMAKE
 
 /*
- * To add a new entry in QLibrary::LibraryLocation, add it to the enum above the bootstrapped values and:
+ * To add a new entry in QLibrary::LibraryPath, add it to the enum above the bootstrapped values and:
  * - add its relative path in the qtConfEntries[] array below
  *   (the key is what appears in a qt.conf file)
  * - add a property name in qmake/property.cpp propList[] array
@@ -636,12 +636,20 @@ static QString getPrefix(
 }
 #endif // QT_BUILD_QMAKE_BOOTSTRAP
 
-/*!
-  Returns the location specified by \a loc.
+/*! \fn QString QLibraryInfo::location(LibraryLocation loc)
+    \obsolete Use path() instead.
+
+    Returns the path specified by \a loc.
+    \sa path()
 */
-QString
-QLibraryInfo::location(LibraryLocation loc)
+
+/*!
+    \since 6.0
+    Returns the path specified by \a p.
+*/
+QString QLibraryInfo::path(LibraryPath p)
 {
+    const LibraryPath loc = p;
 #ifdef QT_BUILD_QMAKE // ends inside rawLocation !
     QString ret = rawLocation(loc, FinalPaths);
 
@@ -653,9 +661,9 @@ QLibraryInfo::location(LibraryLocation loc)
 }
 
 QString
-QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
+QLibraryInfo::rawLocation(LibraryPath loc, PathGroup group)
 {
-#endif // QT_BUILD_QMAKE, started inside location !
+#endif // QT_BUILD_QMAKE, started inside path!
     QString ret;
     bool fromConf = false;
 #if QT_CONFIG(settings)
@@ -803,7 +811,7 @@ QLibraryInfo::rawLocation(LibraryLocation loc, PathGroup group)
             baseDir = prefixFromAppDirHelper();
         } else {
             // we make any other path absolute to the prefix directory
-            baseDir = location(PrefixPath);
+            baseDir = path(PrefixPath);
         }
 #endif // QT_BUILD_QMAKE
         ret = QDir::cleanPath(baseDir + QLatin1Char('/') + ret);
@@ -842,29 +850,33 @@ QStringList QLibraryInfo::platformPluginArguments(const QString &platformName)
 }
 
 /*!
-    \enum QLibraryInfo::LibraryLocation
+    \enum QLibraryInfo::LibraryPath
 
     \keyword library location
 
-    This enum type is used to specify a specific location
-    specifier:
+    This enum type is used to query for a specific path:
 
     \value PrefixPath The default prefix for all paths.
-    \value DocumentationPath The location for documentation upon install.
-    \value HeadersPath The location for all headers.
-    \value LibrariesPath The location of installed libraries.
-    \value LibraryExecutablesPath The location of installed executables required by libraries at runtime.
-    \value BinariesPath The location of installed Qt binaries (tools and applications).
-    \value PluginsPath The location of installed Qt plugins.
-    \value Qml2ImportsPath The location of installed QML extensions to import (QML 2.x).
-    \value ArchDataPath The location of general architecture-dependent Qt data.
-    \value DataPath The location of general architecture-independent Qt data.
-    \value TranslationsPath The location of translation information for Qt strings.
-    \value ExamplesPath The location for examples upon install.
-    \value TestsPath The location of installed Qt testcases.
-    \value SettingsPath The location for Qt settings. Not applicable on Windows.
+    \value DocumentationPath The path to documentation upon install.
+    \value HeadersPath The path to all headers.
+    \value LibrariesPath The path to installed libraries.
+    \value LibraryExecutablesPath The path to installed executables required by libraries at runtime.
+    \value BinariesPath The path to installed Qt binaries (tools and applications).
+    \value PluginsPath The path to installed Qt plugins.
+    \value Qml2ImportsPath The path to installed QML extensions to import (QML 2.x).
+    \value ArchDataPath The path to general architecture-dependent Qt data.
+    \value DataPath The path to general architecture-independent Qt data.
+    \value TranslationsPath The path to translation information for Qt strings.
+    \value ExamplesPath The path to examples upon install.
+    \value TestsPath The path to installed Qt testcases.
+    \value SettingsPath The path to Qt settings. Not applicable on Windows.
 
-    \sa location()
+    \sa path()
+*/
+
+/*!
+    \typealias QLibraryInfo::LibraryLocation
+    \obsolete Use LibraryPath with QLibraryInfo::path() instead.
 */
 
 QT_END_NAMESPACE

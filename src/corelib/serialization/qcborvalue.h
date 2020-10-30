@@ -179,18 +179,11 @@ public:
 
     QCborValue(const QCborValue &other);
     QCborValue(QCborValue &&other) noexcept
-        : n(other.n), container(other.container), t(other.t)
+        : n(other.n), container(qExchange(other.container, nullptr)), t(qExchange(other.t, Undefined))
     {
-        other.t = Undefined;
-        other.container = nullptr;
     }
     QCborValue &operator=(const QCborValue &other);
-    QCborValue &operator=(QCborValue &&other) noexcept
-    {
-        QCborValue tmp(std::move(other));
-        swap(tmp);
-        return *this;
-    }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QCborValue)
 
     void swap(QCborValue &other) noexcept
     {

@@ -68,16 +68,13 @@ public:
     ~QPalette();
     QPalette &operator=(const QPalette &palette);
     QPalette(QPalette &&other) noexcept
-        : d(other.d), data(other.data)
-    { other.d = nullptr; }
-    inline QPalette &operator=(QPalette &&other) noexcept
-    {
-        swap(other); return *this;
-    }
+        : d(qExchange(other.d, nullptr)), currentGroup(other.currentGroup)
+    {}
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QPalette)
 
     void swap(QPalette &other) noexcept
     {
-        qSwap(data, other.data);
+        qSwap(currentGroup, other.currentGroup);
         qSwap(d, other.d);
     }
 
@@ -95,15 +92,11 @@ public:
                      ToolTipBase, ToolTipText,
                      PlaceholderText,
                      NColorRoles = PlaceholderText + 1,
-#if QT_DEPRECATED_SINCE(5, 13)
-                     Foreground Q_DECL_ENUMERATOR_DEPRECATED_X("Use QPalette::WindowText instead") = WindowText,
-                     Background Q_DECL_ENUMERATOR_DEPRECATED_X("Use QPalette::Window instead") = Window
-#endif
                    };
     Q_ENUM(ColorRole)
 
-    inline ColorGroup currentColorGroup() const { return data.currentGroup; }
-    inline void setCurrentColorGroup(ColorGroup cg) { data.currentGroup = cg; }
+    inline ColorGroup currentColorGroup() const { return currentGroup; }
+    inline void setCurrentColorGroup(ColorGroup cg) { currentGroup = cg; }
 
     inline const QColor &color(ColorGroup cg, ColorRole cr) const
     { return brush(cg, cr).color(); }
@@ -141,12 +134,6 @@ public:
     inline const QBrush &link() const { return brush(Link); }
     inline const QBrush &linkVisited() const { return brush(LinkVisited); }
     inline const QBrush &placeholderText() const { return brush(PlaceholderText); }
-#if QT_DEPRECATED_SINCE(5, 13)
-    QT_DEPRECATED_X("Use QPalette::windowText() instead")
-    inline const QBrush &foreground() const { return windowText(); }
-    QT_DEPRECATED_X("Use QPalette::window() instead")
-    inline const QBrush &background() const { return window(); }
-#endif
 
     bool operator==(const QPalette &p) const;
     inline bool operator!=(const QPalette &p) const { return !(operator==(p)); }
@@ -182,10 +169,7 @@ private:
     void detach();
 
     QPalettePrivate *d;
-    struct Data {
-        ColorGroup currentGroup{Active};
-    };
-    Data data;
+    ColorGroup currentGroup{Active};
 
     friend Q_GUI_EXPORT QDataStream &operator<<(QDataStream &s, const QPalette &p);
 };

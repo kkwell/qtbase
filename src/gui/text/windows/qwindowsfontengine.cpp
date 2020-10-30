@@ -255,13 +255,6 @@ QWindowsFontEngine::QWindowsFontEngine(const QString &name,
     if (!resolvedGetCharWidthI)
         resolveGetCharWidthI();
 
-    // ### Properties accessed by QWin32PrintEngine (QtPrintSupport)
-    QVariantMap userData;
-    userData.insert(QStringLiteral("logFont"), QVariant::fromValue(m_logfont));
-    userData.insert(QStringLiteral("hFont"), QVariant::fromValue(hfont));
-    userData.insert(QStringLiteral("trueType"), QVariant(bool(ttf)));
-    setUserData(userData);
-
     hasUnreliableOutline = (tm.tmPitchAndFamily & (TMPF_TRUETYPE | TMPF_VECTOR)) == 0;
 }
 
@@ -642,7 +635,7 @@ qreal QWindowsFontEngine::minRightBearing() const
         HDC hdc = m_fontEngineData->hdc;
         SelectObject(hdc, hfont);
         if (ttf) {
-            ABC *abc = 0;
+            ABC *abc = nullptr;
             int n = tm.tmLastChar - tm.tmFirstChar;
             if (n <= max_font_count) {
                 abc = new ABC[n+1];
@@ -706,7 +699,7 @@ static inline QPointF qt_to_qpointf(const POINTFX &pt, qreal scale, qreal stretc
 #endif
 
 static bool addGlyphToPath(glyph_t glyph, const QFixedPoint &position, HDC hdc,
-                           QPainterPath *path, bool ttf, glyph_metrics_t *metric = 0,
+                           QPainterPath *path, bool ttf, glyph_metrics_t *metric = nullptr,
                            qreal scale = 1.0, qreal stretch = 1.0)
 {
     MAT2 mat;

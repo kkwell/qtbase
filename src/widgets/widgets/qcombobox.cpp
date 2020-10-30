@@ -319,12 +319,12 @@ void QComboBoxPrivate::trySetValidIndex()
         setCurrentIndex(QModelIndex());
 }
 
-QRect QComboBoxPrivate::popupGeometry() const
+QRect QComboBoxPrivate::popupGeometry(const QPoint &globalPosition) const
 {
     Q_Q(const QComboBox);
     return QStylePrivate::useFullScreenForPopup()
-        ? QWidgetPrivate::screenGeometry(q)
-        : QWidgetPrivate::availableScreenGeometry(q);
+        ? QWidgetPrivate::screenGeometry(q, globalPosition)
+        : QWidgetPrivate::availableScreenGeometry(q, globalPosition);
 }
 
 bool QComboBoxPrivate::updateHoverControl(const QPoint &pos)
@@ -848,7 +848,7 @@ void QComboBoxPrivateContainer::mousePressEvent(QMouseEvent *e)
 void QComboBoxPrivateContainer::mouseReleaseEvent(QMouseEvent *e)
 {
     Q_UNUSED(e);
-    if (!blockMouseReleaseTimer.isActive()){
+    if (!blockMouseReleaseTimer.isActive()) {
         combo->hidePopup();
         emit resetButton();
     }
@@ -2191,10 +2191,9 @@ QString QComboBox::currentText() const
     Q_D(const QComboBox);
     if (d->lineEdit)
         return d->lineEdit->text();
-    else if (d->currentIndex.isValid())
+    if (d->currentIndex.isValid())
         return d->itemText(d->currentIndex);
-    else
-        return d->placeholderText;
+    return {};
 }
 
 /*!
@@ -2233,7 +2232,7 @@ QIcon QComboBox::itemIcon(int index) const
 
 /*!
    Returns the data for the given \a role in the given \a index in the
-   combobox, or QVariant::Invalid if there is no data for this role.
+   combobox, or an invalid QVariant if there is no data for this role.
 */
 QVariant QComboBox::itemData(int index, int role) const
 {
@@ -2517,7 +2516,7 @@ bool QComboBoxPrivate::showNativePopup()
     int itemsCount = q->count();
     m_platformMenu->setTag(quintptr(itemsCount));
 
-    QPlatformMenuItem *currentItem = 0;
+    QPlatformMenuItem *currentItem = nullptr;
     int currentIndex = q->currentIndex();
 
     for (int i = 0; i < itemsCount; ++i) {
@@ -2612,7 +2611,7 @@ void QComboBox::showPopup()
     QComboBoxPrivateContainer* container = d->viewContainer();
     QRect listRect(style->subControlRect(QStyle::CC_ComboBox, &opt,
                                          QStyle::SC_ComboBoxListBoxPopup, this));
-    QRect screen = d->popupGeometry();
+    QRect screen = d->popupGeometry(mapToGlobal(listRect.topLeft()));
 
     QPoint below = mapToGlobal(listRect.bottomLeft());
     int belowHeight = screen.bottom() - below.y();
@@ -2968,7 +2967,7 @@ void QComboBox::changeEvent(QEvent *e)
             d->updateLineEditGeometry();
         d->setLayoutItemMargins(QStyle::SE_ComboBoxLayoutItem);
 
-        if (e->type() == QEvent::MacSizeChange){
+        if (e->type() == QEvent::MacSizeChange) {
             QPlatformTheme::Font f = QPlatformTheme::SystemFont;
             if (testAttribute(Qt::WA_MacSmallSize))
                 f = QPlatformTheme::SmallFont;

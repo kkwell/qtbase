@@ -68,7 +68,7 @@ typedef double GLdouble;
         unsigned clamped = qMin(unsigned(error - GL_INVALID_ENUM), 4U); \
         const char *errors[] = { "GL_INVALID_ENUM", "GL_INVALID_VALUE", "GL_INVALID_OPERATION", "Unknown" }; \
         printf("GL error at %s:%d: %s\n", __FILE__, __LINE__, errors[clamped]); \
-        int *value = 0; \
+        int *value = nullptr; \
         *value = 0; \
     }
 #else
@@ -268,10 +268,6 @@ public:
     bool hasOpenGLFeature(QOpenGLFunctions::OpenGLFeature feature) const;
 
     void initializeOpenGLFunctions();
-
-#if QT_DEPRECATED_SINCE(5, 0)
-    QT_DEPRECATED void initializeGLFunctions() { initializeOpenGLFunctions(); }
-#endif
 
     // GLES2 + OpenGL1 common subset
     void glBindTexture(GLenum target, GLuint texture);

@@ -1240,6 +1240,22 @@ void QTreeView::scrollTo(const QModelIndex &index, ScrollHint hint)
 /*!
   \reimp
 */
+void QTreeView::changeEvent(QEvent *event)
+{
+    Q_D(QTreeView);
+    if (event->type() == QEvent::StyleChange) {
+        if (!d->customIndent) {
+            // QAbstractItemView calls this method in case of a style change,
+            // so update the indentation here if it wasn't set manually.
+            d->updateIndentationFromStyle();
+        }
+    }
+    QAbstractItemView::changeEvent(event);
+}
+
+/*!
+  \reimp
+*/
 void QTreeView::timerEvent(QTimerEvent *event)
 {
     Q_D(QTreeView);
@@ -1605,6 +1621,7 @@ void QTreeViewPrivate::calcLogicalIndices(
 */
 int QTreeViewPrivate::widthHintForIndex(const QModelIndex &index, int hint, const QStyleOptionViewItem &option, int i) const
 {
+    Q_Q(const QTreeView);
     QWidget *editor = editorForIndex(index).widget.data();
     if (editor && persistent.contains(editor)) {
         hint = qMax(hint, editor->sizeHint().width());
@@ -1612,7 +1629,7 @@ int QTreeViewPrivate::widthHintForIndex(const QModelIndex &index, int hint, cons
         int max = editor->maximumSize().width();
         hint = qBound(min, hint, max);
     }
-    int xhint = delegateForIndex(index)->sizeHint(option, index).width();
+    int xhint = q->itemDelegateForIndex(index)->sizeHint(option, index).width();
     hint = qMax(hint, xhint + (isTreePosition(index.column()) ? indentationForItem(i) : 0));
     return hint;
 }
@@ -1786,7 +1803,7 @@ void QTreeView::drawRow(QPainter *painter, const QStyleOptionViewItem &option,
             opt.state = oldState;
         }
 
-        d->delegateForIndex(modelIndex)->paint(painter, opt, modelIndex);
+        itemDelegateForIndex(modelIndex)->paint(painter, opt, modelIndex);
     }
 
     if (currentRowHasFocus) {
@@ -2097,12 +2114,6 @@ QModelIndex QTreeView::indexBelow(const QModelIndex &index) const
 void QTreeView::doItemsLayout()
 {
     Q_D(QTreeView);
-    if (!d->customIndent) {
-        // ### Qt 6: move to event()
-        // QAbstractItemView calls this method in case of a style change,
-        // so update the indentation here if it wasn't set manually.
-        d->updateIndentationFromStyle();
-    }
     if (d->hasRemovedItems) {
         //clean the QSet that may contains old (and this invalid) indexes
         d->hasRemovedItems = false;
@@ -2619,11 +2630,11 @@ void QTreeView::sortByColumn(int column, Qt::SortOrder order)
     Q_D(QTreeView);
     if (column < -1)
         return;
-    // If sorting is enabled it will emit a signal connected to
-    // _q_sortIndicatorChanged, which then actually sorts
     d->header->setSortIndicator(column, order);
-    // If sorting is not enabled, force to sort now
-    if (!d->sortingEnabled)
+    // If sorting is not enabled or has the same order as before, force to sort now
+    // else sorting will be trigger through sortIndicatorChanged()
+    if (!d->sortingEnabled ||
+        (d->header->sortIndicatorSection() == column && d->header->sortIndicatorOrder() == order))
         d->model->sort(column, order);
 }
 
@@ -3005,7 +3016,7 @@ int QTreeView::indexRowSizeHint(const QModelIndex &index) const
                 int max = editor->maximumSize().height();
                 height = qBound(min, height, max);
             }
-            int hint = d->delegateForIndex(idx)->sizeHint(option, idx).height();
+            int hint = itemDelegateForIndex(idx)->sizeHint(option, idx).height();
             height = qMax(height, hint);
         }
     }
@@ -3244,8 +3255,8 @@ void QTreeViewPrivate::drawAnimatedOperation(QPainter *painter) const
 QPixmap QTreeViewPrivate::renderTreeToPixmapForAnimation(const QRect &rect) const
 {
     Q_Q(const QTreeView);
-    QPixmap pixmap(rect.size() * q->devicePixelRatioF());
-    pixmap.setDevicePixelRatio(q->devicePixelRatioF());
+    QPixmap pixmap(rect.size() * q->devicePixelRatio());
+    pixmap.setDevicePixelRatio(q->devicePixelRatio());
     if (rect.size().isEmpty())
         return pixmap;
     pixmap.fill(Qt::transparent); //the base might not be opaque, and we don't want uninitialized pixels.
@@ -3264,7 +3275,7 @@ QPixmap QTreeViewPrivate::renderTreeToPixmapForAnimation(const QRect &rect) cons
         option.rect = q->visualRect(index);
         if (option.rect.isValid()) {
 
-            if (QAbstractItemDelegate *delegate = delegateForIndex(index))
+            if (QAbstractItemDelegate *delegate = q->itemDelegateForIndex(index))
                 delegate->updateEditorGeometry(editor, option, index);
 
             const QPoint pos = editor->pos();
@@ -3331,9 +3342,21 @@ void QTreeViewPrivate::layout(int i, bool recursiveExpanding, bool afterIsUninit
 
     int count = 0;
     if (model->hasChildren(parent)) {
-        if (model->canFetchMore(parent))
+        if (model->canFetchMore(parent)) {
+            // fetchMore first, otherwise we might not yet have any data for sizeHintForRow
             model->fetchMore(parent);
-        count = model->rowCount(parent);
+            // guestimate the number of items in the viewport, and fetch as many as might fit
+            const int itemHeight = defaultItemHeight <= 0 ? q->sizeHintForRow(0) : defaultItemHeight;
+            const int viewCount = itemHeight ? viewport->height() / itemHeight : 0;
+            int lastCount = -1;
+            while ((count = model->rowCount(parent)) < viewCount &&
+                   count != lastCount && model->canFetchMore(parent)) {
+                model->fetchMore(parent);
+                lastCount = count;
+            }
+        } else {
+            count = model->rowCount(parent);
+        }
     }
 
     bool expanding = true;

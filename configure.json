@@ -55,6 +55,8 @@
             "android-ndk-host": "string",
             "android-ndk-platform": "string",
             "android-sdk": "string",
+            "android-javac-target": "string",
+            "android-javac-source": "string",
 
             "android-style-assets": "boolean",
             "appstore-compliant": "boolean",
@@ -64,7 +66,6 @@
             "c++std": "cxxstd",
             "ccache": { "type": "boolean", "name": "ccache" },
             "commercial": "void",
-            "compile-examples": { "type": "boolean", "name": "compile_examples" },
             "confirm-license": "void",
             "coverage": "coverage",
             "dbus": { "type": "optionalString", "values": [ "no", "yes", "linked", "runtime" ] },
@@ -752,7 +753,7 @@
         },
         "pkg-config": {
             "label": "Using pkg-config",
-            "autoDetect": "!config.darwin && !config.win32",
+            "autoDetect": "!config.darwin && !config.win32 && !config.android",
             "condition": "tests.pkg-config",
             "output": [
                 "publicFeature",
@@ -1084,7 +1085,7 @@
         },
         "avx": {
             "label": "AVX",
-            "condition": "features.sse4_2 && tests.avx",
+            "condition": "features.sse4_2 && tests.avx && (!config.android || !arch.x86_64)",
             "output": [
                 "privateConfig",
                 { "type": "define", "name": "QT_COMPILER_SUPPORTS_AVX", "value": 1 }
@@ -1100,7 +1101,7 @@
         },
         "avx2": {
             "label": "AVX2",
-            "condition": "features.avx && tests.avx2",
+            "condition": "features.avx && tests.avx2 && (!config.android || !arch.x86_64)",
             "output": [
                 "privateConfig",
                 "privateFeature",
@@ -1363,11 +1364,6 @@
             "label": "udev",
             "condition": "libs.libudev",
             "output": [ "privateFeature" ]
-        },
-        "compile_examples": {
-            "label": "Compile examples",
-            "autoDetect": "!config.wasm",
-            "output": [ "privateConfig" ]
         },
         "incredibuild_xge": {
             "label": "IncrediBuild",

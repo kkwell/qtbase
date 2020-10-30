@@ -19,8 +19,12 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(trivialwizard
+qt_add_executable(trivialwizard
     trivialwizard.cpp
+)
+set_target_properties(trivialwizard PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(trivialwizard PUBLIC
     Qt::Core

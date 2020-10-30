@@ -39,10 +39,10 @@ class InsertCommand : public QUndoCommand
 {
 public:
     InsertCommand(QString *str, int idx, const QString &text,
-                    QUndoCommand *parent = 0);
+                    QUndoCommand *parent = nullptr);
 
-    virtual void undo();
-    virtual void redo();
+    virtual void undo() override;
+    virtual void redo() override;
 
 private:
     QString *m_str;
@@ -53,10 +53,10 @@ private:
 class RemoveCommand : public QUndoCommand
 {
 public:
-    RemoveCommand(QString *str, int idx, int len, QUndoCommand *parent = 0);
+    RemoveCommand(QString *str, int idx, int len, QUndoCommand *parent = nullptr);
 
-    virtual void undo();
-    virtual void redo();
+    virtual void undo() override;
+    virtual void redo() override;
 
 private:
     QString *m_str;
@@ -68,13 +68,13 @@ class AppendCommand : public QUndoCommand
 {
 public:
     AppendCommand(QString *str, const QString &text, bool _fail_merge = false,
-                    QUndoCommand *parent = 0);
+                    QUndoCommand *parent = nullptr);
     ~AppendCommand();
 
-    virtual void undo();
-    virtual void redo();
-    virtual int id() const;
-    virtual bool mergeWith(const QUndoCommand *other);
+    virtual void undo() override;
+    virtual void redo() override;
+    virtual int id() const override;
+    virtual bool mergeWith(const QUndoCommand *other) override;
 
     bool merged;
     bool fail_merge;
@@ -88,23 +88,23 @@ private:
 class IdleCommand : public QUndoCommand
 {
 public:
-    IdleCommand(QUndoCommand *parent = 0);
+    IdleCommand(QUndoCommand *parent = nullptr);
     ~IdleCommand();
 
-    virtual void undo();
-    virtual void redo();
+    virtual void undo() override;
+    virtual void redo() override;
 };
 
 class MoveMouseCommand : public QUndoCommand
 {
 public:
-    MoveMouseCommand(QPoint *mouse, QPoint oldPoint, QPoint newPoint, QUndoCommand *parent = 0);
+    MoveMouseCommand(QPoint *mouse, QPoint oldPoint, QPoint newPoint, QUndoCommand *parent = nullptr);
     ~MoveMouseCommand();
 
-    virtual void undo();
-    virtual void redo();
-    virtual int id() const;
-    virtual bool mergeWith(const QUndoCommand *other);
+    virtual void undo() override;
+    virtual void redo() override;
+    virtual int id() const override;
+    virtual bool mergeWith(const QUndoCommand *other) override;
 
 private:
     QPoint *m_mouse;
@@ -2636,8 +2636,8 @@ void tst_QUndoStack::obsolete()
     QSignalSpy redoTextChangedSpy(&stack, &QUndoStack::redoTextChanged);
     QPoint mouse(0, 0);
     QString str;
-    MoveMouseCommand *cmd1 = 0;
-    MoveMouseCommand *cmd2 = 0;
+    MoveMouseCommand *cmd1 = nullptr;
+    MoveMouseCommand *cmd2 = nullptr;
 
     stack.resetClean();
     checkState(redoTextChangedSpy,
@@ -3856,7 +3856,7 @@ void tst_QUndoStack::commandTextFormat()
 #if !QT_CONFIG(process)
     QSKIP("No QProcess available");
 #else
-    QString binDir = QLibraryInfo::location(QLibraryInfo::BinariesPath);
+    QString binDir = QLibraryInfo::path(QLibraryInfo::BinariesPath);
 
     if (QProcess::execute(binDir + "/lrelease -version") != 0)
         QSKIP("lrelease is missing or broken");

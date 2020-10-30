@@ -77,7 +77,7 @@ struct Argument
 template <class Sequence>
 struct Argument<Sequence, typename std::enable_if<IsIterableValue<Sequence>>::type>
 {
-    using Type = std::decay_t<decltype(*std::begin(std::declval<Sequence>()))>;
+    using Type = std::decay_t<decltype(*std::declval<Sequence>().begin())>;
 };
 
 template <class Iterator>
@@ -108,19 +108,19 @@ struct ReduceResultType;
 template <class U, class V>
 struct ReduceResultType<void(*)(U&,V)>
 {
-    typedef U ResultType;
+    using ResultType = U;
 };
 
 template <class T, class C, class U>
 struct ReduceResultType<T(C::*)(U)>
 {
-    typedef C ResultType;
+    using ResultType = C;
 };
 
 template <class U, class V>
 struct ReduceResultType<std::function<void(U&, V)>>
 {
-    typedef U ResultType;
+    using ResultType = U;
 };
 
 template <typename R, typename ...A>
@@ -133,13 +133,13 @@ struct ReduceResultType<R(*)(A...)>
 template <class U, class V>
 struct ReduceResultType<void(*)(U&,V) noexcept>
 {
-    typedef U ResultType;
+    using ResultType = U;
 };
 
 template <class T, class C, class U>
 struct ReduceResultType<T(C::*)(U) noexcept>
 {
-    typedef C ResultType;
+    using ResultType = C;
 };
 #endif
 
@@ -163,6 +163,14 @@ struct MapSequenceResultType<InputSequence<T>, MapFunctor>
 };
 
 #endif // QT_NO_TEMPLATE_TEMPLATE_PARAMETER
+
+template<typename Sequence>
+struct SequenceHolder
+{
+    SequenceHolder(const Sequence &s) : sequence(s) { }
+    SequenceHolder(Sequence &&s) : sequence(std::move(s)) { }
+    Sequence sequence;
+};
 
 } // namespace QtPrivate.
 

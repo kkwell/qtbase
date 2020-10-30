@@ -21,11 +21,15 @@ find_package(Qt6 COMPONENTS Sql)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS Xml)
 
-add_qt_gui_executable(masterdetail
+qt_add_executable(masterdetail
     database.h
     dialog.cpp dialog.h
     main.cpp
     mainwindow.cpp mainwindow.h
+)
+set_target_properties(masterdetail PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(masterdetail PUBLIC
     Qt::Core

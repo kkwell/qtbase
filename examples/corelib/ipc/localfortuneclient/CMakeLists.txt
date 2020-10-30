@@ -20,9 +20,13 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(localfortuneclient
+qt_add_executable(localfortuneclient
     client.cpp client.h
     main.cpp
+)
+set_target_properties(localfortuneclient PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(localfortuneclient PUBLIC
     Qt::Core

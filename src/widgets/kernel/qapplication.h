@@ -100,12 +100,14 @@ public:
     static QFont font(const QWidget*);
     static QFont font(const char *className);
     static void setFont(const QFont &, const char* className = nullptr);
+
+#if QT_DEPRECATED_SINCE(6,0)
+    QT_DEPRECATED_VERSION_X_6_0("Use the QFontMetricsF constructor instead.")
     static QFontMetrics fontMetrics();
+#endif
 
     static QWidgetList allWidgets();
     static QWidgetList topLevelWidgets();
-
-    static QWidget *desktop(QScreen *screen = nullptr);
 
     static QWidget *activePopupWidget();
     static QWidget *activeModalWidget();

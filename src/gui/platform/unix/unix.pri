@@ -1,7 +1,7 @@
 SOURCES += \
     platform/unix/qunixeventdispatcher.cpp \
     platform/unix/qgenericunixeventdispatcher.cpp \
-    platform/unix/qunixplatforminterface.cpp
+    platform/unix/qunixnativeinterface.cpp
 
 HEADERS += \
     platform/unix/qunixeventdispatcher_qpa_p.h \
@@ -41,5 +41,5 @@ qtConfig(xkbcommon) {
         platform/unix/qxkbcommon.cpp
     HEADERS += \
         platform/unix/qxkbcommon_p.h
-    QMAKE_USE += xkbcommon
+    QMAKE_USE_PRIVATE += xkbcommon
 }

@@ -61,11 +61,11 @@ namespace {
     // version in portable code. However, it's impossible to do that if
     // _GNU_SOURCE is defined so we use C++ overloading to decide what to do
     // depending on the return type
-    static inline Q_DECL_UNUSED QString fromstrerror_helper(int, const QByteArray &buf)
+    [[maybe_unused]] static inline QString fromstrerror_helper(int, const QByteArray &buf)
     {
         return QString::fromLocal8Bit(buf);
     }
-    static inline Q_DECL_UNUSED QString fromstrerror_helper(const char *str, const QByteArray &)
+    [[maybe_unused]] static inline QString fromstrerror_helper(const char *str, const QByteArray &)
     {
         return QString::fromLocal8Bit(str);
     }
@@ -76,7 +76,7 @@ namespace {
 static QString windowsErrorString(int errorCode)
 {
     QString ret;
-    wchar_t *string = 0;
+    wchar_t *string = nullptr;
     FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_FROM_SYSTEM,
                   NULL,
                   errorCode,
@@ -136,9 +136,9 @@ static QString standardLibraryErrorString(int errorCode)
 
 QString QSystemError::string(ErrorScope errorScope, int errorCode)
 {
-    switch(errorScope) {
+    switch (errorScope) {
     case NativeError:
-#if defined (Q_OS_WIN)
+#if defined(Q_OS_WIN)
         return windowsErrorString(errorCode);
 #endif // else unix: native and standard library are the same
     case StandardLibraryError:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #############################################################################
 ##
-## Copyright (C) 2019 The Qt Company Ltd.
+## Copyright (C) 2020 The Qt Company Ltd.
 ## Contact: https://www.qt.io/licensing/
 ##
 ## This file is part of the test suite of the Qt Toolkit.
@@ -26,6 +26,13 @@
 ## $QT_END_LICENSE$
 ##
 #############################################################################
+
+# A run of cldr2qlocalexml.py will produce output reporting any
+# language, script and country codes it sees, in data, for which it
+# can find a name (taken always from en.xml) that could potentially be
+# used. There is no point adding a mapping for such a code unless the
+# CLDR's common/main/ contains an XML file for at least one locale
+# that exerciss it.
 
 # Each *_list reflects the current values of its enums in qlocale.h;
 # if new xml language files are available in CLDR, these languages and
@@ -54,7 +61,6 @@ language_list = {
      14: ["Basque",                      "eu"],
      15: ["Bengali",                     "bn"],
      16: ["Dzongkha",                    "dz"],
-     17: ["Bihari",                      "bh"],
      18: ["Bislama",                     "bi"],
      19: ["Breton",                      "br"],
      20: ["Bulgarian",                   "bg"],
@@ -287,7 +293,6 @@ language_list = {
     247: ["Nuer",                        "nus"],
     248: ["Sakha",                       "sah"],
     249: ["Sangu",                       "sbp"],
-    250: ["Congo Swahili",               "swc"],
     251: ["Tasawaq",                     "twq"],
     252: ["Vai",                         "vai"],
     253: ["Walser",                      "wae"],
@@ -307,47 +312,21 @@ language_list = {
     267: ["Bamun",                       "bax"],
     268: ["Batak Toba",                  "bbc"],
     269: ["Buginese",                    "bug"],
-    270: ["Buhid",                       "bku"],
-    271: ["Carian",                      "xcr"],
     272: ["Chakma",                      "ccp"],
-    273: ["Classical Mandaic",           "myz"],
     274: ["Coptic",                      "cop"],
     275: ["Dogri",                       "doi"], # macrolanguage
-    276: ["Eastern Cham",                "cjm"],
-    277: ["Eastern Kayah",               "eky"],
-    278: ["Etruscan",                    "ett"],
     279: ["Gothic",                      "got"],
-    280: ["Hanunoo",                     "hnn"],
     281: ["Ingush",                      "inh"],
-    282: ["Large Flowery Miao",          "hmd"],
-    283: ["Lepcha",                      "lep"],
-    284: ["Limbu",                       "lif"],
-    285: ["Lisu",                        "lis"],
-    286: ["Lu",                          "khb"],
-    287: ["Lycian",                      "xlc"],
-    288: ["Lydian",                      "xld"],
     289: ["Mandingo",                    "man"], # macrolanguage
     290: ["Manipuri",                    "mni"],
-    291: ["Meroitic",                    "xmr"],
-    292: ["Northern Thai",               "nod"],
     293: ["Old Irish",                   "sga"],
     294: ["Old Norse",                   "non"],
     295: ["Old Persian",                 "peo"],
-    296: ["Old Turkish",                 "otk"],
     297: ["Pahlavi",                     "pal"],
-    298: ["Parthian",                    "xpr"],
     299: ["Phoenician",                  "phn"],
-    300: ["Prakrit Language",            "pra"],
-    301: ["Rejang",                      "rej"],
-    302: ["Sabaean",                     "xsa"],
-    303: ["Samaritan",                   "smp"],
     304: ["Santali",                     "sat"],
     305: ["Saurashtra",                  "saz"],
-    306: ["Sora",                        "srb"],
-    307: ["Sylheti",                     "syl"],
-    308: ["Tagbanwa",                    "tbw"],
     309: ["Tai Dam",                     "blt"],
-    310: ["Tai Nua",                     "tdd"],
     311: ["Ugaritic",                    "uga"],
     312: ["Akoose",                      "bss"],
     313: ["Lakota",                      "lkt"],
@@ -366,37 +345,22 @@ language_list = {
     326: ["Inari Sami",                  "smn"],
     327: ["Skolt Sami",                  "sms"],
     328: ["Warlpiri",                    "wbp"],
-    329: ["Manichaean Middle Persian",   "xmn"],
     330: ["Mende",                       "men"],
-    331: ["Ancient North Arabian",       "xna"],
-    332: ["Linear A",                    "lab"],
-    333: ["Hmong Njua",                  "hnj"],
-    334: ["Ho",                          "hoc"],
     335: ["Lezghian",                    "lez"],
-    336: ["Bassa",                       "bsq"],
-    337: ["Mono",                        "mru"],
-    338: ["Tedim Chin",                  "ctd"],
     339: ["Maithili",                    "mai"],
-    340: ["Ahom",                        "aho"],
     341: ["American Sign Language",      "ase"],
-    342: ["Ardhamagadhi Prakrit",        "pka"],
     343: ["Bhojpuri",                    "bho"],
-    344: ["Hieroglyphic Luwian",         "hlu"],
     345: ["Literary Chinese",            "lzh"],
     346: ["Mazanderani",                 "mzn"],
-    347: ["Mru",                         "mro"],
     348: ["Newari",                      "new"],
     349: ["Northern Luri",               "lrc"],
     350: ["Palauan",                     "pau"],
     351: ["Papiamento",                  "pap"],
-    352: ["Saraiki",                     "skr"],
     353: ["Tokelau",                     "tkl"],
     354: ["Tok Pisin",                   "tpi"],
     355: ["Tuvalu",                      "tvl"],
-    356: ["Uncoded Languages",           "mis"],
     357: ["Cantonese",                   "yue"],
     358: ["Osage",                       "osa"],
-    359: ["Tangut",                      "txg"],
     360: ["Ido",                         "io"],
     361: ["Lojban",                      "jbo"],
     362: ["Sicilian",                    "scn"],
@@ -407,15 +371,10 @@ language_list = {
     367: ["Chickasaw",                   "cic"],
     368: ["Muscogee",                    "mus"],
     369: ["Silesian",                    "szl"],
+    370: ["Nigerian Pidgin",             "pcm"],
 }
 
 language_aliases = {
-    # Legacy - should disappear at some point:
-    'Norwegian': 'NorwegianBokmal',
-    'Moldavian': 'Romanian',
-    'SerboCroatian': 'Serbian',
-    'Tagalog': 'Filipino',
-    'Twi': 'Akan',
     # Renamings:
     'Afan': 'Oromo',
     'Byelorussian': 'Belarusian',
@@ -694,9 +653,6 @@ country_list = {
 }
 
 country_aliases = {
-    # Deprecated:
-    'Tokelau': 'TokelauCountry',
-    'Tuvalu': 'TuvaluCountry',
     # Renamings:
     'DemocraticRepublicOfCongo': 'CongoKinshasa',
     'PeoplesRepublicOfCongo': 'CongoBrazzaville',

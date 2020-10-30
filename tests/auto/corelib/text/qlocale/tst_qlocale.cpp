@@ -68,7 +68,6 @@ public:
 
 private slots:
     void initTestCase();
-    void cleanupTestCase();
 #if defined(Q_OS_WIN)
     void windowsDefaultLocale();
 #endif
@@ -218,9 +217,6 @@ void tst_QLocale::initTestCase()
 #endif // QT_CONFIG(process)
 }
 
-void tst_QLocale::cleanupTestCase()
-{}
-
 void tst_QLocale::ctor()
 {
     QLocale default_locale = QLocale::system();
@@ -237,56 +233,56 @@ void tst_QLocale::ctor()
     }
 
 #define TEST_CTOR(req_lang, req_script, req_country, exp_lang, exp_script, exp_country) \
-    { \
+    do { \
         QLocale l(QLocale::req_lang, QLocale::req_script, QLocale::req_country); \
-        QCOMPARE((int)l.language(), (int)exp_lang); \
-        QCOMPARE((int)l.script(), (int)exp_script); \
-        QCOMPARE((int)l.country(), (int)exp_country); \
-    }
+        QCOMPARE(l.language(), QLocale::exp_lang); \
+        QCOMPARE(l.script(), QLocale::exp_script); \
+        QCOMPARE(l.country(), QLocale::exp_country); \
+    } while (false)
 
     // Exact matches
     TEST_CTOR(Chinese, SimplifiedHanScript, China,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, TraditionalHanScript, Taiwan,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
     TEST_CTOR(Chinese, TraditionalHanScript, HongKong,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::HongKong);
+              Chinese, TraditionalHanScript, HongKong);
 
     // Best match for AnyCountry
     TEST_CTOR(Chinese, SimplifiedHanScript, AnyCountry,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, TraditionalHanScript, AnyCountry,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
 
     // Best match for AnyScript (and change country to supported one, if necessary)
     TEST_CTOR(Chinese, AnyScript, China,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, AnyScript, Taiwan,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
     TEST_CTOR(Chinese, AnyScript, HongKong,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::HongKong);
+              Chinese, TraditionalHanScript, HongKong);
     TEST_CTOR(Chinese, AnyScript, UnitedStates,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
 
     // Fully-specified not found; find best alternate country
     TEST_CTOR(Chinese, SimplifiedHanScript, Taiwan,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, SimplifiedHanScript, UnitedStates,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, TraditionalHanScript, China,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
     TEST_CTOR(Chinese, TraditionalHanScript, UnitedStates,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
 
     // Fully-specified not found; find best alternate script
     TEST_CTOR(Chinese, LatinScript, China,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
     TEST_CTOR(Chinese, LatinScript, Taiwan,
-              QLocale::Chinese, QLocale::TraditionalHanScript, QLocale::Taiwan);
+              Chinese, TraditionalHanScript, Taiwan);
 
     // Fully-specified not found; find best alternate country and script
     TEST_CTOR(Chinese, LatinScript, UnitedStates,
-              QLocale::Chinese, QLocale::SimplifiedHanScript, QLocale::China);
+              Chinese, SimplifiedHanScript, China);
 
 #undef TEST_CTOR
 }
@@ -458,12 +454,11 @@ void tst_QLocale::defaulted_ctor()
     TEST_CTOR("eo", Esperanto, World)
     TEST_CTOR("yi", Yiddish, World)
 
-    QVERIFY(QLocale::Norwegian == QLocale::NorwegianBokmal);
-    TEST_CTOR("no", Norwegian, Norway)
-    TEST_CTOR("nb", Norwegian, Norway)
+    TEST_CTOR("no", NorwegianBokmal, Norway)
+    TEST_CTOR("nb", NorwegianBokmal, Norway)
     TEST_CTOR("nn", NorwegianNynorsk, Norway)
-    TEST_CTOR("no_NO", Norwegian, Norway)
-    TEST_CTOR("nb_NO", Norwegian, Norway)
+    TEST_CTOR("no_NO", NorwegianBokmal, Norway)
+    TEST_CTOR("nb_NO", NorwegianBokmal, Norway)
     TEST_CTOR("nn_NO", NorwegianNynorsk, Norway)
     TEST_CTOR("es_ES", Spanish, Spain)
     TEST_CTOR("es_419", Spanish, LatinAmerica)
@@ -649,22 +644,7 @@ void tst_QLocale::emptyCtor()
 
 void tst_QLocale::legacyNames()
 {
-    QVERIFY(QLocale::Norwegian == QLocale::NorwegianBokmal);
     QLocale::setDefault(QLocale(QLocale::C));
-
-#define TEST_CTOR(req_lang, req_country, exp_lang, exp_country) \
-    { \
-        QLocale l(QLocale::req_lang, QLocale::req_country); \
-        QCOMPARE((int)l.language(), (int)QLocale::exp_lang); \
-        QCOMPARE((int)l.country(), (int)QLocale::exp_country); \
-    }
-
-    TEST_CTOR(Moldavian, Moldova, Romanian, Moldova)
-    TEST_CTOR(Norwegian, AnyCountry, Norwegian, Norway)
-    TEST_CTOR(SerboCroatian, Montenegro, Serbian, Montenegro)
-    TEST_CTOR(Tagalog, AnyCountry, Filipino, Philippines)
-
-#undef TEST_CTOR
 
 #define TEST_CTOR(req_lc, exp_lang, exp_country) \
     { \
@@ -678,7 +658,7 @@ void tst_QLocale::legacyNames()
     }
 
     TEST_CTOR("mo_MD", Romanian, Moldova)
-    TEST_CTOR("no", Norwegian, Norway)
+    TEST_CTOR("no", NorwegianBokmal, Norway)
     TEST_CTOR("sh_ME", Serbian, Montenegro)
     TEST_CTOR("tl", Filipino, Philippines)
     TEST_CTOR("iw", Hebrew, Israel)
@@ -1265,7 +1245,7 @@ void tst_QLocale::strtod()
     QFETCH(bool, ok);
 
     QByteArray numData = num_str.toLatin1();
-    const char *end = 0;
+    const char *end = nullptr;
     bool actualOk = false;
     double result = qstrtod(numData.constData(), &end, &actualOk);
 
@@ -1545,6 +1525,11 @@ void tst_QLocale::formatDate_data()
         << QDate(1974, 12, 1) << "hh:mm:ss.zzz ap d'd'dd/M/yy" << "hh:mm:ss.zzz ap 1d01/12/74";
 
     QTest::newRow("dd MMMM yyyy") << QDate(1, 1, 1) << "dd MMMM yyyy" << "01 January 0001";
+
+    // Test unicode handling.
+    QTest::newRow("unicode in format string") << QDate(1, 1, 1)
+            << u8"🔴😤🌼😫dd☀😥🤤👉💃MM💛🙂💓🤩yyyy😴"
+            << u8"🔴😤🌼😫01☀😥🤤👉💃01💛🙂💓🤩0001😴";
 }
 
 void tst_QLocale::formatDate()
@@ -1601,6 +1586,10 @@ void tst_QLocale::formatTime_data()
     QTest::newRow("33") << QTime(1, 2, 3, 4) << "H:m:s.zzz" << "1:2:3.004";
     QTest::newRow("34") << QTime() << "H:m:s.zzz" << "";
     QTest::newRow("35") << QTime(1, 2, 3, 4) << "dd MM yyyy H:m:s.zzz" << "dd MM yyyy 1:2:3.004";
+
+    // Test unicode handling.
+    QTest::newRow("emoji in format string")
+        << QTime(17, 22, 05, 18) << u8"m📌ss📢H.zzz" << u8"22📌05📢17.018";
 }
 
 void tst_QLocale::formatTime()
@@ -1762,6 +1751,11 @@ void tst_QLocale::formatDateTime_data()
                                     << QString("MMM") << QString("Dec");
     QTest::newRow("empty")          << "en_US" << testZeroHour
                                     << QString("") << QString("");
+
+    // Test unicode handling.
+    QTest::newRow("emoji in format string")
+        << "en_US" << QDateTime(QDate(1980, 2, 1), QTime(17, 12))
+        << QString(u8"💖yyyy💖MM💖dd hh💖mm") << u8"💖1980💖02💖01 17💖12";
 }
 
 void tst_QLocale::formatDateTime()
@@ -1904,6 +1898,14 @@ void tst_QLocale::toDateTime_data()
         << "C" << dt << "d MMM yyyy HH:mm:ss" << "25 Feb 2017 17:21:25" << true;
     QTest::newRow("C:narrow")
         << "C" << dt << "d MMM yyyy HH:mm:ss" << "25 Feb 2017 17:21:25" << true;
+
+    // Test the same again with unicode and emoji.
+    QTest::newRow("C:long with emoji") << "C" << dt << u8"dddd, d💪MMMM yyyy HH:mm:ss"
+        << u8"Saturday, 25💪February 2017 17:21:25" << true;
+    QTest::newRow("C:short with emoji")
+        << "C" << dt << u8"d MMM yyyy HH📞mm📞ss" << u8"25 Feb 2017 17📞21📞25" << true;
+    QTest::newRow("C:narrow with emoji")
+        << "C" << dt << u8"🇬🇧d MMM yyyy HH:mm:ss🇬🇧" << u8"🇬🇧25 Feb 2017 17:21:25🇬🇧" << true;
 
     QTest::newRow("fr:long") << "fr" << dt << "dddd d MMMM yyyy HH:mm:ss"
                              << "Samedi 25 février 2017 17:21:25" << true;
@@ -2298,58 +2300,59 @@ static const int locale_data_count = sizeof(locale_data)/sizeof(locale_data[0]);
 
 void tst_QLocale::testNames_data()
 {
-    QTest::addColumn<int>("language");
-    QTest::addColumn<int>("country");
+    QTest::addColumn<QLocale::Language>("language");
+    QTest::addColumn<QLocale::Country>("country");
 
     QLocale::setDefault(QLocale(QLocale::C)); // Ensures predictable fall-backs
 
     for (int i = 0; i < locale_data_count; ++i) {
         const QLocaleData &item = locale_data[i];
+        const QByteArray lang =
+                QLocale::languageToString(QLocale::Language(item.m_language_id)).toLatin1();
+        const QByteArray land =
+                QLocale::countryToString(QLocale::Country(item.m_country_id)).toLatin1();
 
-        const QString testName = QLatin1String("data_") + QString::number(i) + QLatin1String(" (")
-            + QLocale::languageToString((QLocale::Language)item.m_language_id)
-            + QLatin1Char('/') + QLocale::countryToString((QLocale::Country)item.m_country_id)
-            + QLatin1Char(')');
-        QTest::newRow(testName.toLatin1().constData()) << (int)item.m_language_id << (int)item.m_country_id;
+        QTest::addRow("data_%d (%s/%s)", i, lang.constData(), land.constData())
+                << QLocale::Language(item.m_language_id) << QLocale::Country(item.m_country_id);
     }
 }
 
 void tst_QLocale::testNames()
 {
-    QFETCH(int, language);
-    QFETCH(int, country);
+    QFETCH(QLocale::Language, language);
+    QFETCH(const QLocale::Country, country);
 
-    QLocale l1((QLocale::Language)language, (QLocale::Country)country);
+    const QLocale l1(language, country);
     if (language == QLocale::AnyLanguage && country == QLocale::AnyCountry)
         language = QLocale::C;
-    QCOMPARE((int)l1.language(), language);
-    QCOMPARE((int)l1.country(), country);
+    QCOMPARE(l1.language(), language);
+    QCOMPARE(l1.country(), country);
 
-    QString name = l1.name();
+    const QString name = l1.name();
 
-    QLocale l2(name);
-    QCOMPARE((int)l2.language(), language);
-    QCOMPARE((int)l2.country(), country);
+    const QLocale l2(name);
+    QCOMPARE(l2.language(), language);
+    QCOMPARE(l2.country(), country);
     QCOMPARE(l2.name(), name);
 
-    QLocale l3(name + QLatin1String("@foo"));
-    QCOMPARE((int)l3.language(), language);
-    QCOMPARE((int)l3.country(), country);
+    const QLocale l3(name + QLatin1String("@foo"));
+    QCOMPARE(l3.language(), language);
+    QCOMPARE(l3.country(), country);
     QCOMPARE(l3.name(), name);
 
-    QLocale l4(name + QLatin1String(".foo"));
-    QCOMPARE((int)l4.language(), language);
-    QCOMPARE((int)l4.country(), country);
+    const QLocale l4(name + QLatin1String(".foo"));
+    QCOMPARE(l4.language(), language);
+    QCOMPARE(l4.country(), country);
     QCOMPARE(l4.name(), name);
 
     if (language != QLocale::C) {
-        int idx = name.indexOf(QLatin1Char('_'));
+        const int idx = name.indexOf(QLatin1Char('_'));
         QVERIFY(idx != -1);
-        QString lang = name.left(idx);
+        const QString lang = name.left(idx);
 
-        QCOMPARE((int)QLocale(lang).language(), language);
-        QCOMPARE((int)QLocale(lang + QLatin1String("@foo")).language(), language);
-        QCOMPARE((int)QLocale(lang + QLatin1String(".foo")).language(), language);
+        QCOMPARE(QLocale(lang).language(), language);
+        QCOMPARE(QLocale(lang + QLatin1String("@foo")).language(), language);
+        QCOMPARE(QLocale(lang + QLatin1String(".foo")).language(), language);
     }
 }
 
@@ -2851,12 +2854,10 @@ void tst_QLocale::textDirection_data()
         switch (language) {
         // based on likelySubtags for RTL scripts
         case QLocale::AncientGreek:
-        case QLocale::AncientNorthArabian:
         case QLocale::Arabic:
         case QLocale::Aramaic:
         case QLocale::Avestan:
         case QLocale::CentralKurdish:
-        case QLocale::ClassicalMandaic:
         case QLocale::Divehi:
 //        case QLocale::Fulah:
 //        case QLocale::Hausa:
@@ -2864,23 +2865,15 @@ void tst_QLocale::textDirection_data()
 //        case QLocale::Hungarian:
         case QLocale::Kashmiri:
 //        case QLocale::Kurdish:
-        case QLocale::Lydian:
         case QLocale::Mandingo:
-        case QLocale::ManichaeanMiddlePersian:
         case QLocale::Mazanderani:
         case QLocale::Mende:
-        case QLocale::Meroitic:
         case QLocale::Nko:
         case QLocale::NorthernLuri:
-        case QLocale::OldTurkish:
         case QLocale::Pahlavi:
-        case QLocale::Parthian:
         case QLocale::Pashto:
         case QLocale::Persian:
         case QLocale::Phoenician:
-        case QLocale::PrakritLanguage:
-        case QLocale::Sabaean:
-        case QLocale::Samaritan:
         case QLocale::Sindhi:
         case QLocale::SouthernKurdish:
         case QLocale::Syriac:

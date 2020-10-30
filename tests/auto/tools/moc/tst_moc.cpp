@@ -598,7 +598,7 @@ class CtorTestClass : public QObject
 {
     Q_OBJECT
 public:
-    Q_INVOKABLE CtorTestClass(QObject *parent = 0);
+    Q_INVOKABLE CtorTestClass(QObject *parent = nullptr);
 
     CtorTestClass(int foo);
 
@@ -772,7 +772,7 @@ private:
 
 void tst_Moc::initTestCase()
 {
-    QString binpath = QLibraryInfo::location(QLibraryInfo::BinariesPath);
+    QString binpath = QLibraryInfo::path(QLibraryInfo::BinariesPath);
     QString qmake = QString("%1/qmake").arg(binpath);
     m_moc = QString("%1/moc").arg(binpath);
 
@@ -872,7 +872,9 @@ void tst_Moc::uLongLong()
     QVERIFY(idx != -1);
     idx = mobj->indexOfSlot("slotWithULongLong(unsigned long long)");
     QVERIFY(idx != -1);
-    idx = mobj->indexOfSlot("slotWithULongLongP(unsigned long long*)");
+    idx = mobj->indexOfSlot("slotWithULongLong(qulonglong)");
+    QVERIFY(idx != -1);
+    idx = mobj->indexOfSlot("slotWithULongLongP(qulonglong*)");
     QVERIFY(idx != -1);
 
     idx = mobj->indexOfSlot("slotWithLong(long)");
@@ -1543,7 +1545,6 @@ class PrivatePropertyTest : public QObject
     Q_PRIVATE_PROPERTY(PrivatePropertyTest::d, QString blub4 MEMBER mBlub NOTIFY blub4Changed)
     Q_PRIVATE_PROPERTY(PrivatePropertyTest::d, QString blub5 MEMBER mBlub NOTIFY blub5Changed)
     Q_PRIVATE_PROPERTY(PrivatePropertyTest::d, QString blub6 MEMBER mConst CONSTANT)
-    Q_PRIVATE_PROPERTY(PrivatePropertyTest::d, QProperty<int> x)
     class MyDPointer {
     public:
         MyDPointer() : mConst("const"), mBar(0), mPlop(0) {}
@@ -1557,17 +1558,17 @@ class PrivatePropertyTest : public QObject
         void setBlub(const QString &value) { mBlub = value; }
         QString mBlub;
         const QString mConst;
-        QProperty<int> x;
     private:
         int mBar;
         int mPlop;
         int mBaz;
     };
 public:
-    PrivatePropertyTest(QObject *parent = 0) : QObject(parent), mFoo(0), d (new MyDPointer) {}
+    PrivatePropertyTest(QObject *parent = nullptr) : QObject(parent), mFoo(0), d (new MyDPointer) {}
     int foo() { return mFoo ; }
     void setFoo(int value) { mFoo = value; }
     MyDPointer *d_func() {return d.data();}
+    const MyDPointer *d_func() const {return d.data();}
 signals:
     void blub4Changed();
     void blub5Changed(const QString &newBlub);
@@ -1592,10 +1593,6 @@ void tst_Moc::qprivateproperties()
 
     test.setProperty("baz", 4);
     QCOMPARE(test.property("baz"), QVariant::fromValue(4));
-
-    test.setProperty("x", 100);
-    QCOMPARE(test.property("x"), QVariant::fromValue(100));
-    QVERIFY(test.metaObject()->property(test.metaObject()->indexOfProperty("x")).isQProperty());
 }
 
 void tst_Moc::warnOnPropertyWithoutREAD()
@@ -2471,7 +2468,7 @@ class SignalConnectionTester : public QObject
 {
     Q_OBJECT
 public:
-    SignalConnectionTester(QObject *parent = 0)
+    SignalConnectionTester(QObject *parent = nullptr)
       : QObject(parent), testPassed(false)
     {
 
@@ -2499,7 +2496,7 @@ class ClassWithPrivateSignals : public QObject
 {
     Q_OBJECT
 public:
-    ClassWithPrivateSignals(QObject *parent = 0)
+    ClassWithPrivateSignals(QObject *parent = nullptr)
       : QObject(parent)
     {
 
@@ -2535,7 +2532,7 @@ class SubClassFromPrivateSignals : public ClassWithPrivateSignals
 {
     Q_OBJECT
 public:
-    SubClassFromPrivateSignals(QObject *parent = 0)
+    SubClassFromPrivateSignals(QObject *parent = nullptr)
       : ClassWithPrivateSignals(parent)
     {
 
@@ -3036,7 +3033,7 @@ public:
       One,
       Two
     };
-    explicit CustomQObject(QObject *parent = 0)
+    explicit CustomQObject(QObject *parent = nullptr)
       : QObject(parent)
     {
     }
@@ -3053,7 +3050,7 @@ class NamespacedQObject : public QObject
 {
     Q_OBJECT
 public:
-    explicit NamespacedQObject(QObject *parent = 0)
+    explicit NamespacedQObject(QObject *parent = nullptr)
       : QObject(parent)
     {
 
@@ -3077,7 +3074,7 @@ public:
       One,
       Two
     };
-    explicit CustomQObject2(QObject *parent = 0)
+    explicit CustomQObject2(QObject *parent = nullptr)
       : QObject(parent)
     {
     }
@@ -3094,7 +3091,7 @@ class NamespacedQObject2 : public QObject
 {
     Q_OBJECT
 public:
-    explicit NamespacedQObject2(QObject *parent = 0)
+    explicit NamespacedQObject2(QObject *parent = nullptr)
       : QObject(parent)
     {
 
@@ -3146,7 +3143,7 @@ class AutoRegistrationObject : public QObject
     Q_PROPERTY(SomeNamespace::NamespacedQObject* customObjectNamespaced READ customObjectNamespaced CONSTANT)
     Q_PROPERTY(SomeNamespace::NamespacedNonQObject customNonQObjectNamespaced READ customNonQObjectNamespaced CONSTANT)
 public:
-    AutoRegistrationObject(QObject *parent = 0)
+    AutoRegistrationObject(QObject *parent = nullptr)
       : QObject(parent)
     {
     }
@@ -3430,12 +3427,12 @@ void tst_Moc::autoSignalSpyMetaTypeRegistration()
 
     QVERIFY(i > 0);
 
-    QCOMPARE(QMetaType::type("CustomObject12"), (int)QMetaType::UnknownType);
+    QCOMPARE(QMetaType::fromName("CustomObject12").id(), (int)QMetaType::UnknownType);
 
     QSignalSpy spy(&aro, SIGNAL(someSignal(CustomObject12)));
 
-    QVERIFY(QMetaType::type("CustomObject12") != QMetaType::UnknownType);
-    QCOMPARE(QMetaType::type("CustomObject12"), qMetaTypeId<CustomObject12>());
+    QVERIFY(QMetaType::fromName("CustomObject12").id() != QMetaType::UnknownType);
+    QCOMPARE(QMetaType::fromName("CustomObject12").id(), qMetaTypeId<CustomObject12>());
 }
 
 void tst_Moc::parseDefines()
@@ -4076,15 +4073,16 @@ void tst_Moc::requiredProperties()
 class ClassWithQPropertyMembers : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(int publicProperty NOTIFY publicPropertyChanged)
-    Q_PROPERTY(int privateExposedProperty)
+    Q_PROPERTY(int publicProperty MEMBER publicProperty BINDABLE bindablePublicProperty NOTIFY publicPropertyChanged)
+    Q_PROPERTY(int privateExposedProperty MEMBER privateExposedProperty)
 public:
 
 signals:
     void publicPropertyChanged();
 
 public:
-    QNotifiedProperty<int, &ClassWithQPropertyMembers::publicPropertyChanged> publicProperty;
+    QBindable<int> bindablePublicProperty() { return QBindable<int>(&publicProperty); }
+    Q_OBJECT_BINDABLE_PROPERTY(ClassWithQPropertyMembers, int, publicProperty, &ClassWithQPropertyMembers::publicPropertyChanged);
     QProperty<int> notExposed;
 
 
@@ -4116,7 +4114,7 @@ void tst_Moc::qpropertyMembers()
 
     QSignalSpy publicPropertySpy(&instance, SIGNAL(publicPropertyChanged()));
 
-    instance.publicProperty.setValue(&instance, 100);
+    instance.publicProperty.setValue(100);
     QCOMPARE(prop.read(&instance).toInt(), 100);
     QCOMPARE(publicPropertySpy.count(), 1);
 
@@ -4137,19 +4135,20 @@ void tst_Moc::observerMetaCall()
 
     int observerCallCount = 0;
 
-    QProperty<int> dummy;
-    auto handler = dummy.onValueChanged([&observerCallCount]() {
+
+    auto observer = [&observerCallCount]() {
         ++observerCallCount;
-    });
+    };
 
-    {
-        void *argv[] = { &handler };
-        instance.qt_metacall(QMetaObject::RegisterQPropertyObserver, prop.propertyIndex(), argv);
-    }
+    auto bindable = prop.bindable(&instance);
+    QVERIFY(bindable.isBindable());
 
-    instance.publicProperty.setValue(&instance, 100);
+    auto handler = bindable.onValueChanged(observer);
+
+    QCOMPARE(observerCallCount, 0);
+    instance.publicProperty.setValue(100);
     QCOMPARE(observerCallCount, 1);
-    instance.publicProperty.setValue(&instance, 101);
+    instance.publicProperty.setValue(101);
     QCOMPARE(observerCallCount, 2);
 }
 
@@ -4169,62 +4168,47 @@ void tst_Moc::setQPRopertyBinding()
         return 42;
     });
 
-    {
-        void *argv[] = { &binding };
-        instance.qt_metacall(QMetaObject::SetQPropertyBinding, prop.propertyIndex(), argv);
-    }
+    auto bindable = prop.bindable(&instance);
+    QVERIFY(bindable.isBindable());
+    bindable.setBinding(binding);
 
     QCOMPARE(instance.publicProperty.value(), 42);
     QVERIFY(bindingCalled); // but now it should've been called :)
 }
 
-
 class ClassWithPrivateQPropertyShim :public QObject
 {
     Q_OBJECT
 public:
-    Q_PRIVATE_QPROPERTY(d_func(), int, testProperty, setTestProperty, NOTIFY testPropertyChanged)
-    Q_PRIVATE_QPROPERTY(d_func(), int, testProperty2, setTestProperty2, NOTIFY false)
-    Q_PRIVATE_QPROPERTY(d_func(), int, lazyTestProperty, setLazyTestProperty,
-                        NOTIFY lazyTestPropertyChanged STORED false)
-
-    Q_PRIVATE_QPROPERTIES_BEGIN
-    Q_PRIVATE_QPROPERTY_IMPL(testProperty)
-    Q_PRIVATE_QPROPERTY_IMPL(testProperty2)
-    Q_PRIVATE_QPROPERTY_IMPL(lazyTestProperty)
-    Q_PRIVATE_QPROPERTIES_END
+    Q_PROPERTY(int testProperty READ testProperty WRITE setTestProperty BINDABLE bindableTestProperty NOTIFY testPropertyChanged)
+    Q_PROPERTY(int testProperty2 READ testProperty2 WRITE setTestProperty2 BINDABLE bindableTestProperty2)
+    //Q_PROPERTY(d_func(), int, lazyTestProperty, setLazyTestProperty, NOTIFY lazyTestPropertyChanged)
 
 signals:
     void testPropertyChanged();
     void lazyTestPropertyChanged();
 public:
 
+    int testProperty() const { return priv.testProperty; }
+    void setTestProperty(int val) { priv.testProperty = val; }
+    int testProperty2() const { return priv.testProperty2; }
+    void setTestProperty2(int val) { priv.testProperty2 = val; }
+
+    QBindable<int> bindableTestProperty() { return QBindable<int>(&priv.testProperty); }
+    QBindable<int> bindableTestProperty2() { return QBindable<int>(&priv.testProperty2); }
+
     struct Private {
         Private(ClassWithPrivateQPropertyShim *pub)
             : q(pub)
         {}
 
+        QBindingStorage bindingStorage;
+
         ClassWithPrivateQPropertyShim *q = nullptr;
 
         void onTestPropertyChanged() { q->testPropertyChanged(); }
-        QNotifiedProperty<int, &Private::onTestPropertyChanged> testProperty;
+        Q_OBJECT_BINDABLE_PROPERTY(Private, int, testProperty, &Private::onTestPropertyChanged);
         QProperty<int> testProperty2;
-
-        void onLazyTestPropertyChanged() { q->lazyTestPropertyChanged(); }
-
-        const QNotifiedProperty<int, &Private::onLazyTestPropertyChanged> *lazyTestProperty() const {
-            // Mind that this prevents the property read from being recorded.
-            // For real-world use cases some more logic is necessary here.
-            return lazyTestPropertyStorage.data();
-        }
-
-        QNotifiedProperty<int, &Private::onLazyTestPropertyChanged> *lazyTestProperty() {
-            if (!lazyTestPropertyStorage)
-                lazyTestPropertyStorage.reset(new QNotifiedProperty<int, &Private::onLazyTestPropertyChanged>);
-            return lazyTestPropertyStorage.data();
-        }
-
-        QScopedPointer<QNotifiedProperty<int, &Private::onLazyTestPropertyChanged>> lazyTestPropertyStorage;
     };
     Private priv{this};
 
@@ -4232,6 +4216,14 @@ public:
     const Private *d_func() const { return &priv; }
 };
 
+inline const QBindingStorage *qGetBindingStorage(const ClassWithPrivateQPropertyShim::Private *o)
+{
+    return &o->bindingStorage;
+}
+inline QBindingStorage *qGetBindingStorage(ClassWithPrivateQPropertyShim::Private *o)
+{
+    return &o->bindingStorage;
+}
 
 void tst_Moc::privateQPropertyShim()
 {
@@ -4244,41 +4236,23 @@ void tst_Moc::privateQPropertyShim()
         QVERIFY(prop.notifySignal().isValid());
     }
 
-    testObject.priv.testProperty.setValue(&testObject.priv, 42);
+    testObject.priv.testProperty.setValue(42);
     QCOMPARE(testObject.property("testProperty").toInt(), 42);
 
     // Behave like a QProperty
-    QVERIFY(!testObject.testProperty.hasBinding());
-    testObject.testProperty.setBinding([]() { return 100; });
-    QCOMPARE(testObject.testProperty.value(), 100);
-    QVERIFY(testObject.testProperty.hasBinding());
+    QVERIFY(!testObject.bindableTestProperty().hasBinding());
+    testObject.bindableTestProperty().setBinding([]() { return 100; });
+    QCOMPARE(testObject.testProperty(), 100);
+    QVERIFY(testObject.bindableTestProperty().hasBinding());
 
     // Old style setter getters
     testObject.setTestProperty(400);
-    QVERIFY(!testObject.testProperty.hasBinding());
+    QVERIFY(!testObject.bindableTestProperty().hasBinding());
     QCOMPARE(testObject.testProperty(), 400);
 
-    // Created and default-initialized, without nullptr access
-    QCOMPARE(testObject.lazyTestProperty(), 0);
-
-    // Explicitly set to something
-    testObject.priv.lazyTestProperty()->setValue(&testObject.priv, 42);
-    QCOMPARE(testObject.property("lazyTestProperty").toInt(), 42);
-
-    // Behave like a QProperty
-    QVERIFY(!testObject.lazyTestProperty.hasBinding());
-    testObject.lazyTestProperty.setBinding([]() { return 100; });
-    QCOMPARE(testObject.lazyTestProperty.value(), 100);
-    QVERIFY(testObject.lazyTestProperty.hasBinding());
-
-    // Old style setter getters
-    testObject.setLazyTestProperty(400);
-    QVERIFY(!testObject.lazyTestProperty.hasBinding());
-    QCOMPARE(testObject.lazyTestProperty(), 400);
-
-    // mo generates correct code for plain QProperty in PIMPL
-    testObject.testProperty2.setValue(42);
-    QCOMPARE(testObject.testProperty2.value(), 42);
+    // moc generates correct code for plain QProperty in PIMPL
+    testObject.setTestProperty2(42);
+    QCOMPARE(testObject.priv.testProperty2.value(), 42);
 }
 
 QTEST_MAIN(tst_Moc)

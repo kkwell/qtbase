@@ -94,7 +94,7 @@ QSize QVistaBackButton::sizeHint() const
     return QSize(width, height);
 }
 
-void QVistaBackButton::enterEvent(QEvent *event)
+void QVistaBackButton::enterEvent(QEnterEvent *event)
 {
     if (isEnabled())
         update();
@@ -168,7 +168,7 @@ QVistaHelper::~QVistaHelper()
 
 void QVistaHelper::updateCustomMargins(bool vistaMargins)
 {
-    using namespace QPlatformInterface::Private;
+    using namespace QNativeInterface::Private;
 
     if (QWindow *window = wizard->windowHandle()) {
         // Reduce top frame to zero since we paint it ourselves. Use

@@ -19,12 +19,16 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(plugandpaint
+qt_add_executable(plugandpaint
     interfaces.h
     main.cpp
     mainwindow.cpp mainwindow.h
     paintarea.cpp paintarea.h
     plugindialog.cpp plugindialog.h
+)
+set_target_properties(plugandpaint PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(plugandpaint PUBLIC
     # Remove: L../plugins

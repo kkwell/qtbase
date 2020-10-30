@@ -1050,7 +1050,7 @@ void QTableViewPrivate::drawCell(QPainter *painter, const QStyleOptionViewItem &
 
     q->style()->drawPrimitive(QStyle::PE_PanelItemViewRow, &opt, painter, q);
 
-    q->itemDelegate(index)->paint(painter, opt, index);
+    q->itemDelegateForIndex(index)->paint(painter, opt, index);
 }
 
 /*!
@@ -1067,7 +1067,7 @@ int QTableViewPrivate::widthHintForIndex(const QModelIndex &index, int hint, con
         int max = editor->maximumSize().width();
         hint = qBound(min, hint, max);
     }
-    hint = qMax(hint, q->itemDelegate(index)->sizeHint(option, index).width());
+    hint = qMax(hint, q->itemDelegateForIndex(index)->sizeHint(option, index).width());
     return hint;
 }
 
@@ -1089,7 +1089,7 @@ int QTableViewPrivate::heightHintForIndex(const QModelIndex &index, int hint, QS
     if (wrapItemText) {// for wrapping boundaries
         option.rect.setY(q->rowViewportPosition(index.row()));
         int height = q->rowHeight(index.row());
-        // if the option.height == 0 then q->itemDelegate(index)->sizeHint(option, index) will be wrong.
+        // if the option.height == 0 then q->itemDelegateForIndex(index)->sizeHint(option, index) will be wrong.
         // The option.height == 0 is used to conclude that the text is not wrapped, and hence it will
         // (exactly like widthHintForIndex) return a QSize with a long width (that we don't use) -
         // and the height of the text if it was/is on one line.
@@ -1104,7 +1104,7 @@ int QTableViewPrivate::heightHintForIndex(const QModelIndex &index, int hint, QS
         if (showGrid)
             option.rect.setWidth(option.rect.width() - 1);
     }
-    hint = qMax(hint, q->itemDelegate(index)->sizeHint(option, index).height());
+    hint = qMax(hint, q->itemDelegateForIndex(index)->sizeHint(option, index).height());
     return hint;
 }
 
@@ -3050,8 +3050,9 @@ void QTableView::timerEvent(QTimerEvent *event)
 
     \sa columnMoved()
 */
-void QTableView::rowMoved(int, int oldIndex, int newIndex)
+void QTableView::rowMoved(int row, int oldIndex, int newIndex)
 {
+    Q_UNUSED(row);
     Q_D(QTableView);
 
     updateGeometries();
@@ -3078,8 +3079,9 @@ void QTableView::rowMoved(int, int oldIndex, int newIndex)
 
     \sa rowMoved()
 */
-void QTableView::columnMoved(int, int oldIndex, int newIndex)
+void QTableView::columnMoved(int column, int oldIndex, int newIndex)
 {
+    Q_UNUSED(column);
     Q_D(QTableView);
 
     updateGeometries();
@@ -3238,11 +3240,11 @@ void QTableView::sortByColumn(int column, Qt::SortOrder order)
     Q_D(QTableView);
     if (column < -1)
         return;
-    // If sorting is enabled it will emit a signal connected to
-    // _q_sortIndicatorChanged, which then actually sorts
     d->horizontalHeader->setSortIndicator(column, order);
-    // If sorting is not enabled, force to sort now
-    if (!d->sortingEnabled)
+    // If sorting is not enabled or has the same order as before, force to sort now
+    // else sorting will be trigger through sortIndicatorChanged()
+    if (!d->sortingEnabled ||
+        (d->horizontalHeader->sortIndicatorSection() == column && d->horizontalHeader->sortIndicatorOrder() == order))
         d->model->sort(column, order);
 }
 

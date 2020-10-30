@@ -264,7 +264,7 @@ MainWindow::MainWindow()
 {
     QMenu *fileMenu = menuBar()->addMenu("&File");
     QAction *a = fileMenu->addAction("Quit", this, &QWidget::close);
-    a->setShortcut(Qt::CTRL + Qt::Key_Q);
+    a->setShortcut(Qt::CTRL | Qt::Key_Q);
 
     QWidget *central = new QWidget;
     QVBoxLayout *mainLayout = new QVBoxLayout(central);
@@ -286,7 +286,7 @@ void MainWindow::updateDescription()
     QString text;
     QTextStream str(&text);
     str << "Qt " << QT_VERSION_STR << ", platform: " << QGuiApplication::platformName()
-        << ", Style: \"" << style()->objectName() << "\", DPR=" << devicePixelRatioF()
+        << ", Style: \"" << style()->objectName() << "\", DPR=" << devicePixelRatio()
         << ' ' << logicalDpiX() << ',' << logicalDpiY() << "DPI";
     if (const QWindow *w = windowHandle())
         str << ", Screen: \"" << w->screen()->name() << '"';
@@ -295,7 +295,6 @@ void MainWindow::updateDescription()
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QApplication app(argc, argv);
     MainWindow mw;
     mw.show();

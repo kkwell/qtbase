@@ -92,8 +92,6 @@ static jmethodID m_createBitmapMethodID = nullptr;
 static jobject m_ARGB_8888_BitmapConfigValue = nullptr;
 static jobject m_RGB_565_BitmapConfigValue = nullptr;
 
-static bool m_statusBarShowing = true;
-
 static jclass m_bitmapDrawableClass = nullptr;
 static jmethodID m_bitmapDrawableConstructorMethodID = nullptr;
 
@@ -808,7 +806,7 @@ if (!VAR) { \
 static int registerNatives(JNIEnv *env)
 {
     jclass clazz;
-    FIND_AND_CHECK_CLASS("org/qtproject/qt5/android/QtNative");
+    FIND_AND_CHECK_CLASS("org/qtproject/qt/android/QtNative");
     m_applicationClass = static_cast<jclass>(env->NewGlobalRef(clazz));
 
     if (env->RegisterNatives(m_applicationClass, methods, sizeof(methods) / sizeof(methods[0])) < 0) {

@@ -29,6 +29,16 @@ function(qt_internal_walk_libs target out_var dict_name operation)
         return()
     endif()
     list(APPEND collected ${target})
+
+    if(target STREQUAL "${QT_CMAKE_EXPORT_NAMESPACE}::Startup")
+        # We can't (and don't need to) process Startup, because it contains $<TARGET_PROPERTY:prop>
+        # genexes which get replaced with $<TARGET_PROPERTY:Startup,prop> genexes in the code below
+        # and that causes 'INTERFACE_LIBRARY targets may only have whitelisted properties.' errors
+        # with CMake versions equal to or lower than 3.18. These errors are super unintuitive to
+        # debug because there's no mention that it's happening during a file(GENERATE) call.
+        return()
+    endif()
+
     if(NOT TARGET ${dict_name})
         add_library(${dict_name} INTERFACE IMPORTED GLOBAL)
     endif()
@@ -260,6 +270,12 @@ QMAKE_PRL_VERSION = ${PROJECT_VERSION}
         set(configs ${CMAKE_BUILD_TYPE})
     endif()
 
+    set(qt_lib_dirs "${QT_BUILD_DIR}/${INSTALL_LIBDIR}")
+    if(QT_WILL_INSTALL)
+        list(APPEND qt_lib_dirs
+             "${QT_BUILD_INTERNALS_RELOCATABLE_INSTALL_PREFIX}/${INSTALL_LIBDIR}")
+    endif()
+
     foreach(config ${configs})
         # Output file for dependency tracking, and which will contain the final content.
         qt_path_join(prl_step2_path
@@ -286,7 +302,7 @@ QMAKE_PRL_VERSION = ${PROJECT_VERSION}
                     "-DLIBRARY_PREFIXES=${library_prefixes}"
                     "-DLIBRARY_SUFFIXES=${library_suffixes}"
                     "-DLINK_LIBRARY_FLAG=${CMAKE_LINK_LIBRARY_FLAG}"
-                    "-DQT_BUILD_LIBDIR=${QT_BUILD_DIR}/${INSTALL_LIBDIR}"
+                    "-DQT_LIB_DIRS=${qt_lib_dirs}"
                     -P "${QT_CMAKE_DIR}/QtFinishPrlFile.cmake"
             VERBATIM
             COMMENT "Generating prl file for target ${target}"

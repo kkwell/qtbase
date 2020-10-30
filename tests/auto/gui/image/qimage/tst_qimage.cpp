@@ -123,6 +123,8 @@ private slots:
 
     void smoothScaleBig();
     void smoothScaleAlpha();
+    void smoothScaleFormats_data();
+    void smoothScaleFormats();
 
     void transformed_data();
     void transformed();
@@ -1922,6 +1924,34 @@ void tst_QImage::smoothScaleAlpha()
     QCOMPARE(dst, expected);
 }
 
+void tst_QImage::smoothScaleFormats_data()
+{
+    QTest::addColumn<QImage::Format>("format");
+    for (int i = QImage::Format_RGB32; i < QImage::NImageFormats; ++i) {
+        QTest::addRow("%s", formatToString(QImage::Format(i)).data()) << QImage::Format(i);
+    }
+}
+
+void tst_QImage::smoothScaleFormats()
+{
+    QFETCH(QImage::Format, format);
+    QImage src(32, 32, format);
+    src.fill(0x0);
+
+    // Upscale using painter scaling
+    QImage scaled = src.scaled(64, 64, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    QCOMPARE(scaled.format(), src.format());
+
+    // > 2x down-scaling using QImage::smoothScaled()
+    scaled = src.scaled(8, 8, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    QCOMPARE(scaled.format(), src.format());
+
+    QTransform transform;
+    transform.rotate(45);
+    QImage rotated = src.transformed(transform);
+    QVERIFY(rotated.hasAlphaChannel());
+}
+
 static int count(const QImage &img, int x, int y, int dx, int dy, QRgb pixel)
 {
     int i = 0;
@@ -2431,11 +2461,11 @@ void tst_QImage::rgbSwapped()
         QCOMPARE(swappedColor.blue(), referenceColor.red());
     }
 
-    QImage imageSwappedTwice = imageSwapped.rgbSwapped();
+    imageSwapped.rgbSwap();
 
-    QCOMPARE(image, imageSwappedTwice);
+    QCOMPARE(image, imageSwapped);
 
-    QCOMPARE(memcmp(image.constBits(), imageSwappedTwice.constBits(), image.sizeInBytes()), 0);
+    QCOMPARE(memcmp(image.constBits(), imageSwapped.constBits(), image.sizeInBytes()), 0);
 }
 
 void tst_QImage::mirrored_data()
@@ -2543,16 +2573,16 @@ void tst_QImage::mirrored()
         }
     }
 
-    QImage imageMirroredTwice = imageMirrored.mirrored(swap_horizontal, swap_vertical);
+    imageMirrored.mirror(swap_horizontal, swap_vertical);
 
-    QCOMPARE(image, imageMirroredTwice);
+    QCOMPARE(image, imageMirrored);
 
     if (format != QImage::Format_Mono && format != QImage::Format_MonoLSB)
-        QCOMPARE(memcmp(image.constBits(), imageMirroredTwice.constBits(), image.sizeInBytes()), 0);
+        QCOMPARE(memcmp(image.constBits(), imageMirrored.constBits(), image.sizeInBytes()), 0);
     else {
         for (int i = 0; i < image.height(); ++i)
             for (int j = 0; j < image.width(); ++j)
-                QCOMPARE(image.pixel(j,i), imageMirroredTwice.pixel(j,i));
+                QCOMPARE(image.pixel(j,i), imageMirrored.pixel(j,i));
     }
 }
 
@@ -3339,7 +3369,7 @@ void tst_QImage::cleanupFunctions()
 
     {
         called = false;
-        QImage *copy = 0;
+        QImage *copy = nullptr;
         {
             QImage image(bufferImage.bits(), bufferImage.width(), bufferImage.height(), bufferImage.format(), cleanupFunction, &called);
             copy = new QImage(image);
@@ -3348,7 +3378,38 @@ void tst_QImage::cleanupFunctions()
         delete copy;
         QVERIFY(called);
     }
-
+    {
+        called = false;
+        QImage container;
+        {
+            QImage image(bufferImage.bits(), bufferImage.width(), bufferImage.height(), bufferImage.format(), cleanupFunction, &called);
+            container = std::move(image);
+            // Test methods don't crash after move:
+            Q_UNUSED(image.isNull());
+            Q_UNUSED(image.width());
+            Q_UNUSED(image.bytesPerLine());
+            Q_UNUSED(image.sizeInBytes());
+            Q_UNUSED(image.constBits());
+        }
+        // 'image' was moved and should outlive its scope
+        QVERIFY(!called);
+        container = QImage();
+        QVERIFY(called);
+    }
+    {
+        called = false;
+        QImage outer(bufferImage.bits(), bufferImage.width(), bufferImage.height(), bufferImage.format(), cleanupFunction, &called);
+        bool called2 = false;
+        {
+            uchar internalData[256];
+            QImage internal(internalData, 16, 16, QImage::Format_Grayscale8, cleanupFunction, &called2);
+            internal = std::move(outer);
+        }
+        // 'internal' was _not_ moved and should not outlive its original scope
+        QVERIFY(called2);
+        // 'outer' was moved into the inner scope and should now be dead.
+        QVERIFY(called);
+    }
 }
 
 // test image devicePixelRatio setting and detaching

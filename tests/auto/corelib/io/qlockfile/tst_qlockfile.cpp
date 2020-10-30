@@ -96,6 +96,7 @@ void tst_QLockFile::lockUnlock()
     const QString fileName = dir.path() + "/lock1";
     QVERIFY(!QFile(fileName).exists());
     QLockFile lockFile(fileName);
+    QCOMPARE(lockFile.fileName(), fileName);
     QVERIFY(lockFile.lock());
     QVERIFY(lockFile.isLocked());
     QCOMPARE(int(lockFile.error()), int(QLockFile::NoError));
@@ -328,7 +329,7 @@ void tst_QLockFile::staleShortLockFromBusyProcess()
     QString hostname, appname;
     QTRY_VERIFY(secondLock.getLockInfo(&pid, &hostname, &appname));
 #ifdef Q_OS_UNIX
-    QCOMPARE(pid, proc.pid());
+    QCOMPARE(pid, proc.processId());
 #endif
 
     secondLock.setStaleLockTime(100);

@@ -1149,6 +1149,8 @@ void tst_QDate::fromStringDateFormat_data()
         << Qt::RFC2822Date << QDate(2002, 11, 1);
     QTest::newRow("RFC 2822 with day date only") << QString::fromLatin1("Fri, 01 Nov 2002")
         << Qt::RFC2822Date << QDate(2002, 11, 1);
+    QTest::newRow("RFC 2822 malformed time")
+        << QString::fromLatin1("01 Nov 2002 0:") << Qt::RFC2822Date << QDate();
     // Test invalid month, day, year
     QTest::newRow("RFC 2822 invalid month name") << QString::fromLatin1("13 Fev 1987 13:24:51 +0100")
         << Qt::RFC2822Date << QDate();
@@ -1223,20 +1225,19 @@ void tst_QDate::fromStringFormat_data()
     QTest::addColumn<QString>("format");
     QTest::addColumn<QDate>("expected");
 
-    // Undo this (inline the C-locale versions) for ### Qt 6
-    // Get localized names:
-    QString january = QLocale::system().monthName(1, QLocale::LongFormat);
-    QString february = QLocale::system().monthName(2, QLocale::LongFormat);
-    QString march = QLocale::system().monthName(3, QLocale::LongFormat);
-    QString august = QLocale::system().monthName(8, QLocale::LongFormat);
-    QString mon = QLocale::system().dayName(1, QLocale::ShortFormat);
-    QString monday = QLocale::system().dayName(1, QLocale::LongFormat);
-    QString tuesday = QLocale::system().dayName(2, QLocale::LongFormat);
-    QString wednesday = QLocale::system().dayName(3, QLocale::LongFormat);
-    QString thursday = QLocale::system().dayName(4, QLocale::LongFormat);
-    QString friday = QLocale::system().dayName(5, QLocale::LongFormat);
-    QString saturday = QLocale::system().dayName(6, QLocale::LongFormat);
-    QString sunday = QLocale::system().dayName(7, QLocale::LongFormat);
+    // Get names:
+    const QString january = QStringLiteral("January");
+    const QString february = QStringLiteral("February");
+    const QString march = QStringLiteral("March");
+    const QString august = QStringLiteral("August");
+    const QString mon = QStringLiteral("Mon");
+    const QString monday = QStringLiteral("Monday");
+    const QString tuesday = QStringLiteral("Tuesday");
+    const QString wednesday = QStringLiteral("Wednesday");
+    const QString thursday = QStringLiteral("Thursday");
+    const QString friday = QStringLiteral("Friday");
+    const QString saturday = QStringLiteral("Saturday");
+    const QString sunday = QStringLiteral("Sunday");
 
     QTest::newRow("data0") << QString("") << QString("") << defDate();
     QTest::newRow("data1") << QString(" ") << QString("") << invalidDate();
@@ -1290,6 +1291,12 @@ void tst_QDate::fromStringFormat_data()
     QTest::newRow("data43") << QString("060521") << QString("yyMMdd") << QDate(1906,5,21);
     QTest::newRow("lateMarch") << QString("9999-03-06") << QString("yyyy-MM-dd") << QDate(9999, 3, 6);
     QTest::newRow("late") << QString("9999-12-31") << QString("yyyy-MM-dd") << QDate(9999, 12, 31);
+
+    // Test unicode handling.
+    QTest::newRow("Unicode in format string")
+        << QString(u8"2020🤣09🤣21") << QString(u8"yyyy🤣MM🤣dd") << QDate(2020, 9, 21);
+    QTest::newRow("Unicode in quoted format string")
+        << QString(u8"🤣🤣2020👍09🤣21") << QString(u8"'🤣🤣'yyyy👍MM🤣dd") << QDate(2020, 9, 21);
 }
 
 

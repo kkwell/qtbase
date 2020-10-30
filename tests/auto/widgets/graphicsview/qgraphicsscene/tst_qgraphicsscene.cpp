@@ -122,7 +122,7 @@ public:
     bool isHovered = false;
 
 protected:
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *)
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
     {
         isHovered = (option->state & QStyle::State_MouseOver);
 
@@ -288,6 +288,7 @@ private slots:
     void taskQTBUG_15977_renderWithDeviceCoordinateCache();
     void taskQTBUG_16401_focusItem();
     void taskQTBUG_42915_focusNextPrevChild();
+    void taskQTBUG_85088_previewTextfailWhenLostFocus();
 
 private:
     QRect m_availableGeometry = QGuiApplication::primaryScreen()->availableGeometry();
@@ -2190,7 +2191,7 @@ public:
     bool ignoresDragMove = false;
 
 protected:
-    void dragEnterEvent(QGraphicsSceneDragDropEvent *event)
+    void dragEnterEvent(QGraphicsSceneDragDropEvent *event) override
     {
         storeLastEvent(event);
         event->setAccepted(!ignoresDragEnter);
@@ -2199,20 +2200,20 @@ protected:
         eventList << event->type();
     }
 
-    void dragMoveEvent(QGraphicsSceneDragDropEvent *event)
+    void dragMoveEvent(QGraphicsSceneDragDropEvent *event) override
     {
         storeLastEvent(event);
         event->setAccepted(!ignoresDragMove);
         eventList << event->type();
     }
 
-    void dragLeaveEvent(QGraphicsSceneDragDropEvent *event)
+    void dragLeaveEvent(QGraphicsSceneDragDropEvent *event) override
     {
         storeLastEvent(event);
         eventList << event->type();
     }
 
-    void dropEvent(QGraphicsSceneDragDropEvent *event)
+    void dropEvent(QGraphicsSceneDragDropEvent *event) override
     {
         storeLastEvent(event);
         eventList << event->type();
@@ -2280,8 +2281,8 @@ void tst_QGraphicsScene::dragAndDrop_simple()
         QCOMPARE(item->eventList.size(), 2);
         QCOMPARE(item->eventList.at(0), QEvent::GraphicsSceneDragEnter);
         QCOMPARE(item->eventList.at(1), QEvent::GraphicsSceneDragMove);
-        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.pos()));
-        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.pos()));
+        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.position().toPoint()));
+        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.position().toPoint()));
         QVERIFY(item->lastEvent->isAccepted());
         QCOMPARE(item->lastEvent->dropAction(), Qt::IgnoreAction);
     }
@@ -2293,8 +2294,8 @@ void tst_QGraphicsScene::dragAndDrop_simple()
         QCOMPARE(dragMove.dropAction(), Qt::IgnoreAction);
         QCOMPARE(item->eventList.size(), 3);
         QCOMPARE(item->eventList.at(2), QEvent::GraphicsSceneDragMove);
-        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.pos()));
-        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.pos()));
+        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.position().toPoint()));
+        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.position().toPoint()));
         QVERIFY(item->lastEvent->isAccepted());
         QCOMPARE(item->lastEvent->dropAction(), Qt::IgnoreAction);
     }
@@ -2306,8 +2307,8 @@ void tst_QGraphicsScene::dragAndDrop_simple()
         QCOMPARE(dragMove.dropAction(), Qt::CopyAction);
         QCOMPARE(item->eventList.size(), 4);
         QCOMPARE(item->eventList.at(3), QEvent::GraphicsSceneDragLeave);
-        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.pos()));
-        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.pos()));
+        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.position().toPoint()));
+        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.position().toPoint()));
         QVERIFY(item->lastEvent->isAccepted());
         QCOMPARE(item->lastEvent->dropAction(), Qt::CopyAction);
     }
@@ -2320,8 +2321,8 @@ void tst_QGraphicsScene::dragAndDrop_simple()
         QCOMPARE(item->eventList.size(), 6);
         QCOMPARE(item->eventList.at(4), QEvent::GraphicsSceneDragEnter);
         QCOMPARE(item->eventList.at(5), QEvent::GraphicsSceneDragMove);
-        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.pos()));
-        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.pos()));
+        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(dragMove.position().toPoint()));
+        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(dragMove.position().toPoint()));
         QVERIFY(item->lastEvent->isAccepted());
         QCOMPARE(item->lastEvent->dropAction(), Qt::IgnoreAction);
     }
@@ -2333,8 +2334,8 @@ void tst_QGraphicsScene::dragAndDrop_simple()
         QCOMPARE(drop.dropAction(), Qt::CopyAction);
         QCOMPARE(item->eventList.size(), 7);
         QCOMPARE(item->eventList.at(6), QEvent::GraphicsSceneDrop);
-        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(drop.pos()));
-        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(drop.pos()));
+        QCOMPARE(item->lastEvent->screenPos(), view.mapToGlobal(drop.position().toPoint()));
+        QCOMPARE(item->lastEvent->scenePos(), view.mapToScene(drop.position().toPoint()));
         QVERIFY(item->lastEvent->isAccepted());
         QCOMPARE(item->lastEvent->dropAction(), Qt::CopyAction);
     }
@@ -3867,7 +3868,7 @@ void tst_QGraphicsScene::inputMethod()
 
     item->eventCalls = 0;
     QCoreApplication::sendEvent(&scene, &event);
-    QCOMPARE(item->eventCalls, 0);
+    QCOMPARE(item->eventCalls, callFocusItem ? 1 : 0);
 
     item->queryCalls = 0;
     scene.inputMethodQuery(Qt::InputMethodQuery(0));
@@ -4930,6 +4931,39 @@ void tst_QGraphicsScene::taskQTBUG_42915_focusNextPrevChild()
     QVERIFY(QTest::qWaitForWindowActive(&view));
 
     QTest::keyEvent(QTest::Click, &view, Qt::Key_Tab);
+}
+
+void tst_QGraphicsScene::taskQTBUG_85088_previewTextfailWhenLostFocus()
+{
+    QString str = "simpleTextItem";
+    QGraphicsScene scene;
+    QGraphicsView view(&scene);
+
+    QGraphicsTextItem *simpleTextItem = new QGraphicsTextItem;
+    simpleTextItem->setFlag(QGraphicsTextItem::ItemIsFocusScope);
+    simpleTextItem->setTextInteractionFlags(Qt::TextEditorInteraction);
+    simpleTextItem->setPlainText(str);
+    scene.addItem(simpleTextItem);
+
+    scene.setFocusItem(simpleTextItem);
+    view.setGeometry(100, 100, 600, 400);
+    view.show();
+
+    QInputMethodEvent inputEvent;
+    QString &preedictStr = const_cast<QString &>(inputEvent.preeditString());
+    preedictStr = str;
+    QApplication::sendEvent(&scene, &inputEvent);
+    QCOMPARE(simpleTextItem->toPlainText(), str);
+
+    // focusItem will lose focus
+    QMouseEvent pressEvent(QEvent::MouseButtonPress, QPointF(0, 0),
+                           Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(view.viewport(), &pressEvent);
+
+    preedictStr.clear();
+    inputEvent.setCommitString(str);
+    QApplication::sendEvent(&scene, &inputEvent);
+    QCOMPARE(simpleTextItem->toPlainText(), str + str);
 }
 
 QTEST_MAIN(tst_QGraphicsScene)

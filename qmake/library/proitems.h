@@ -32,10 +32,10 @@
 #include "qmake_global.h"
 
 #include <qdebug.h>
-#include <qstring.h>
-#include <qvector.h>
 #include <qhash.h>
+#include <qlist.h>
 #include <qmap.h>
+#include <qstring.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -155,8 +155,8 @@ public:
     int toInt(bool *ok = nullptr, int base = 10) const { return toQStringView().toInt(ok, base); }
     short toShort(bool *ok = nullptr, int base = 10) const { return toQStringView().toShort(ok, base); }
 
-    uint hash() const { return m_hash; }
-    static uint hash(const QChar *p, int n);
+    size_t hash() const { return m_hash; }
+    static size_t hash(const QChar *p, int n);
 
     ALWAYS_INLINE QStringView toQStringView() const { return QStringView(m_string).mid(m_offset, m_length); }
 
@@ -184,9 +184,8 @@ private:
     QString m_string;
     int m_offset, m_length;
     int m_file;
-    mutable uint m_hash;
-    QChar *prepareExtend(int extraLen, int thisTarget, int extraTarget);
-    uint updatedHash() const;
+    mutable size_t m_hash;
+    size_t updatedHash() const;
     friend size_t qHash(const ProString &str);
     friend QString operator+(const ProString &one, const ProString &two);
     friend class ProKey;
@@ -311,7 +310,7 @@ private:
     const ProString *m_ps;
 };
 
-class ProStringList : public QVector<ProString> {
+class ProStringList : public QList<ProString> {
 public:
     ProStringList() {}
     ProStringList(const ProString &str) { *this << str; }
@@ -319,7 +318,7 @@ public:
     QStringList toQStringList() const;
 
     ProStringList &operator<<(const ProString &str)
-        { QVector<ProString>::operator<<(str); return *this; }
+        { QList<ProString>::operator<<(str); return *this; }
 
     int length() const { return size(); }
 

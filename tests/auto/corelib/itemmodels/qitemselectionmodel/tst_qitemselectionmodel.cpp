@@ -82,8 +82,6 @@ private slots:
     void layoutChangedWithAllSelected2();
     void layoutChangedTreeSelection();
     void deselectRemovedMiddleRange();
-    void rangeOperatorLessThan_data();
-    void rangeOperatorLessThan();
     void setModel();
 
     void testDifferentModels();
@@ -127,17 +125,17 @@ public:
         return helper.QAbstractItemModel::createIndex(row, column, data);
     }
 
-    QModelIndex index(int, int, const QModelIndex&) const
+    QModelIndex index(int, int, const QModelIndex&) const override
         { return QModelIndex(); }
-    QModelIndex parent(const QModelIndex&) const
+    QModelIndex parent(const QModelIndex&) const override
         { return QModelIndex(); }
-    int rowCount(const QModelIndex & = QModelIndex()) const
+    int rowCount(const QModelIndex & = QModelIndex()) const override
         { return 0; }
-    int columnCount(const QModelIndex & = QModelIndex()) const
+    int columnCount(const QModelIndex & = QModelIndex()) const override
         { return 0; }
-    QVariant data(const QModelIndex &, int = Qt::DisplayRole) const
+    QVariant data(const QModelIndex &, int = Qt::DisplayRole) const override
         { return QVariant(); }
-    bool hasChildren(const QModelIndex &) const
+    bool hasChildren(const QModelIndex &) const override
         { return false; }
 };
 
@@ -2092,18 +2090,18 @@ class QtTestTableModel: public QAbstractTableModel
 {
     Q_OBJECT
 public:
-    QtTestTableModel(int rows = 0, int columns = 0, QObject *parent = 0)
+    QtTestTableModel(int rows = 0, int columns = 0, QObject *parent = nullptr)
         : QAbstractTableModel(parent)
         , row_count(rows)
         , column_count(columns)
     {
     }
 
-    int rowCount(const QModelIndex& = QModelIndex()) const { return row_count; }
-    int columnCount(const QModelIndex& = QModelIndex()) const { return column_count; }
+    int rowCount(const QModelIndex& = QModelIndex()) const override { return row_count; }
+    int columnCount(const QModelIndex& = QModelIndex()) const override { return column_count; }
     bool isEditable(const QModelIndex &) const { return true; }
 
-    QVariant data(const QModelIndex &idx, int role) const
+    QVariant data(const QModelIndex &idx, int role) const override
     {
         if (role == Qt::DisplayRole || role == Qt::EditRole)
             return QLatin1Char('[') + QString::number(idx.row()) + QLatin1Char(',')
@@ -2305,7 +2303,7 @@ void tst_QItemSelectionModel::layoutChangedWithAllSelected2()
     struct MyFilterModel : public QSortFilterProxyModel
     {     // Override sort filter proxy to remove even numbered rows.
         bool filtering;
-        virtual bool filterAcceptsRow( int source_row, const QModelIndex& /* source_parent */) const
+        virtual bool filterAcceptsRow( int source_row, const QModelIndex& /* source_parent */) const override
         {
             return !filtering || !( source_row & 1 );
         }
@@ -2445,141 +2443,6 @@ static QStandardItemModel* getModel(QObject *parent)
     return model;
 }
 
-enum Result {
-    LessThan,
-    NotLessThan,
-    NotEqual
-};
-
-Q_DECLARE_METATYPE(Result);
-
-void tst_QItemSelectionModel::rangeOperatorLessThan_data()
-{
-    QTest::addColumn<int>("parent1");
-    QTest::addColumn<int>("top1");
-    QTest::addColumn<int>("left1");
-    QTest::addColumn<int>("bottom1");
-    QTest::addColumn<int>("right1");
-    QTest::addColumn<int>("parent2");
-    QTest::addColumn<int>("top2");
-    QTest::addColumn<int>("left2");
-    QTest::addColumn<int>("bottom2");
-    QTest::addColumn<int>("right2");
-    QTest::addColumn<Result>("result");
-
-    QTest::newRow("lt01") << -1 << 0 << 0 << 3 << 3
-                          << -1 << 0 << 0 << 3 << 3 << NotLessThan;
-
-    QTest::newRow("lt02") << -1 << 0 << 0 << 2 << 3
-                          << -1 << 0 << 0 << 3 << 3 << LessThan;
-    QTest::newRow("lt03") << -1 << 0 << 0 << 3 << 2
-                          << -1 << 0 << 0 << 3 << 3 << LessThan;
-    QTest::newRow("lt04") << -1 << 0 << 0 << 2 << 2
-                          << -1 << 0 << 0 << 3 << 3 << LessThan;
-
-    QTest::newRow("lt05") << -1 << 0 << 0 << 3 << 3
-                          << -1 << 0 << 0 << 2 << 3 << NotLessThan;
-    QTest::newRow("lt06") << -1 << 0 << 0 << 3 << 3
-                          << -1 << 0 << 0 << 3 << 2 << NotLessThan;
-    QTest::newRow("lt07") << -1 << 0 << 0 << 3 << 3
-                          << -1 << 0 << 0 << 2 << 2 << NotLessThan;
-
-    QTest::newRow("lt08") << -1 << 0 << 0 << 3 << 3
-                          << 0 << 0 << 0 << 3 << 3 << NotEqual;
-    QTest::newRow("lt09") << 1 << 0 << 0 << 3 << 3
-                          << 0 << 0 << 0 << 3 << 3 << NotEqual;
-    QTest::newRow("lt10") << 1 << 0 << 0 << 1 << 1
-                          << 0 << 2 << 2 << 3 << 3 << NotEqual;
-    QTest::newRow("lt11") << 1 << 2 << 2 << 3 << 3
-                          << 0 << 0 << 0 << 1 << 1 << NotEqual;
-
-    QTest::newRow("lt12") << -1 << 0 << 0 << 1 << 1
-                          << -1 << 2 << 2 << 3 << 3 << LessThan;
-    QTest::newRow("lt13") << -1 << 2 << 2 << 3 << 3
-                          << -1 << 0 << 0 << 1 << 1 << NotLessThan;
-    QTest::newRow("lt14") << 1 << 0 << 0 << 1 << 1
-                          << 1 << 2 << 2 << 3 << 3 << LessThan;
-    QTest::newRow("lt15") << 1 << 2 << 2 << 3 << 3
-                          << 1 << 0 << 0 << 1 << 1 << NotLessThan;
-
-    QTest::newRow("lt16") << -1 << 0 << 0 << 2 << 2
-                          << -1 << 1 << 1 << 3 << 3 << LessThan;
-    QTest::newRow("lt17") << -1 << 1 << 1 << 3 << 3
-                          << -1 << 0 << 0 << 2 << 2 << NotLessThan;
-    QTest::newRow("lt18") << 1 << 0 << 0 << 2 << 2
-                          << 1 << 1 << 1 << 3 << 3 << LessThan;
-    QTest::newRow("lt19") << 1 << 1 << 1 << 3 << 3
-                          << 1 << 0 << 0 << 2 << 2 << NotLessThan;
-}
-
-void tst_QItemSelectionModel::rangeOperatorLessThan()
-{
-    QStandardItemModel *model1 = getModel(this);
-    QStandardItemModel *model2 = getModel(this);
-
-    QFETCH(int, parent1);
-    QFETCH(int, top1);
-    QFETCH(int, left1);
-    QFETCH(int, bottom1);
-    QFETCH(int, right1);
-    QFETCH(int, parent2);
-    QFETCH(int, top2);
-    QFETCH(int, left2);
-    QFETCH(int, bottom2);
-    QFETCH(int, right2);
-    QFETCH(Result, result);
-
-    QModelIndex p1 = model1->index(parent1, 0);
-
-    QModelIndex tl1 = model1->index(top1, left1, p1);
-    QModelIndex br1 = model1->index(bottom1, right1, p1);
-
-    QItemSelectionRange r1(tl1, br1);
-
-    QModelIndex p2 = model1->index(parent2, 0);
-
-    QModelIndex tl2 = model1->index(top2, left2, p2);
-    QModelIndex br2 = model1->index(bottom2, right2, p2);
-
-    QItemSelectionRange r2(tl2, br2);
-
-    if (result == LessThan)
-        QVERIFY(r1 < r2);
-    else if (result == NotLessThan)
-        QVERIFY(!(r1 < r2));
-    else if (result == NotEqual)
-        if (!(r1 < r2))
-            QVERIFY(r2 < r1);
-
-    // Ranges in different models are always non-equal
-
-    QModelIndex p3 = model2->index(parent1, 0);
-
-    QModelIndex tl3 = model2->index(top1, left1, p3);
-    QModelIndex br3 = model2->index(bottom1, right1, p3);
-
-    QItemSelectionRange r3(tl3, br3);
-
-    if (!(r1 < r3))
-        QVERIFY(r3 < r1);
-
-    if (!(r2 < r3))
-        QVERIFY(r3 < r2);
-
-    QModelIndex p4 = model2->index(parent2, 0);
-
-    QModelIndex tl4 = model2->index(top2, left2, p4);
-    QModelIndex br4 = model2->index(bottom2, right2, p4);
-
-    QItemSelectionRange r4(tl4, br4);
-
-    if (!(r1 < r4))
-        QVERIFY(r4 < r1);
-
-    if (!(r2 < r4))
-        QVERIFY(r4 < r2);
-}
-
 void tst_QItemSelectionModel::setModel()
 {
     QItemSelectionModel sel;
@@ -2624,7 +2487,7 @@ class SelectionObserver : public QObject
 {
     Q_OBJECT
 public:
-    SelectionObserver(QAbstractItemModel *model, QObject *parent = 0)
+    SelectionObserver(QAbstractItemModel *model, QObject *parent = nullptr)
         : QObject(parent), m_model(model), m_selectionModel(0)
     {
         connect(model, SIGNAL(modelReset()), SLOT(modelReset()));
@@ -2688,12 +2551,12 @@ class DuplicateItemSelectionModel : public QItemSelectionModel
 {
     Q_OBJECT
 public:
-    DuplicateItemSelectionModel(QItemSelectionModel *target, QAbstractItemModel *model, QObject *parent = 0)
+    DuplicateItemSelectionModel(QItemSelectionModel *target, QAbstractItemModel *model, QObject *parent = nullptr)
         : QItemSelectionModel(model, parent), m_target(target)
     {
     }
 
-    void select(const QItemSelection &selection, QItemSelectionModel::SelectionFlags command)
+    void select(const QItemSelection &selection, QItemSelectionModel::SelectionFlags command) override
     {
         QItemSelectionModel::select(selection, command);
         m_target->select(selection, command);
@@ -2701,13 +2564,13 @@ public:
 
     using QItemSelectionModel::select;
 
-    void setCurrentIndex(const QModelIndex &index, QItemSelectionModel::SelectionFlags command)
+    void setCurrentIndex(const QModelIndex &index, QItemSelectionModel::SelectionFlags command) override
     {
         QItemSelectionModel::setCurrentIndex(index, command);
         m_target->setCurrentIndex(index, command);
     }
 
-    void clearCurrentIndex()
+    void clearCurrentIndex() override
     {
         QItemSelectionModel::clearCurrentIndex();
         m_target->clearCurrentIndex();

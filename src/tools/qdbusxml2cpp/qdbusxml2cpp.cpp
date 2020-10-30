@@ -71,13 +71,7 @@ static const char includeList[] =
     "#include <QtCore/QVariant>\n";
 
 static const char forwardDeclarations[] =
-    "QT_BEGIN_NAMESPACE\n"
-    "#include <QtCore/qcontainerfwd.h>\n"
-    "class QByteArray;\n"
-    "class QString;\n"
-    "class QStringList;\n"
-    "class QVariant;\n"
-    "QT_END_NAMESPACE\n";
+    "#include <QtCore/qcontainerfwd.h>\n";
 
 static QDBusIntrospection::Interfaces readInput()
 {
@@ -211,7 +205,7 @@ static QString classNameForInterface(const QString &interface, ClassType classTy
 // we first search for "Out" and if not found we search for "In"
 static QByteArray qtTypeName(const QString &signature, const QDBusIntrospection::Annotations &annotations, int paramId = -1, const char *direction = "Out", bool isSignal = false)
 {
-    int type = QDBusMetaType::signatureToType(signature.toLatin1());
+    int type = QDBusMetaType::signatureToMetaType(signature.toLatin1()).id();
     if (type == QMetaType::UnknownType) {
         QString annotationName = QString::fromLatin1("org.qtproject.QtDBus.QtTypeName");
         if (paramId >= 0)

@@ -8,6 +8,9 @@ project                 = QtGui
 description             = Qt GUI Reference Documentation
 version                 = $QT_VERSION
 
+includepaths           += ./includes
+moduleheader            = QtGuiDoc
+
 examplesinstallpath     = gui
 
 qhp.projects            = QtGui
@@ -37,6 +40,7 @@ depends += \
     qtmultimedia \
     qtnetwork \
     qtopengl \
+    qtprintsupport \
     qtsvg \
     qtqml \
     qtquick \
@@ -44,7 +48,8 @@ depends += \
     qtdoc \
     qmake \
     qtcmake \
-    qttestlib
+    qttestlib \
+    qtplatformintegration
 
 headerdirs  += ..
 

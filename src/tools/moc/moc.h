@@ -132,7 +132,7 @@ struct PropertyDef
         return (s == write);
     }
 
-    QByteArray name, type, member, read, write, reset, designable, scriptable, stored, user, notify, inPrivateClass, qpropertyname;
+    QByteArray name, type, member, read, write, bind, reset, designable, scriptable, stored, user, notify, inPrivateClass;
     int notifyId = -1; // -1 means no notifyId, >= 0 means signal defined in this class, < -1 means signal not defined in this class
     enum Specification  { ValueSpec, ReferenceSpec, PointerSpec };
     Specification gspec = ValueSpec;
@@ -140,8 +140,6 @@ struct PropertyDef
     bool constant = false;
     bool final = false;
     bool required = false;
-    bool isQProperty = false;
-    bool isQPropertyWithNotifier = false;
 
     int location = -1; // token index, used for error reporting
 
@@ -156,7 +154,6 @@ struct PrivateQPropertyDef
     QByteArray setter;
     QByteArray accessor;
     QByteArray storage;
-    bool isNotifiedProperty;
 };
 Q_DECLARE_TYPEINFO(PrivateQPropertyDef, Q_MOVABLE_TYPE);
 
@@ -202,13 +199,12 @@ struct ClassDef : BaseDef {
     QList<FunctionDef> signalList, slotList, methodList, publicList;
     QList<QByteArray> nonClassSignalList;
     QList<PropertyDef> propertyList;
-    QList<PrivateQPropertyDef> privateQProperties;
-    QHash<QByteArray, bool> qPropertyMembersMaybeWithNotifier;
     int revisionedMethods = 0;
 
     bool hasQObject = false;
     bool hasQGadget = false;
     bool hasQNamespace = false;
+    bool requireCompleteMethodTypes = false;
 
     QJsonObject toJson() const;
 };
@@ -262,7 +258,6 @@ public:
 
     bool parseFunction(FunctionDef *def, bool inMacro = false);
     bool parseMaybeFunction(const ClassDef *cdef, FunctionDef *def);
-    bool parseMaybeQProperty(ClassDef *def);
 
     void parseSlots(ClassDef *def, FunctionDef::Access access);
     void parseSignals(ClassDef *def);
@@ -272,7 +267,9 @@ public:
     void parsePropertyAttributes(PropertyDef &propDef);
     void parseEnumOrFlag(BaseDef *def, bool isFlag);
     void parseFlag(BaseDef *def);
-    void parseClassInfo(BaseDef *def);
+    enum class EncounteredQmlMacro {Yes, No};
+    EncounteredQmlMacro parseClassInfo(BaseDef *def);
+    void parseClassInfo(ClassDef *def);
     void parseInterfaces(ClassDef *def);
     void parseDeclareInterface();
     void parseDeclareMetatype();
@@ -280,7 +277,6 @@ public:
     void parseSlotInPrivate(ClassDef *def, FunctionDef::Access access);
     QByteArray parsePropertyAccessor();
     void parsePrivateProperty(ClassDef *def);
-    void parsePrivateQProperty(ClassDef *def);
 
     void parseFunctionArguments(FunctionDef *def);
 

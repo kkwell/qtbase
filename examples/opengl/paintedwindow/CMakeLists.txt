@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS OpenGL)
 
-add_qt_gui_executable(paintedwindow
+qt_add_executable(paintedwindow
     main.cpp
     paintedwindow.cpp paintedwindow.h
+)
+set_target_properties(paintedwindow PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(paintedwindow PUBLIC
     Qt::Core

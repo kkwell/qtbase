@@ -105,9 +105,9 @@ public:
     void addQtOptions(QList<QCommandLineOption> *options) override;
 #endif
     virtual bool shouldQuit() override;
+    void quit() override;
 
     bool shouldQuitInternal(const QWindowList &processedWindows);
-    virtual bool tryCloseAllWindows();
 
     static void captureGlobalModifierState(QEvent *e);
     static Qt::KeyboardModifiers modifier_buttons;
@@ -227,10 +227,7 @@ public:
     virtual bool isWindowBlocked(QWindow *window, QWindow **blockingWindow = nullptr) const;
     virtual bool popupActive() { return false; }
 
-    static ulong mousePressTime;
     static Qt::MouseButton mousePressButton;
-    static int mousePressX;
-    static int mousePressY;
     static QPointF lastCursorPosition;
     static QWindow *currentMouseWindow;
     static QWindow *currentMousePressWindow;
@@ -279,7 +276,6 @@ public:
 #endif
 
 #ifndef QT_NO_SESSIONMANAGER
-    static bool is_fallback_session_management_enabled;
     QSessionManager *session_manager;
     bool is_session_restored;
     bool is_saving_session;
@@ -287,17 +283,6 @@ public:
     void saveState();
 #endif
 
-    struct ActiveTouchPointsKey {
-        ActiveTouchPointsKey(const QPointingDevice *dev, int id) : device(dev), touchPointId(id) { }
-        const QPointingDevice *device;
-        int touchPointId;
-    };
-    struct ActiveTouchPointsValue {
-        QPointer<QWindow> window;
-        QPointer<QObject> target;
-        QMutableEventPoint touchPoint;
-    };
-    QHash<ActiveTouchPointsKey, ActiveTouchPointsValue> activeTouchPoints;
     QEvent::Type lastTouchType;
     struct SynthesizedMouseData {
         SynthesizedMouseData(const QPointF &p, const QPointF &sp, QWindow *w)
@@ -341,7 +326,6 @@ protected:
     virtual QPalette basePalette() const;
     virtual void handlePaletteChanged(const char *className = nullptr);
 
-    bool tryCloseRemainingWindows(QWindowList processedWindows);
 #if QT_CONFIG(draganddrop)
     virtual void notifyDragStarted(const QDrag *);
 #endif // QT_CONFIG(draganddrop)
@@ -366,22 +350,17 @@ private:
     static qreal m_maxDevicePixelRatio;
 };
 
-Q_GUI_EXPORT size_t qHash(const QGuiApplicationPrivate::ActiveTouchPointsKey &k, size_t seed = 0);
+// ----------------- QNativeInterface -----------------
 
-Q_GUI_EXPORT bool operator==(const QGuiApplicationPrivate::ActiveTouchPointsKey &a,
-                             const QGuiApplicationPrivate::ActiveTouchPointsKey &b);
+namespace QNativeInterface::Private {
 
-// ----------------- QPlatformInterface -----------------
-
-namespace QPlatformInterface::Private {
-
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_WIN) || defined(Q_CLANG_QDOC)
 
 class QWindowsMime;
 
 struct Q_GUI_EXPORT QWindowsApplication
 {
-    QT_DECLARE_PLATFORM_INTERFACE(QWindowsApplication)
+    QT_DECLARE_NATIVE_INTERFACE(QWindowsApplication)
 
     enum WindowActivationBehavior {
         DefaultActivateWindow,
@@ -436,11 +415,11 @@ struct Q_GUI_EXPORT QWindowsApplication
 };
 #endif // Q_OS_WIN
 
-} // QPlatformInterface::Private
+} // QNativeInterface::Private
 
 #if defined(Q_OS_WIN)
-Q_DECLARE_OPERATORS_FOR_FLAGS(QPlatformInterface::Private::QWindowsApplication::TouchWindowTouchTypes)
-Q_DECLARE_OPERATORS_FOR_FLAGS(QPlatformInterface::Private::QWindowsApplication::DarkModeHandling)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QNativeInterface::Private::QWindowsApplication::TouchWindowTouchTypes)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QNativeInterface::Private::QWindowsApplication::DarkModeHandling)
 #endif
 
 QT_END_NAMESPACE

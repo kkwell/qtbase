@@ -218,7 +218,7 @@ Option::parseCommandLine(QStringList &args, QMakeCmdLineParserState &state)
                             "QMake version %s\n"
                             "Using Qt version %s in %s\n",
                             QMAKE_VERSION_STR, QT_VERSION_STR,
-                            QLibraryInfo::location(QLibraryInfo::LibrariesPath).toLatin1().constData());
+                            QLibraryInfo::path(QLibraryInfo::LibrariesPath).toLatin1().constData());
 #ifdef QMAKE_OPENSOURCE_VERSION
                     fprintf(stdout, "QMake is Open Source software from The Qt Company Ltd and/or its subsidiary(-ies).\n");
 #endif
@@ -420,6 +420,11 @@ Option::init(int argc, char **argv)
                 Option::qmake_mode = Option::QMAKE_QUERY_PROPERTY;
             } else if (opt == "-makefile") {
                 Option::qmake_mode = Option::QMAKE_GENERATE_MAKEFILE;
+            } else if (opt == "-qtconf") {
+                // Move the argument following "-qtconf <file>" in front and check again.
+                if (args.length() >= 3)
+                    args.prepend(args.takeAt(2));
+                continue;
             } else {
                 break;
             }

@@ -39,6 +39,7 @@
 #include <vector>
 #include <stdexcept>
 #include <functional>
+#include <memory>
 
 // A wrapper for a test function. Calls a function, if it fails, reports failure
 #define RUN_TEST_FUNC(test, ...) \
@@ -88,6 +89,8 @@ private slots:
     void exceptionSafetyPrimitives_destructor();
     void exceptionSafetyPrimitives_mover();
     void exceptionSafetyPrimitives_displacer();
+    void moveNonPod_data();
+    void moveNonPod();
 #endif
 };
 
@@ -1090,12 +1093,10 @@ void tst_QArrayData::arrayOps2()
         QVERIFY(vs[i].isNull());
 
         QCOMPARE(vo[i].id, i);
-
-        // Erasing closer to begin causes smaller region [begin, begin + 2) to
-        // be moved. Thus, to-be-erased region gets reassigned with the elements
-        // at the beginning
+        // Erasing not from begin always shifts left - consistency with
+        // std::vector::erase. Elements before erase position are not affected.
         QCOMPARE(int(vo[i].flags), CountedObject::DefaultConstructed
-                | CountedObject::CopyConstructed | CountedObject::CopyAssigned);
+                | CountedObject::CopyConstructed);
     }
 
     for (size_t i = 2; i < 4; ++i) {
@@ -1103,9 +1104,8 @@ void tst_QArrayData::arrayOps2()
         QVERIFY(vs[i].isNull());
 
         QCOMPARE(vo[i].id, i + 8);
-
-        // Erasing closer to begin does not affect [begin + 2, begin + 4) region
-        QCOMPARE(int(vo[i].flags), CountedObject::DefaultConstructed);
+        QCOMPARE(int(vo[i].flags), int(CountedObject::DefaultConstructed)
+                | CountedObject::CopyAssigned);
     }
 
     for (size_t i = 4; i < 7; ++i) {
@@ -1113,9 +1113,8 @@ void tst_QArrayData::arrayOps2()
         QCOMPARE(vs[i], QString::number(i + 3));
 
         QCOMPARE(vo[i].id, i + 3);
-
-        // Erasing closer to begin does not affect [begin + 2, begin + 4) region
-        QCOMPARE(int(vo[i].flags), CountedObject::DefaultConstructed);
+        QCOMPARE(int(vo[i].flags), CountedObject::DefaultConstructed
+                | CountedObject::CopyAssigned);
     }
 }
 
@@ -1180,17 +1179,17 @@ void tst_QArrayData::arrayOpsExtra()
         auto [intData, strData, objData] = setupDataPointers(inputSize);
         QVERIFY(intData.size == 0);
         QVERIFY(intData.d_ptr() != nullptr);
-        QVERIFY(intData.constAllocatedCapacity() >= inputSize);
+        QVERIFY(size_t(intData.constAllocatedCapacity()) >= inputSize);
         QVERIFY(intData.data() != nullptr);
 
         QVERIFY(strData.size == 0);
         QVERIFY(strData.d_ptr() != nullptr);
-        QVERIFY(strData.constAllocatedCapacity() >= inputSize);
+        QVERIFY(size_t(strData.constAllocatedCapacity()) >= inputSize);
         QVERIFY(strData.data() != nullptr);
 
         QVERIFY(objData.size == 0);
         QVERIFY(objData.d_ptr() != nullptr);
-        QVERIFY(objData.constAllocatedCapacity() >= inputSize);
+        QVERIFY(size_t(objData.constAllocatedCapacity()) >= inputSize);
         QVERIFY(objData.data() != nullptr);
     }
 
@@ -1238,9 +1237,9 @@ void tst_QArrayData::arrayOpsExtra()
         RUN_TEST_FUNC(testCopyAppend, intData, intVec.begin(), intVec.end());
         RUN_TEST_FUNC(testCopyAppend, strData, strVec.begin(), strVec.end());
         RUN_TEST_FUNC(testCopyAppend, objData, objVec.begin(), objVec.end());
-        QCOMPARE(size_t(intData.size), intData.constAllocatedCapacity());
-        QCOMPARE(size_t(strData.size), strData.constAllocatedCapacity());
-        QCOMPARE(size_t(objData.size), objData.constAllocatedCapacity());
+        QCOMPARE(intData.size, intData.constAllocatedCapacity());
+        QCOMPARE(strData.size, strData.constAllocatedCapacity());
+        QCOMPARE(objData.size, objData.constAllocatedCapacity());
     }
 
     // copyAppend (iterator version) - special case of copying from self iterators
@@ -1338,9 +1337,9 @@ void tst_QArrayData::arrayOpsExtra()
         RUN_TEST_FUNC(testCopyAppend, intData, intDataFreeSpace, int(-1));
         RUN_TEST_FUNC(testCopyAppend, strData, strDataFreeSpace, QLatin1String("foo"));
         RUN_TEST_FUNC(testCopyAppend, objData, objDataFreeSpace, CountedObject());
-        QCOMPARE(size_t(intData.size), intData.constAllocatedCapacity());
-        QCOMPARE(size_t(strData.size), strData.constAllocatedCapacity());
-        QCOMPARE(size_t(objData.size), objData.constAllocatedCapacity());
+        QCOMPARE(intData.size, intData.constAllocatedCapacity());
+        QCOMPARE(strData.size, strData.constAllocatedCapacity());
+        QCOMPARE(objData.size, objData.constAllocatedCapacity());
     }
 
     // copyAppend (value version) - special case of copying self value
@@ -1432,9 +1431,9 @@ void tst_QArrayData::arrayOpsExtra()
                       std::vector<QString>(strDataFreeSpace, QLatin1String("barbaz")));
         RUN_TEST_FUNC(testMoveAppend, objData,
                       std::vector<CountedObject>(objDataFreeSpace, CountedObject()));
-        QCOMPARE(size_t(intData.size), intData.constAllocatedCapacity());
-        QCOMPARE(size_t(strData.size), strData.constAllocatedCapacity());
-        QCOMPARE(size_t(objData.size), objData.constAllocatedCapacity());
+        QCOMPARE(intData.size, intData.constAllocatedCapacity());
+        QCOMPARE(strData.size, strData.constAllocatedCapacity());
+        QCOMPARE(objData.size, objData.constAllocatedCapacity());
     }
 
     // moveAppend - special case of moving from self (this is legal yet rather useless)
@@ -1871,6 +1870,8 @@ void tst_QArrayData::literals()
         QCOMPARE(l.capacity(), 0);
         for (int i = 0; i < 3; ++i)
             QCOMPARE(l.at(i).value, i);
+        l.squeeze(); // shouldn't detach
+        QCOMPARE(l.capacity(), 0);
 
         (void)l.begin(); // "detach"
 
@@ -2103,7 +2104,7 @@ void tst_QArrayData::dataPointerAllocate()
         const auto freeAtEnd = newDataPointer.freeSpaceAtEnd();
 
         QVERIFY(newAlloc > oldDataPointer.constAllocatedCapacity());
-        QCOMPARE(size_t(freeAtBegin + freeAtEnd), newAlloc);
+        QCOMPARE(freeAtBegin + freeAtEnd, newAlloc);
         // when not detached, the behavior is the same as of ::realloc
         if (allocationOptions & (QArrayData::GrowsForward | QArrayData::GrowsBackwards))
             QCOMPARE(freeAtBegin, oldDataPointer.freeSpaceAtBegin());
@@ -2135,9 +2136,9 @@ void tst_QArrayData::dataPointerAllocate()
         const auto freeAtEnd = newDataPointer.freeSpaceAtEnd();
 
         QVERIFY(newAlloc > oldDataPointer.constAllocatedCapacity());
-        QCOMPARE(size_t(freeAtBegin + freeAtEnd), newAlloc);
+        QCOMPARE(freeAtBegin + freeAtEnd, newAlloc);
         if (allocationOptions & QArrayData::GrowsBackwards) {
-            QCOMPARE(size_t(freeAtBegin), (newAlloc - newSize) / 2);
+            QCOMPARE(freeAtBegin, (newAlloc - newSize) / 2);
         } else {
             QCOMPARE(freeAtBegin, 0);
         }
@@ -2211,7 +2212,9 @@ ThrowingTypeWatcher& throwingTypeWatcher() { static ThrowingTypeWatcher global; 
 struct ThrowingType
 {
     static unsigned int throwOnce;
+    static unsigned int throwOnceInDtor;
     static constexpr char throwString[] = "Requested to throw";
+    static constexpr char throwStringDtor[] = "Requested to throw in dtor";
     void checkThrow()  {
         // deferred throw
         if (throwOnce > 0) {
@@ -2224,27 +2227,36 @@ struct ThrowingType
     }
     int id = 0;
 
-    ThrowingType(int val = 0) : id(val)
+    ThrowingType(int val = 0) noexcept(false) : id(val)
     {
         checkThrow();
     }
-    ThrowingType(const ThrowingType &other) : id(other.id)
+    ThrowingType(const ThrowingType &other) noexcept(false) : id(other.id)
     {
         checkThrow();
     }
-    ThrowingType& operator=(const ThrowingType &other)
+    ThrowingType& operator=(const ThrowingType &other) noexcept(false)
     {
         id = other.id;
         checkThrow();
         return *this;
     }
-    ~ThrowingType()
+    ~ThrowingType() noexcept(false)
     {
         throwingTypeWatcher().destroyed(id);  // notify global watcher
         id = -1;
+
+        // deferred throw
+        if (throwOnceInDtor > 0) {
+            --throwOnceInDtor;
+            if (throwOnceInDtor == 0) {
+                throw std::runtime_error(throwStringDtor);
+            }
+        }
     }
 };
 unsigned int ThrowingType::throwOnce = 0;
+unsigned int ThrowingType::throwOnceInDtor = 0;
 bool operator==(const ThrowingType &a, const ThrowingType &b) {
     return a.id == b.id;
 }
@@ -2426,7 +2438,7 @@ void tst_QArrayData::exceptionSafetyPrimitives_constructor()
             WatcherScope scope; Q_UNUSED(scope);
             try {
                 ThrowingType::throwOnce = throwOnNthConstruction;
-                doConstruction(data, data.end(), [&source, &value] (Constructor &ctor) {
+                doConstruction(data, data.end(), [&value] (Constructor &ctor) {
                     return ctor.clone(5, value);
                 });
             } catch (const std::runtime_error &e) {
@@ -2818,6 +2830,205 @@ void tst_QArrayData::exceptionSafetyPrimitives_displacer()
                 QCOMPARE(data.data()[i + 1], reference.data()[i]);
         }
     }
+}
+
+struct GenericThrowingType
+{
+    std::shared_ptr<int> data = std::shared_ptr<int>(new int(42));  // helper for double free
+    ThrowingType throwingData = ThrowingType(0);
+    GenericThrowingType(int id = 0) : throwingData(id)
+    {
+        QVERIFY(data.use_count() > 0);
+    }
+
+    ~GenericThrowingType()
+    {
+        // if we're in dtor but use_count is 0, it's double free
+        QVERIFY(data.use_count() > 0);
+    }
+
+    enum MoveCase {
+        MoveRightNoOverlap = 0,
+        MoveRightOverlap = 1,
+        MoveLeftNoOverlap = 2,
+        MoveLeftOverlap = 3,
+    };
+
+    enum ThrowCase {
+        ThrowInDtor = 0,
+        ThrowInUninitializedRegion = 1,
+        ThrowInOverlapRegion = 2,
+    };
+};
+
+struct PublicGenericMoveOps : QtPrivate::QCommonArrayOps<GenericThrowingType>
+{
+    template<typename GrowthTag>
+    void public_moveInGrowthDirection(GrowthTag tag, qsizetype futureGrowth)
+    {
+        static_assert(!QTypeInfo<GenericThrowingType>::isRelocatable);
+        using MoveOps = QtPrivate::QCommonArrayOps<GenericThrowingType>::GenericMoveOps;
+        MoveOps::moveInGrowthDirection(tag, this, futureGrowth);
+    }
+};
+
+void tst_QArrayData::moveNonPod_data()
+{
+    QTest::addColumn<GenericThrowingType::MoveCase>("moveCase");
+    QTest::addColumn<GenericThrowingType::ThrowCase>("throwCase");
+
+    // Throwing in dtor
+    QTest::newRow("throw-in-dtor-move-right-no-overlap")
+        << GenericThrowingType::MoveRightNoOverlap << GenericThrowingType::ThrowInDtor;
+    QTest::newRow("throw-in-dtor-move-right-overlap")
+        << GenericThrowingType::MoveRightOverlap << GenericThrowingType::ThrowInDtor;
+    QTest::newRow("throw-in-dtor-move-left-no-overlap")
+        << GenericThrowingType::MoveLeftNoOverlap << GenericThrowingType::ThrowInDtor;
+    QTest::newRow("throw-in-dtor-move-left-overlap")
+        << GenericThrowingType::MoveLeftOverlap << GenericThrowingType::ThrowInDtor;
+
+    // Throwing in uninitialized region
+    QTest::newRow("throw-in-uninit-region-move-right-no-overlap")
+        << GenericThrowingType::MoveRightNoOverlap
+        << GenericThrowingType::ThrowInUninitializedRegion;
+    QTest::newRow("throw-in-uninit-region-move-right-overlap")
+        << GenericThrowingType::MoveRightOverlap << GenericThrowingType::ThrowInUninitializedRegion;
+    QTest::newRow("throw-in-uninit-region-move-left-no-overlap")
+        << GenericThrowingType::MoveLeftNoOverlap
+        << GenericThrowingType::ThrowInUninitializedRegion;
+    QTest::newRow("throw-in-uninit-region-move-left-overlap")
+        << GenericThrowingType::MoveLeftOverlap << GenericThrowingType::ThrowInUninitializedRegion;
+
+    // Throwing in overlap region
+    QTest::newRow("throw-in-overlap-region-move-right-overlap")
+        << GenericThrowingType::MoveRightOverlap << GenericThrowingType::ThrowInOverlapRegion;
+    QTest::newRow("throw-in-overlap-region-move-left-overlap")
+        << GenericThrowingType::MoveLeftOverlap << GenericThrowingType::ThrowInOverlapRegion;
+}
+
+void tst_QArrayData::moveNonPod()
+{
+    // Assume that non-throwing moves perform correctly. Otherwise, all previous
+    // tests would've failed. Test only what happens when exceptions are thrown.
+
+    QFETCH(GenericThrowingType::MoveCase, moveCase);
+    QFETCH(GenericThrowingType::ThrowCase, throwCase);
+
+    struct WatcherScope
+    {
+        WatcherScope() { throwingTypeWatcher().watch = true; }
+        ~WatcherScope()
+        {
+            throwingTypeWatcher().watch = false;
+            throwingTypeWatcher().destroyedIds.clear();
+        }
+    };
+
+    const auto cast = [] (auto &dataPointer) {
+        return static_cast<PublicGenericMoveOps*>(std::addressof(dataPointer));
+    };
+
+    const auto setThrowingFlag = [throwCase] () {
+        switch (throwCase) {
+        case GenericThrowingType::ThrowInDtor: ThrowingType::throwOnceInDtor = 2; break;
+        case GenericThrowingType::ThrowInUninitializedRegion: ThrowingType::throwOnce = 2; break;
+        case GenericThrowingType::ThrowInOverlapRegion: ThrowingType::throwOnce = 3; break;
+        default: QFAIL("Unknown throwCase");
+        }
+    };
+
+    const auto checkExceptionText = [throwCase] (const char *what) {
+        if (throwCase == GenericThrowingType::ThrowInDtor) {
+            QCOMPARE(std::string(what), ThrowingType::throwStringDtor);
+        } else {
+            QCOMPARE(std::string(what), ThrowingType::throwString);
+        }
+    };
+
+    const auto checkNoMemoryLeaks = [throwCase] (size_t extraDestroyedElements = 0) {
+        const size_t destroyedElementsCount = throwingTypeWatcher().destroyedIds.size();
+        switch (throwCase) {
+        case GenericThrowingType::ThrowInDtor:
+            // 2 elements from uinitialized region + 2 elements from old range + extra if no overlap
+            QCOMPARE(destroyedElementsCount, 2u + 2u + extraDestroyedElements);
+            break;
+        case GenericThrowingType::ThrowInUninitializedRegion:
+            // always 1 element from uninitialized region
+            QCOMPARE(destroyedElementsCount, 1u);
+            break;
+        case GenericThrowingType::ThrowInOverlapRegion:
+            // always 2 elements from uninitialized region
+            QCOMPARE(destroyedElementsCount, 2u);
+            break;
+        default: QFAIL("Unknown throwCase");
+        }
+    };
+
+    switch (moveCase) {
+    case GenericThrowingType::MoveRightNoOverlap : {  // moving right without overlap
+        auto storage = createDataPointer<GenericThrowingType>(20, 3);
+        QVERIFY(storage.freeSpaceAtEnd() > 3);
+
+        WatcherScope scope; Q_UNUSED(scope);
+        try {
+            setThrowingFlag();
+            cast(storage)->public_moveInGrowthDirection(QtPrivate::GrowsForwardTag{}, 4);
+            QFAIL("Unreachable line!");
+        } catch (const std::runtime_error &e) {
+            checkExceptionText(e.what());
+        }
+        checkNoMemoryLeaks(1);
+        break;
+    }
+    case GenericThrowingType::MoveRightOverlap: {  // moving right with overlap
+        auto storage = createDataPointer<GenericThrowingType>(20, 3);
+        QVERIFY(storage.freeSpaceAtEnd() > 3);
+
+        WatcherScope scope; Q_UNUSED(scope);
+        try {
+            setThrowingFlag();
+            cast(storage)->public_moveInGrowthDirection(QtPrivate::GrowsForwardTag{}, 2);
+            QFAIL("Unreachable line!");
+        } catch (const std::runtime_error &e) {
+            checkExceptionText(e.what());
+        }
+        checkNoMemoryLeaks();
+        break;
+    }
+    case GenericThrowingType::MoveLeftNoOverlap: {  // moving left without overlap
+        auto storage = createDataPointer<GenericThrowingType>(20, 2);
+        storage->insert(storage.begin(), 1, GenericThrowingType(42));
+        QVERIFY(storage.freeSpaceAtBegin() > 3);
+
+        WatcherScope scope; Q_UNUSED(scope);
+        try {
+            setThrowingFlag();
+            cast(storage)->public_moveInGrowthDirection(QtPrivate::GrowsBackwardsTag{}, 4);
+            QFAIL("Unreachable line!");
+        } catch (const std::runtime_error &e) {
+            checkExceptionText(e.what());
+        }
+        checkNoMemoryLeaks(1);
+        break;
+    }
+    case GenericThrowingType::MoveLeftOverlap: {
+        auto storage = createDataPointer<GenericThrowingType>(20, 2);
+        storage->insert(storage.begin(), 1, GenericThrowingType(42));
+        QVERIFY(storage.freeSpaceAtBegin() > 3);
+
+        WatcherScope scope; Q_UNUSED(scope);
+        try {
+            setThrowingFlag();
+            cast(storage)->public_moveInGrowthDirection(QtPrivate::GrowsBackwardsTag{}, 2);
+            QFAIL("Unreachable line!");
+        } catch (const std::runtime_error &e) {
+            checkExceptionText(e.what());
+        }
+        checkNoMemoryLeaks();
+        break;
+    }
+    default: QFAIL("Unknown moveCase");
+    };
 }
 #endif  // QT_NO_EXCEPTIONS
 

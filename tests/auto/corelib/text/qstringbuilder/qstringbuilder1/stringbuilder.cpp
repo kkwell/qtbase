@@ -38,12 +38,10 @@
 #define UTF8_LITERAL_LEN (sizeof(UTF8_LITERAL)-1)
 #define UTF8_LITERAL_EXTRA "s\xc3\xb6m\xc3\xab l\xc3\xaft\xc3\xabr\xc3\xa4l" "EXTRA"
 
-#ifdef Q_COMPILER_UNICODE_STRINGS
 // "some literal", but replacing all vocals by their umlauted UTF-8 string :)
 #define UNICODE_LITERAL u"s\u00f6m\u00eb l\u00eft\u00ebr\u00e4l"
 #define UNICODE_LITERAL_LEN ((sizeof(UNICODE_LITERAL) - 1) / 2)
 #define UNICODE_LITERAL_EXTRA u"s\u00f6m\u00eb l\u00eft\u00ebr\u00e4l" "EXTRA"
-#endif
 
 #ifndef P
 # error You need to define P
@@ -64,11 +62,9 @@ template <> QString toQString(const QLatin1String &l) { return l; }
 template <> QString toQString(const QLatin1Char &l) { return QChar(l); }
 template <> QString toQString(const QChar &c) { return c; }
 template <> QString toQString(const QChar::SpecialCharacter &c) { return QChar(c); }
-#ifdef Q_COMPILER_UNICODE_STRINGS
 template <> QString toQString(char16_t * const &p) { return QStringView(p).toString(); }
 template <size_t N> QString toQString(const char16_t (&a)[N]) { return QStringView(a).toString(); }
 template <> QString toQString(const char16_t &c) { return QChar(c); }
-#endif
 
 template <typename T> QByteArray toQByteArray(const T &t);
 
@@ -87,12 +83,10 @@ void runScenario()
     QLatin1Char lchar('c');
     QChar qchar(lchar);
     QChar::SpecialCharacter special(QChar::Nbsp);
-#ifdef Q_COMPILER_UNICODE_STRINGS
     char16_t u16char = UNICODE_LITERAL[0];
     char16_t u16chararray[] = { u's', 0xF6, u'm', 0xEB, u' ', u'l', 0xEF, u't', 0xEB, u'r', 0xE4, u'l', 0x00 };
     QCOMPARE(QStringView(u16chararray), QStringView(UNICODE_LITERAL));
     char16_t *u16charstar = u16chararray;
-#endif
 
 #define CHECK(QorP, a1, a2) \
     do { \
@@ -214,11 +208,9 @@ void runScenario()
     r = lchar + r;
     QCOMPARE(r, QString(lchar P stringview));
 
-#ifdef Q_COMPILER_UNICODE_STRINGS
     r = QStringLiteral(UNICODE_LITERAL);
     r = r Q QStringLiteral(UNICODE_LITERAL);
     QCOMPARE(r, r3);
-#endif
 
 #ifndef QT_NO_CAST_FROM_ASCII
     r = string P LITERAL;
@@ -269,7 +261,7 @@ void runScenario()
     r = string P ba;
     QCOMPARE(r, string);
 
-    const char *zero = 0;
+    const char *zero = nullptr;
     r = string P zero;
     QCOMPARE(r, string);
     r = zero P string;
@@ -308,7 +300,7 @@ void runScenario()
         r2 = QByteArray("hello\0") P UTF8_LITERAL;
         QCOMPARE(r, r2);
 
-        const char *zero = 0;
+        const char *zero = nullptr;
         r = ba P zero;
         QCOMPARE(r, ba);
         r = zero P ba;
@@ -344,6 +336,14 @@ void runScenario()
         QByteArray ba2 = withZero;
         ba2 += ba2 P withZero;
         QCOMPARE(ba2, QByteArray(withZero + withZero + withZero));
+
+        // With space allocated in front, mirroring what happens with QHttpMultiPart in QNAM
+        QByteArray byteArray;
+        byteArray.reserve(70);
+        byteArray.insert(0, "multipart/");
+        byteArray.insert(byteArray.size(), "mixed");
+        byteArray += "; boundary=\"" P QByteArray(30, 'o') P '"';
+        QCOMPARE(byteArray, "multipart/mixed; boundary=\"oooooooooooooooooooooooooooooo\"");
     }
 
 }

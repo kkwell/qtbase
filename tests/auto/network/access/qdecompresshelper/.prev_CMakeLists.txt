@@ -4,11 +4,12 @@
 ## tst_qdecompresshelper Test:
 #####################################################################
 
-qt_add_test(tst_qdecompresshelper
+qt_internal_add_test(tst_qdecompresshelper
     SOURCES
         gzip.rcc.cpp
         inflate.rcc.cpp
         tst_qdecompresshelper.cpp
+        zstandard.rcc.cpp
     DEFINES
         SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
     PUBLIC_LIBRARIES

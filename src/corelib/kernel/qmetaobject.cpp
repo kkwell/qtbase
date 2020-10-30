@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2015 Olivier Goffart <ogoffart@woboq.com>
 ** Contact: https://www.qt.io/licensing/
 **
@@ -263,7 +263,7 @@ QObject *QMetaObject::newInstance(QGenericArgument val0,
 
     int paramCount;
     for (paramCount = 0; paramCount < MaximumParamCount; ++paramCount) {
-        int len = qstrlen(typeNames[paramCount]);
+        int len = int(qstrlen(typeNames[paramCount]));
         if (len <= 0)
             break;
         sig.append(typeNames[paramCount], len);
@@ -358,16 +358,12 @@ bool QMetaObject::inherits(const QMetaObject *metaObject) const noexcept
 }
 
 /*!
+    \fn QObject *QMetaObject::cast(QObject *obj) const
     \internal
 
     Returns \a obj if object \a obj inherits from this
     meta-object; otherwise returns \nullptr.
 */
-QObject *QMetaObject::cast(QObject *obj) const
-{
-    // ### Qt 6: inline
-    return const_cast<QObject*>(cast(const_cast<const QObject*>(obj)));
-}
 
 /*!
     \internal
@@ -1184,8 +1180,8 @@ bool QMetaObject::checkConnectArgs(const char *signal, const char *method)
     while (*s2++ != '(') { }
     if (*s2 == ')' || qstrcmp(s1,s2) == 0)        // method has no args or
         return true;                                //   exact match
-    int s1len = qstrlen(s1);
-    int s2len = qstrlen(s2);
+    const auto s1len = qstrlen(s1);
+    const auto s2len = qstrlen(s2);
     if (s2len < s1len && strncmp(s1,s2,s2len-1)==0 && s1[s2len-1]==',')
         return true;                                // method has less args
     return false;
@@ -1414,7 +1410,7 @@ bool QMetaObject::invokeMethod(QObject *obj,
         return false;
 
     QVarLengthArray<char, 512> sig;
-    int len = qstrlen(member);
+    int len = int(qstrlen(member));
     if (len <= 0)
         return false;
     sig.append(member, len);
@@ -1426,7 +1422,7 @@ bool QMetaObject::invokeMethod(QObject *obj,
 
     int paramCount;
     for (paramCount = 1; paramCount < MaximumParamCount; ++paramCount) {
-        len = qstrlen(typeNames[paramCount]);
+        len = int(qstrlen(typeNames[paramCount]));
         if (len <= 0)
             break;
         sig.append(typeNames[paramCount], len);
@@ -1602,6 +1598,14 @@ bool QMetaObject::invokeMethodImpl(QObject *object, QtPrivate::QSlotObjectBase *
 */
 
 /*!
+    \fn QMetaObject::Connection::swap(Connection &other)
+    \since 5.15
+
+    Swaps this Connection instance with \a other. This operation is very fast
+    and never fails.
+*/
+
+/*!
     \class QMetaMethod
     \inmodule QtCore
 
@@ -1636,18 +1640,16 @@ bool QMetaObject::invokeMethodImpl(QObject *object, QtPrivate::QSlotObjectBase *
     invoked), otherwise returns \c false.
 */
 
-/*! \fn bool operator==(const QMetaMethod &m1, const QMetaMethod &m2)
+/*! \fn bool QMetaMethod::operator==(const QMetaMethod &m1, const QMetaMethod &m2)
     \since 5.0
-    \relates QMetaMethod
     \overload
 
     Returns \c true if method \a m1 is equal to method \a m2,
     otherwise returns \c false.
 */
 
-/*! \fn bool operator!=(const QMetaMethod &m1, const QMetaMethod &m2)
+/*! \fn bool QMetaMethod::operator!=(const QMetaMethod &m1, const QMetaMethod &m2)
     \since 5.0
-    \relates QMetaMethod
     \overload
 
     Returns \c true if method \a m1 is not equal to method \a m2,
@@ -2657,11 +2659,10 @@ int QMetaEnum::value(int index) const
 {
     if (!mobj)
         return 0;
-    if (index >= 0  && index < int(data.keyCount()))
-        return mobj->d.data[data.data() + 2*index + 1];
+    if (index >= 0 && index < int(data.keyCount()))
+        return mobj->d.data[data.data() + 2 * index + 1];
     return -1;
 }
-
 
 /*!
     Returns \c true if this enumerator is used as a flag; otherwise returns
@@ -2727,7 +2728,7 @@ int QMetaEnum::keyToValue(const char *key, bool *ok) const
     const char *s = key + qstrlen(key);
     while (s > key && *s != ':')
         --s;
-    if (s > key && *(s-1)==':') {
+    if (s > key && *(s - 1) == ':') {
         scope = s - key - 1;
         key += scope + 2;
     }
@@ -2737,7 +2738,7 @@ int QMetaEnum::keyToValue(const char *key, bool *ok) const
              && strcmp(key, rawStringData(mobj, mobj->d.data[data.data() + 2*i])) == 0) {
             if (ok != nullptr)
                 *ok = true;
-            return mobj->d.data[data.data() + 2*i + 1];
+            return mobj->d.data[data.data() + 2 * i + 1];
         }
     }
     return -1;
@@ -2751,13 +2752,13 @@ int QMetaEnum::keyToValue(const char *key, bool *ok) const
 
     \sa isFlag(), valueToKeys()
 */
-const char* QMetaEnum::valueToKey(int value) const
+const char *QMetaEnum::valueToKey(int value) const
 {
     if (!mobj)
         return nullptr;
     for (int i = 0; i < int(data.keyCount()); ++i)
-        if (value == (int)mobj->d.data[data.data() + 2*i + 1])
-            return rawStringData(mobj, mobj->d.data[data.data() + 2*i]);
+        if (value == (int)mobj->d.data[data.data() + 2 * i + 1])
+            return rawStringData(mobj, mobj->d.data[data.data() + 2 * i]);
     return nullptr;
 }
 
@@ -2793,7 +2794,7 @@ int QMetaEnum::keysToValue(const char *keys, bool *ok) const
         const char *s = key + qstrlen(key);
         while (s > key && *s != ':')
             --s;
-        if (s > key && *(s-1)==':') {
+        if (s > key && *(s - 1) == ':') {
             scope = s - key - 1;
             key += scope + 2;
         }
@@ -2829,12 +2830,12 @@ QByteArray QMetaEnum::valueToKeys(int value) const
     int v = value;
     // reverse iterate to ensure values like Qt::Dialog=0x2|Qt::Window are processed first.
     for (int i = data.keyCount() - 1; i >= 0; --i) {
-        int k = mobj->d.data[data.data() + 2*i + 1];
-        if ((k != 0 && (v & k) == k ) ||  (k == value))  {
+        int k = mobj->d.data[data.data() + 2 * i + 1];
+        if ((k != 0 && (v & k) == k) || (k == value)) {
             v = v & ~k;
             if (!keys.isEmpty())
                 keys.prepend('|');
-            keys.prepend(stringData(mobj, mobj->d.data[data.data() + 2*i]));
+            keys.prepend(stringData(mobj, mobj->d.data[data.data() + 2 * i]));
         }
     }
     return keys;
@@ -2856,7 +2857,6 @@ QMetaEnum::QMetaEnum(const QMetaObject *mobj, int index)
     Returns the QMetaEnum corresponding to the type in the template parameter.
     The enum needs to be declared with Q_ENUM.
 */
-
 
 /*!
     \class QMetaProperty
@@ -2937,21 +2937,16 @@ const char *QMetaProperty::typeName() const
     return rawTypeNameFromTypeInfo(mobj, data.type());
 }
 
-/*!
+/*! \fn QVariant::Type QMetaProperty::type() const
+    \deprecated
+
     Returns this property's type. The return value is one
     of the values of the QVariant::Type enumeration.
 
-    \sa userType(), typeName(), name(), metaType()
+    \sa metaType().id(), typeName(), name(), metaType()
 */
-QVariant::Type QMetaProperty::type() const
-{
-    uint type = userType();
-    if (type >= QMetaType::User)
-        return QVariant::UserType;
-    return QVariant::Type(type);
-}
 
-/*!
+/*! \fn int QMetaProperty::userType() const
     \since 4.2
 
     Returns this property's user type. The return value is one
@@ -2961,12 +2956,6 @@ QVariant::Type QMetaProperty::type() const
 
     \sa type(), QMetaType, typeName(), metaType()
  */
-int QMetaProperty::userType() const
-{
-    if (!mobj)
-        return QMetaType::UnknownType;
-    return QMetaType(mobj->d.metaTypes[data.index(mobj)]).id();
-}
 
 /*!
     \since 6.0
@@ -2984,7 +2973,7 @@ QMetaType QMetaProperty::metaType() const
 
 int QMetaProperty::Data::index(const QMetaObject *mobj) const
 {
-    return (d - mobj->d.data - priv(mobj->d.data)->propertyData)/Size;
+    return (d - mobj->d.data - priv(mobj->d.data)->propertyData) / Size;
 }
 
 /*!
@@ -3099,14 +3088,14 @@ QMetaProperty::QMetaProperty(const QMetaObject *mobj, int index)
 
             const char *colon = strrchr(enum_name, ':');
             // ':' will always appear in pairs
-            Q_ASSERT(colon <= enum_name || *(colon-1) == ':');
+            Q_ASSERT(colon <= enum_name || *(colon - 1) == ':');
             if (colon > enum_name) {
-                int len = colon-enum_name-1;
-                scope_buffer = (char *)malloc(len+1);
+                int len = colon - enum_name - 1;
+                scope_buffer = (char *)malloc(len + 1);
                 memcpy(scope_buffer, enum_name, len);
                 scope_buffer[len] = '\0';
                 scope_name = scope_buffer;
-                enum_name = colon+1;
+                enum_name = colon + 1;
             }
 
             const QMetaObject *scope = nullptr;
@@ -3193,7 +3182,7 @@ bool QMetaProperty::write(QObject *object, const QVariant &value) const
     QVariant v = value;
     QMetaType t(mobj->d.metaTypes[data.index(mobj)]);
     if (t != QMetaType::fromType<QVariant>() && t != v.metaType()) {
-        if (isEnumType() && !t.metaObject() && v.userType() == QMetaType::QString) {
+        if (isEnumType() && !t.metaObject() && v.metaType().id() == QMetaType::QString) {
             // Assigning a string to a property of type Q_ENUMS (instead of Q_ENUM)
             bool ok;
             if (isFlagType())
@@ -3250,6 +3239,23 @@ bool QMetaProperty::reset(QObject *object) const
     else
         QMetaObject::metacall(object, QMetaObject::ResetProperty, data.index(mobj) + mobj->propertyOffset(), argv);
     return true;
+}
+
+/*!
+    \since 6.0
+    Returns the bindable interface for the property on a given \a object.
+
+    If the property doesn't support bindings, the returned interface will be
+    invalid.
+
+    \sa QUntypedBindable, QProperty, isBindable()
+*/
+QUntypedBindable QMetaProperty::bindable(QObject *object) const
+{
+    QUntypedBindable bindable;
+    void * argv[1] { &bindable };
+    mobj->metacall(object, QMetaObject::BindableProperty, data.index(mobj) + mobj->propertyOffset(), argv);
+    return bindable;
 }
 /*!
     \since 5.5
@@ -3406,7 +3412,6 @@ bool QMetaProperty::isWritable() const
     return data.flags() & Writable;
 }
 
-
 /*!
     Returns \c false if the \c{Q_PROPERTY()}'s \c DESIGNABLE attribute
     is false; otherwise returns \c true.
@@ -3509,16 +3514,18 @@ bool QMetaProperty::isRequired() const
 
 /*!
     \since 6.0
-    Returns \c true if the property is implemented using a QProperty member; otherwise returns \c false.
+    Returns \c true if the \c{Q_PROPERTY()} exposes binding functionality; otherwise returns false.
 
-    This can be used to detect the availability of QProperty related meta-call types ahead of
-    performing the call itself.
+    This implies that you can create bindings that use this property as a dependency or install QPropertyObserver
+    objects on this property. Unless the property is readonly, you can also set a binding on this property.
+
+    \sa QProperty, isWritable(), bindable()
 */
-bool QMetaProperty::isQProperty() const
+bool QMetaProperty::isBindable() const
 {
     if (!mobj)
         return false;
-    return data.flags() & IsQProperty;
+    return (data.flags() & Bindable);
 }
 
 /*!
@@ -3541,7 +3548,6 @@ bool QMetaProperty::isQProperty() const
 
     \sa QMetaObject
 */
-
 
 /*!
     \fn QMetaClassInfo::QMetaClassInfo()
@@ -3570,7 +3576,7 @@ const char *QMetaClassInfo::name() const
 
     \sa name()
 */
-const char* QMetaClassInfo::value() const
+const char *QMetaClassInfo::value() const
 {
     if (!mobj)
         return nullptr;
@@ -3590,7 +3596,6 @@ const char* QMetaClassInfo::value() const
     This is used internally to implement signal relay functionality in
     our state machine and dbus.
 */
-
 
 /*!
     \macro QGenericArgument Q_ARG(Type, const Type &value)

@@ -44,10 +44,13 @@
 #include <qdebug.h>
 #include <qmath.h>
 #include <qguiapplication.h>
-#include <private/qtextengine_p.h>
 #include <qvarlengtharray.h>
+#include <qpa/qplatformintegration.h>
+#include <qpa/qplatformpixmap.h>
 #include <private/qfontengine_p.h>
+#include <private/qguiapplication_p.h>
 #include <private/qpaintengineex_p.h>
+#include <private/qtextengine_p.h>
 
 
 QT_BEGIN_NAMESPACE
@@ -375,7 +378,6 @@ void QPaintEngine::drawPolygon(const QPoint *points, int pointCount, PolygonDraw
     \value CoreGraphics \macos's Quartz2D (CoreGraphics)
     \value QuickDraw \macos's QuickDraw
     \value QWindowSystem Qt for Embedded Linux
-    \value PostScript (No longer supported)
     \value OpenGL
     \value Picture QPicture format
     \value SVG Scalable Vector Graphics XML format
@@ -993,6 +995,43 @@ void QPaintEngine::setSystemRect(const QRect &rect)
 QRect QPaintEngine::systemRect() const
 {
     return d_func()->systemRect;
+}
+
+/*!
+    \internal
+
+    Creates a QPixmap optimized for this paint engine and device.
+*/
+QPixmap QPaintEngine::createPixmap(QSize size)
+{
+    if (Q_UNLIKELY(!qobject_cast<QGuiApplication *>(QCoreApplication::instance()))) {
+        qWarning("QPaintEngine::createPixmap: QPixmap cannot be created without a QGuiApplication");
+        return QPixmap();
+    }
+
+    QScopedPointer<QPlatformPixmap> data(QGuiApplicationPrivate::platformIntegration()->createPlatformPixmap(QPlatformPixmap::PixmapType));
+    data->resize(size.width(), size.height());
+    return QPixmap(data.take());
+}
+
+/*!
+    \internal
+
+    Creates a QPixmap optimized for this paint engine and device.
+*/
+QPixmap QPaintEngine::createPixmapFromImage(QImage image, Qt::ImageConversionFlags flags)
+{
+    if (Q_UNLIKELY(!qobject_cast<QGuiApplication *>(QCoreApplication::instance()))) {
+        qWarning("QPaintEngine::createPixmapFromImage: QPixmap cannot be created without a QGuiApplication");
+        return QPixmap();
+    }
+
+    QScopedPointer<QPlatformPixmap> data(QGuiApplicationPrivate::platformIntegration()->createPlatformPixmap(QPlatformPixmap::PixmapType));
+    if (image.isDetached())
+        data->fromImageInPlace(image, flags);
+    else
+        data->fromImage(image, flags);
+    return QPixmap(data.take());
 }
 
 QPaintEnginePrivate::~QPaintEnginePrivate()

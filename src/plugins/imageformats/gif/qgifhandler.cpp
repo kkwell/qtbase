@@ -46,9 +46,12 @@
 
 #include <qimage.h>
 #include <qiodevice.h>
+#include <qloggingcategory.h>
 #include <qvariant.h>
 
 QT_BEGIN_NAMESPACE
+
+Q_LOGGING_CATEGORY(lcGif, "qt.gui.imageio.gif")
 
 #define Q_TRANSPARENT 0x00ffffff
 
@@ -492,12 +495,14 @@ int QGIFFormat::decode(QImage *image, const uchar *buffer, int length,
             break;
           case ImageDataBlock:
             count++;
-            if (bitcount < 0 || bitcount > 31) {
-                state = Error;
-                return -1;
+            if (bitcount != -32768) {
+                if (bitcount < 0 || bitcount > 31) {
+                    state = Error;
+                    return -1;
+                }
+                accum |= (ch << bitcount);
+                bitcount += 8;
             }
-            accum|=(ch<<bitcount);
-            bitcount+=8;
             while (bitcount>=code_size && state==ImageDataBlock) {
                 int code=accum&((1<<code_size)-1);
                 bitcount-=code_size;
@@ -1119,7 +1124,7 @@ bool QGifHandler::canRead() const
 bool QGifHandler::canRead(QIODevice *device)
 {
     if (!device) {
-        qWarning("QGifHandler::canRead() called with no device");
+        qCWarning(lcGif, "QGifHandler::canRead() called with no device");
         return false;
     }
 

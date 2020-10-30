@@ -80,7 +80,6 @@ public:
     {
     }
 
-#if !defined(Q_CC_XLC)
     template<typename U, typename V = T, typename = QtPrivate::EnableForVoid<V>>
     QFuture(const QFuture<U> &other) : d(other.d)
     {
@@ -92,7 +91,6 @@ public:
         d = other.d;
         return *this;
     }
-#endif
 
 #if defined(Q_CLANG_QDOC)
     ~QFuture() { }
@@ -102,9 +100,6 @@ public:
     // This is required to allow QDoc to find the declaration of operator T().
     operator T() const;
 #endif
-
-    bool operator==(const QFuture &other) const { return (d == other.d); }
-    bool operator!=(const QFuture &other) const { return (d != other.d); }
 
     void cancel() { d.cancel(); }
     bool isCanceled() const { return d.isCanceled(); }
@@ -165,8 +160,11 @@ QT_WARNING_POP
     template<typename U = T, typename = QtPrivate::EnableForNonVoid<U>>
     T takeResult() { return d.takeResult(); }
 
+#if 0
+    // TODO: Enable and make it return a QList, when QList is fixed to support move-only types
     template<typename U = T, typename = QtPrivate::EnableForNonVoid<U>>
     std::vector<T> takeResults() { return d.takeResults(); }
+#endif
 
     bool isValid() const { return d.isValid(); }
 

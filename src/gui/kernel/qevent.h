@@ -63,8 +63,11 @@ QT_BEGIN_NAMESPACE
 
 class QFile;
 class QAction;
+class QMouseEvent;
 class QPointerEvent;
 class QScreen;
+class QTabletEvent;
+class QTouchEvent;
 #if QT_CONFIG(gestures)
 class QGesture;
 #endif
@@ -79,7 +82,7 @@ public:
     inline Qt::KeyboardModifiers modifiers() const { return m_modState; }
     inline void setModifiers(Qt::KeyboardModifiers modifiers) { m_modState = modifiers; }
     inline ulong timestamp() const { return m_timeStamp; }
-    inline void setTimestamp(ulong timestamp) { m_timeStamp = timestamp; }
+    virtual void setTimestamp(ulong timestamp) { m_timeStamp = timestamp; }
 
 protected:
     QInputEvent(Type type, PointerEventTag, const QInputDevice *m_dev, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
@@ -90,13 +93,23 @@ protected:
     qint64 m_extra = 0; // reserved, unused for now
 };
 
-namespace QTest {
-    class QTouchEventSequence; // just for the friend declaration below
-}
-
+struct QEventPointPrivate;
 class Q_GUI_EXPORT QEventPoint
 {
     Q_GADGET
+    Q_PROPERTY(const QPointingDevice *device READ device)
+    Q_PROPERTY(int id READ id)
+    Q_PROPERTY(QPointingDeviceUniqueId uniqueId READ uniqueId)
+    Q_PROPERTY(State state READ state)
+    Q_PROPERTY(ulong timestamp READ timestamp)
+    Q_PROPERTY(qreal timeHeld READ timeHeld)
+    Q_PROPERTY(qreal pressure READ pressure)
+    Q_PROPERTY(qreal rotation READ rotation)
+    Q_PROPERTY(QSizeF ellipseDiameters READ ellipseDiameters)
+    Q_PROPERTY(QVector2D velocity READ velocity)
+    Q_PROPERTY(QPointF position READ position)
+    Q_PROPERTY(QPointF scenePosition READ scenePosition)
+    Q_PROPERTY(QPointF globalPosition READ globalPosition)
 public:
     enum State : quint8 {
         Unknown     = Qt::TouchPointUnknownState,
@@ -110,19 +123,28 @@ public:
 
     QEventPoint(int id = -1, const QPointingDevice *device = nullptr);
     QEventPoint(int pointId, State state, const QPointF &scenePosition, const QPointF &globalPosition);
+    QEventPoint(const QEventPoint &other);
+    QEventPoint(QEventPoint && other) noexcept : d(std::move(other.d)) { other.d = nullptr; }
+    QEventPoint &operator=(const QEventPoint &other);
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QEventPoint)
+    bool operator==(const QEventPoint &other) const noexcept;
+    inline bool operator!=(const QEventPoint &other) const noexcept { return !operator==(other); }
+    ~QEventPoint();
+    inline void swap(QEventPoint &other) noexcept
+    { qSwap(d, other.d); }
 
-    QPointF position() const { return m_pos; }
-    QPointF pressPosition() const { return m_globalPressPos - m_globalPos + m_pos; }
-    QPointF grabPosition() const { return m_globalGrabPos - m_globalPos + m_pos; }
-    QPointF lastPosition() const { return m_globalLastPos - m_globalPos + m_pos; }
-    QPointF scenePosition() const { return m_scenePos; }
-    QPointF scenePressPosition() const { return m_globalPressPos - m_globalPos + m_scenePos; }
-    QPointF sceneGrabPosition() const { return m_globalGrabPos - m_globalPos + m_scenePos; }
-    QPointF sceneLastPosition() const { return m_globalLastPos - m_globalPos + m_scenePos; }
-    QPointF globalPosition() const { return m_globalPos; }
-    QPointF globalPressPosition() const { return m_globalPressPos; }
-    QPointF globalGrabPosition() const { return m_globalGrabPos; }
-    QPointF globalLastPosition() const { return m_globalLastPos; }
+    QPointF position() const;
+    QPointF pressPosition() const;
+    QPointF grabPosition() const;
+    QPointF lastPosition() const;
+    QPointF scenePosition() const;
+    QPointF scenePressPosition() const;
+    QPointF sceneGrabPosition() const;
+    QPointF sceneLastPosition() const;
+    QPointF globalPosition() const;
+    QPointF globalPressPosition() const;
+    QPointF globalGrabPosition() const;
+    QPointF globalLastPosition() const;
 
 #if QT_DEPRECATED_SINCE(6, 0)
     // QEventPoint replaces QTouchEvent::TouchPoint, so we need all its old accessors, for now
@@ -151,91 +173,100 @@ public:
     QT_DEPRECATED_VERSION_X_6_0("Use globalLastPosition()")
     QPointF lastNormalizedPos() const;
 #endif // QT_DEPRECATED_SINCE(6, 0)
-    QVector2D velocity() const { return m_velocity; }
-    State state() const { return m_state; }
-    const QPointingDevice *device() const { return m_device; }
-    int id() const { return m_pointId; }
-    QPointingDeviceUniqueId uniqueId() const { return m_uniqueId; }
-    ulong pressTimestamp() const { return m_pressTimestamp; }
-    qreal timeHeld() const { return (m_timestamp - m_pressTimestamp) / qreal(1000); }
-    qreal pressure() const { return m_pressure; }
-    qreal rotation() const { return m_rotation; }
-    QSizeF ellipseDiameters() const { return m_ellipseDiameters; }
+    QVector2D velocity() const;
+    State state() const;
+    const QPointingDevice *device() const;
+    int id() const;
+    QPointingDeviceUniqueId uniqueId() const;
+    ulong timestamp() const;
+    ulong lastTimestamp() const;
+    ulong pressTimestamp() const;
+    qreal timeHeld() const;
+    qreal pressure() const;
+    qreal rotation() const;
+    QSizeF ellipseDiameters() const;
 
-    bool isAccepted() const { return m_accept; }
+    bool isAccepted() const;
     void setAccepted(bool accepted = true);
-    QObject *exclusiveGrabber() const { return m_exclusiveGrabber.data(); }
-    void setExclusiveGrabber(QObject *exclusiveGrabber);
-    const QList<QPointer <QObject>> &passiveGrabbers() const { return m_passiveGrabbers; }
-    void setPassiveGrabbers(const QList<QPointer <QObject>> &grabbers);
-    void clearPassiveGrabbers();
 
-protected:
-    const QPointingDevice *m_device = nullptr;
-    QPointF m_pos, m_scenePos, m_globalPos,
-            m_globalPressPos, m_globalGrabPos, m_globalLastPos;
-    qreal m_pressure = 1;
-    qreal m_rotation = 0;
-    QSizeF m_ellipseDiameters = QSizeF(0, 0);
-    QVector2D m_velocity;
-    QPointer<QObject> m_exclusiveGrabber;
-    QList<QPointer <QObject> > m_passiveGrabbers;
-    ulong m_timestamp = 0;
-    ulong m_pressTimestamp = 0;
-    QPointingDeviceUniqueId m_uniqueId;
-    int m_pointId = -1;
-    State m_state : 8;
-    quint32 m_accept : 1;
-    quint32 m_stationaryWithModifiedProperty : 1;
-    quint32 m_reserved : 22;
-
-    friend class QTest::QTouchEventSequence;
+private:
+    QEventPointPrivate *d;
+    friend class QMutableEventPoint;
+    friend class QPointerEvent;
 };
 
 #ifndef QT_NO_DEBUG_STREAM
+Q_GUI_EXPORT QDebug operator<<(QDebug, const QEventPoint *);
 Q_GUI_EXPORT QDebug operator<<(QDebug, const QEventPoint &);
 #endif
 
 class Q_GUI_EXPORT QPointerEvent : public QInputEvent
 {
 public:
+    explicit QPointerEvent(Type type, const QPointingDevice *dev,
+                           Qt::KeyboardModifiers modifiers = Qt::NoModifier, const QList<QEventPoint> &points = {});
     virtual ~QPointerEvent();
-    virtual int pointCount() const = 0;
-    virtual const QEventPoint &point(int i) const = 0;
-    virtual bool isPressEvent() const { return false; }
-    virtual bool isUpdateEvent() const { return false; }
-    virtual bool isReleaseEvent() const { return false; }
-
-    explicit QPointerEvent(Type type, const QPointingDevice *dev, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
     const QPointingDevice *pointingDevice() const;
     QPointingDevice::PointerType pointerType() const {
         return pointingDevice() ? pointingDevice()->pointerType() : QPointingDevice::PointerType::Unknown;
     }
+    void setTimestamp(ulong timestamp) override;
+    qsizetype pointCount() const { return m_points.count(); }
+    QEventPoint &point(qsizetype i) { return m_points[i]; }
+    const QList<QEventPoint> &points() const { return m_points; }
+    QEventPoint *pointById(int id);
+    bool allPointsGrabbed() const;
+    virtual bool isBeginEvent() const { return false; }
+    virtual bool isUpdateEvent() const { return false; }
+    virtual bool isEndEvent() const { return false; }
+    bool allPointsAccepted() const;
+    virtual void setAccepted(bool accepted) override;
+    QObject *exclusiveGrabber(const QEventPoint &point) const;
+    void setExclusiveGrabber(const QEventPoint &point, QObject *exclusiveGrabber);
+    QList<QPointer <QObject>> passiveGrabbers(const QEventPoint &point) const;
+    void clearPassiveGrabbers(const QEventPoint &point);
+    bool addPassiveGrabber(const QEventPoint &point, QObject *grabber);
+    bool removePassiveGrabber(const QEventPoint &point, QObject *grabber);
+
+protected:
+    QList<QEventPoint> m_points;
 };
 
 class Q_GUI_EXPORT QSinglePointEvent : public QPointerEvent
 {
+    Q_GADGET
+    Q_PROPERTY(QObject *exclusivePointGrabber READ exclusivePointGrabber WRITE setExclusivePointGrabber)
+
 public:
     QSinglePointEvent(Type type, const QPointingDevice *dev, const QPointF &localPos,
                       const QPointF &scenePos, const QPointF &globalPos,
                       Qt::MouseButton button = Qt::NoButton, Qt::MouseButtons buttons = Qt::NoButton,
                       Qt::KeyboardModifiers modifiers = Qt::NoModifier);
-    int pointCount() const override { return 1; }
-    const QEventPoint &point(int i) const override { Q_ASSERT(i == 0); return m_point; }
 
     inline Qt::MouseButton button() const { return m_button; }
     inline Qt::MouseButtons buttons() const { return m_mouseState; }
 
-    inline QPointF position() const { return m_point.position(); }
-    inline QPointF scenePosition() const { return m_point.scenePosition(); }
-    inline QPointF globalPosition() const { return m_point.globalPosition(); }
+    inline QPointF position() const
+    { Q_ASSERT(!m_points.isEmpty()); return m_points.first().position(); }
+    inline QPointF scenePosition() const
+    { Q_ASSERT(!m_points.isEmpty()); return m_points.first().scenePosition(); }
+    inline QPointF globalPosition() const
+    { Q_ASSERT(!m_points.isEmpty()); return m_points.first().globalPosition(); }
 
-    bool isPressEvent() const override;
+    bool isBeginEvent() const override;
     bool isUpdateEvent() const override;
-    bool isReleaseEvent() const override;
+    bool isEndEvent() const override;
+
+    QObject *exclusivePointGrabber() const
+    { return QPointerEvent::exclusiveGrabber(points().first()); }
+    void setExclusivePointGrabber(QObject *exclusiveGrabber)
+    { QPointerEvent::setExclusiveGrabber(points().first(), exclusiveGrabber); }
 
 protected:
-    QEventPoint m_point;
+    QSinglePointEvent(Type type, const QPointingDevice *dev, const QEventPoint &point,
+                      Qt::MouseButton button, Qt::MouseButtons buttons,
+                      Qt::KeyboardModifiers modifiers, Qt::MouseEventSource source);
+
     Qt::MouseButton m_button = Qt::NoButton;
     Qt::MouseButtons m_mouseState = Qt::NoButton;
     quint32 m_source : 8; // actually Qt::MouseEventSource
@@ -353,6 +384,12 @@ protected:
 #if QT_CONFIG(wheelevent)
 class Q_GUI_EXPORT QWheelEvent : public QSinglePointEvent
 {
+    Q_GADGET
+    Q_PROPERTY(const QPointingDevice *device READ pointingDevice)
+    Q_PROPERTY(QPoint pixelDelta READ pixelDelta)
+    Q_PROPERTY(QPoint angleDelta READ angleDelta)
+    Q_PROPERTY(Qt::ScrollPhase phase READ phase)
+    Q_PROPERTY(bool inverted READ inverted)
 public:
     enum { DefaultDeltasPerStep = 120 };
 
@@ -367,7 +404,12 @@ public:
 
     inline Qt::ScrollPhase phase() const { return Qt::ScrollPhase(m_phase); }
     inline bool inverted() const { return m_invertedScrolling; }
+    inline bool isInverted() const { return m_invertedScrolling; }
+    inline bool hasPixelDelta() const { return !m_pixelDelta.isNull(); }
 
+    bool isBeginEvent() const override;
+    bool isUpdateEvent() const override;
+    bool isEndEvent() const override;
     Qt::MouseEventSource source() const { return Qt::MouseEventSource(m_source); }
 
 protected:
@@ -416,8 +458,8 @@ public:
     QT_DEPRECATED_VERSION_X_6_0("use pointingDevice().uniqueId()")
     inline qint64 uniqueId() const { return pointingDevice() ? pointingDevice()->uniqueId().numericId() : -1; }
 #endif
-    inline qreal pressure() const { return point(0).pressure(); }
-    inline qreal rotation() const { return point(0).rotation(); }
+    inline qreal pressure() const { Q_ASSERT(!points().isEmpty()); return points().first().pressure(); }
+    inline qreal rotation() const { Q_ASSERT(!points().isEmpty()); return points().first().rotation(); }
     inline int z() const { return m_z; }
     inline qreal tangentialPressure() const { return m_tangential; }
     inline int xTilt() const { return m_xTilt; }
@@ -480,6 +522,10 @@ public:
     bool matches(QKeySequence::StandardKey key) const;
 #endif
     Qt::KeyboardModifiers modifiers() const;
+    QKeyCombination keyCombination() const
+    {
+        return QKeyCombination(modifiers(), Qt::Key(m_key));
+    }
     inline QString text() const { return m_text; }
     inline bool isAutoRepeat() const { return m_autoRepeat; }
     inline int count() const { return int(m_count); }
@@ -487,6 +533,13 @@ public:
     inline quint32 nativeScanCode() const { return m_scanCode; }
     inline quint32 nativeVirtualKey() const { return m_virtualKey; }
     inline quint32 nativeModifiers() const { return m_modifiers; }
+
+#if QT_CONFIG(shortcut)
+    friend inline bool operator==(QKeyEvent *e, QKeySequence::StandardKey key)
+    { return (e ? e->matches(key) : false); }
+    friend inline bool operator==(QKeySequence::StandardKey key, QKeyEvent *e)
+    { return (e ? e->matches(key) : false); }
+#endif // QT_CONFIG(shortcut)
 
 protected:
     QString m_text;
@@ -938,11 +991,6 @@ private:
 Q_GUI_EXPORT QDebug operator<<(QDebug, const QEvent *);
 #endif
 
-#if QT_CONFIG(shortcut)
-inline bool operator==(QKeyEvent *e, QKeySequence::StandardKey key){return (e ? e->matches(key) : false);}
-inline bool operator==(QKeySequence::StandardKey key, QKeyEvent *e){return (e ? e->matches(key) : false);}
-#endif // QT_CONFIG(shortcut)
-
 class Q_GUI_EXPORT QTouchEvent : public QPointerEvent
 {
 public:
@@ -962,20 +1010,20 @@ public:
 #endif
     ~QTouchEvent();
 
-    int pointCount() const override { return m_touchPoints.count(); }
-    const QEventPoint &point(int i) const override { return m_touchPoints.at(i); }
-
     inline QObject *target() const { return m_target; }
     inline QEventPoint::States touchPointStates() const { return m_touchPointStates; }
-    const QList<QEventPoint> &touchPoints() const { return m_touchPoints; }
-    bool isPressEvent() const override;
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_DEPRECATED_VERSION_X_6_0("Use points()")
+    const QList<QEventPoint> &touchPoints() const { return points(); }
+#endif
+    bool isBeginEvent() const override;
     bool isUpdateEvent() const override;
-    bool isReleaseEvent() const override;
+    bool isEndEvent() const override;
 
 protected:
     QObject *m_target = nullptr;
     QEventPoint::States m_touchPointStates = QEventPoint::State::Unknown;
-    QList<QEventPoint> m_touchPoints;
+    quint32 m_reserved : 24;
 };
 
 class Q_GUI_EXPORT QScrollPrepareEvent : public QEvent

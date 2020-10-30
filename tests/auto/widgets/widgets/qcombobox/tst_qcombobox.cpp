@@ -175,26 +175,26 @@ class MyAbstractItemDelegate : public QAbstractItemDelegate
 {
 public:
     MyAbstractItemDelegate() : QAbstractItemDelegate() {};
-    void paint(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const {}
-    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const { return QSize(); }
+    void paint(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const override {}
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override { return QSize(); }
 };
 
 class MyAbstractItemModel: public QAbstractItemModel
 {
 public:
     MyAbstractItemModel() : QAbstractItemModel() {};
-    QModelIndex index(int, int, const QModelIndex &) const { return QModelIndex(); }
-    QModelIndex parent(const QModelIndex &) const  { return QModelIndex(); }
-    int rowCount(const QModelIndex &) const { return 0; }
-    int columnCount(const QModelIndex &) const { return 0; }
-    bool hasChildren(const QModelIndex &) const { return false; }
-    QVariant data(const QModelIndex &, int) const { return QVariant(); }
-    bool setData(const QModelIndex &, const QVariant &, int) { return false; }
-    bool insertRows(int, int, const QModelIndex &) { return false; }
-    bool insertColumns(int, int, const QModelIndex &) { return false; }
+    QModelIndex index(int, int, const QModelIndex &) const override { return QModelIndex(); }
+    QModelIndex parent(const QModelIndex &) const override { return QModelIndex(); }
+    int rowCount(const QModelIndex &) const override { return 0; }
+    int columnCount(const QModelIndex &) const override { return 0; }
+    bool hasChildren(const QModelIndex &) const override { return false; }
+    QVariant data(const QModelIndex &, int) const override { return QVariant(); }
+    bool setData(const QModelIndex &, const QVariant &, int) override { return false; }
+    bool insertRows(int, int, const QModelIndex &) override { return false; }
+    bool insertColumns(int, int, const QModelIndex &) override { return false; }
     void setPersistent(const QModelIndex &, const QModelIndex &) {}
-    bool removeRows (int, int, const QModelIndex &) { return false; }
-    bool removeColumns(int, int, const QModelIndex &) { return false; }
+    bool removeRows (int, int, const QModelIndex &) override { return false; }
+    bool removeColumns(int, int, const QModelIndex &) override { return false; }
     void reset() {}
 };
 
@@ -202,16 +202,16 @@ class MyAbstractItemView : public QAbstractItemView
 {
 public:
     MyAbstractItemView() : QAbstractItemView() {}
-    QRect visualRect(const QModelIndex &) const { return QRect(); }
-    void scrollTo(const QModelIndex &, ScrollHint) {}
-    QModelIndex indexAt(const QPoint &) const { return QModelIndex(); }
+    QRect visualRect(const QModelIndex &) const override { return QRect(); }
+    void scrollTo(const QModelIndex &, ScrollHint) override {}
+    QModelIndex indexAt(const QPoint &) const override { return QModelIndex(); }
 protected:
-    QModelIndex moveCursor(CursorAction, Qt::KeyboardModifiers) { return QModelIndex(); }
-    int horizontalOffset() const { return 0; }
-    int verticalOffset() const { return 0; }
-    bool isIndexHidden(const QModelIndex &) const { return false; }
-    void setSelection(const QRect &, QItemSelectionModel::SelectionFlags) {}
-    QRegion visualRegionForSelection(const QItemSelection &) const { return QRegion(); }
+    QModelIndex moveCursor(CursorAction, Qt::KeyboardModifiers) override { return QModelIndex(); }
+    int horizontalOffset() const override { return 0; }
+    int verticalOffset() const override { return 0; }
+    bool isIndexHidden(const QModelIndex &) const override { return false; }
+    void setSelection(const QRect &, QItemSelectionModel::SelectionFlags) override {}
+    QRegion visualRegionForSelection(const QItemSelection &) const override { return QRegion(); }
 };
 
 void tst_QComboBox::initTestCase()
@@ -408,7 +408,7 @@ void tst_QComboBox::getSetCheck()
     obj1.clear();
     obj1.setPlaceholderText(placeholderText);
     obj1.addItems({"1", "2", "3", "4", "5"});
-    QCOMPARE(obj1.currentText(), placeholderText);
+    QCOMPARE(obj1.currentText(), QString());
     QCOMPARE(obj1.currentIndex(), -1);
     obj1.setPlaceholderText(QString()); // should not change anything
     QCOMPARE(obj1.currentText(), "1");
@@ -1822,7 +1822,7 @@ class ReturnClass : public QWidget
 {
     Q_OBJECT
 public:
-    ReturnClass(QWidget *parent = 0)
+    ReturnClass(QWidget *parent = nullptr)
         : QWidget(parent), received(false)
     {
         QComboBox *box = new QComboBox(this);
@@ -1831,7 +1831,7 @@ public:
         box->setGeometry(rect());
     }
 
-    void keyPressEvent(QKeyEvent *e)
+    void keyPressEvent(QKeyEvent *e) override
     {
         received = (e->key() == Qt::Key_Return || e->key() == Qt::Key_Enter);
     }
@@ -2303,7 +2303,7 @@ class task166349_ComboBox : public QComboBox
 {
     Q_OBJECT
 public:
-    task166349_ComboBox(QWidget *parent = 0) : QComboBox(parent)
+    task166349_ComboBox(QWidget *parent = nullptr) : QComboBox(parent)
     {
         QStringList list;
         list << "one" << "two";
@@ -2666,13 +2666,13 @@ void tst_QComboBox::task260974_menuItemRectangleForComboBoxPopup()
     public:
         TestStyle() : QProxyStyle(QStyleFactory::create("windows")) { }
 
-        int styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget, QStyleHintReturn *ret) const
+        int styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget, QStyleHintReturn *ret) const override
         {
             if (hint == SH_ComboBox_Popup) return 1;
             else return QCommonStyle::styleHint(hint, option, widget, ret);
         }
 
-        void drawControl(ControlElement element, const QStyleOption *option, QPainter *, const QWidget *) const
+        void drawControl(ControlElement element, const QStyleOption *option, QPainter *, const QWidget *) const override
         {
             if (element == CE_MenuItem)
                 discoveredRect = option->rect;

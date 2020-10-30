@@ -56,7 +56,9 @@
 #include <QtNetwork/qnetworkrequest.h>
 #include <qmetatype.h>
 
+#ifndef Q_OS_WASM
 QT_REQUIRE_CONFIG(http);
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -147,6 +149,9 @@ public:
 
     QString peerVerifyName() const;
     void setPeerVerifyName(const QString &peerName);
+
+    bool ignoreDecompressionRatio();
+    void setIgnoreDecompressionRatio(bool enabled);
 private:
     QSharedDataPointer<QHttpNetworkRequestPrivate> d;
     friend class QHttpNetworkRequestPrivate;
@@ -179,6 +184,7 @@ public:
     bool withCredentials;
     bool ssl;
     bool preConnect;
+    bool ignoreDecompressionRatio = false;
     int redirectCount;
     QNetworkRequest::RedirectPolicy redirectPolicy;
     QString peerVerifyName;

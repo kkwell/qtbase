@@ -4143,8 +4143,12 @@ void QGraphicsScene::wheelEvent(QGraphicsSceneWheelEvent *wheelEvent)
 void QGraphicsScene::inputMethodEvent(QInputMethodEvent *event)
 {
     Q_D(QGraphicsScene);
-    if (d->focusItem && (d->focusItem->flags() & QGraphicsItem::ItemAcceptsInputMethod))
+    if (d->focusItem && (d->focusItem->flags() & QGraphicsItem::ItemAcceptsInputMethod)) {
         d->sendEvent(d->focusItem, event);
+        return;
+    }
+    if (d->lastFocusItem && d->lastFocusItem != d->focusItem && (d->lastFocusItem->flags() & QGraphicsItem::ItemAcceptsInputMethod))
+        d->sendEvent(d->lastFocusItem, event);
 }
 
 /*!
@@ -4416,7 +4420,7 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
             QRegion pixmapExposed;
             QRectF exposedRect;
             if (!itemCache->allExposed) {
-                for (const auto rect : qAsConst(itemCache->exposed)) {
+                for (const auto &rect : qAsConst(itemCache->exposed)) {
                     exposedRect |= rect;
                     pixmapExposed += itemToPixmap.mapRect(rect).toAlignedRect();
                 }
@@ -4576,7 +4580,7 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
             // Map the item's logical expose to pixmap coordinates.
             QRegion pixmapExposed = scrollExposure;
             if (!itemCache->allExposed) {
-                for (const auto rect : qAsConst(itemCache->exposed))
+                for (const auto &rect : qAsConst(itemCache->exposed))
                     pixmapExposed += itemToPixmap.mapRect(rect).toRect().adjusted(-1, -1, 1, 1);
             }
 
@@ -4585,7 +4589,7 @@ void QGraphicsScenePrivate::drawItemHelper(QGraphicsItem *item, QPainter *painte
             if (itemCache->allExposed) {
                 br = item->boundingRect();
             } else {
-                for (const auto rect : qAsConst(itemCache->exposed))
+                for (const auto &rect : qAsConst(itemCache->exposed))
                     br |= rect;
                 QTransform pixmapToItem = itemToPixmap.inverted();
                 for (const QRect &r : qAsConst(scrollExposure))
@@ -5272,7 +5276,7 @@ void QGraphicsScenePrivate::processDirtyItemsRecursive(QGraphicsItem *item, bool
 
     Example:
 
-    \snippet graphicssceneadditemsnippet.cpp 0
+    \snippet graphicssceneadditem/graphicssceneadditemsnippet.cpp 0
 
     Since Qt 4.6, this function is not called anymore unless
     the QGraphicsView::IndirectPainting flag is given as an Optimization
@@ -5829,8 +5833,10 @@ void QGraphicsScenePrivate::updateTouchPointsForItem(QGraphicsItem *item, QTouch
     const QTransform mapFromScene =
         item->d_ptr->genericMapFromSceneTransform(static_cast<const QWidget *>(touchEvent->target()));
 
-    for (QEventPoint &pt : QMutableTouchEvent::from(touchEvent)->touchPoints())
+    for (int i = 0; i < touchEvent->pointCount(); ++i) {
+        auto &pt = QMutableEventPoint::from(touchEvent->point(i));
         QMutableEventPoint::from(pt).setPosition(mapFromScene.map(pt.scenePosition()));
+    }
 }
 
 int QGraphicsScenePrivate::findClosestTouchPointId(const QPointF &scenePos)
@@ -5852,7 +5858,7 @@ void QGraphicsScenePrivate::touchEventHandler(QTouchEvent *sceneTouchEvent)
     typedef QPair<QEventPoint::States, QList<QEventPoint> > StatesAndTouchPoints;
     QHash<QGraphicsItem *, StatesAndTouchPoints> itemsNeedingEvents;
 
-    const auto touchPoints = sceneTouchEvent->touchPoints();
+    const auto &touchPoints = sceneTouchEvent->points();
     for (const auto &touchPoint : touchPoints) {
         // update state
         QGraphicsItem *item = nullptr;
@@ -5950,7 +5956,7 @@ void QGraphicsScenePrivate::touchEventHandler(QTouchEvent *sceneTouchEvent)
             bool res = sendTouchBeginEvent(item, &touchEvent) && touchEvent.isAccepted();
             if (!res) {
                 // forget about these touch points, we didn't handle them
-                const auto unhandledTouchPoints = touchEvent.touchPoints();
+                const auto &unhandledTouchPoints = touchEvent.points();
                 for (const auto &touchPoint : unhandledTouchPoints) {
                     itemForTouchPointId.remove(touchPoint.id());
                     sceneCurrentTouchPoints.remove(touchPoint.id());
@@ -5977,7 +5983,7 @@ bool QGraphicsScenePrivate::sendTouchBeginEvent(QGraphicsItem *origin, QTouchEve
 
     if (focusOnTouch) {
         if (cachedItemsUnderMouse.isEmpty() || cachedItemsUnderMouse.constFirst() != origin) {
-            const QEventPoint &firstTouchPoint = touchEvent->touchPoints().first();
+            const QEventPoint &firstTouchPoint = touchEvent->points().first();
             cachedItemsUnderMouse = itemsAtPosition(firstTouchPoint.globalPosition().toPoint(),
                                                     firstTouchPoint.scenePosition(),
                                                     static_cast<QWidget *>(touchEvent->target()));
@@ -6020,7 +6026,7 @@ bool QGraphicsScenePrivate::sendTouchBeginEvent(QGraphicsItem *origin, QTouchEve
         touchEvent->setAccepted(acceptTouchEvents);
         res = acceptTouchEvents && sendEvent(item, touchEvent);
         eventAccepted = touchEvent->isAccepted();
-        if (itemForTouchPointId.value(touchEvent->touchPoints().first().id()) == 0) {
+        if (itemForTouchPointId.value(touchEvent->points().first().id()) == 0) {
             // item was deleted
             item = nullptr;
         } else {
@@ -6029,7 +6035,7 @@ bool QGraphicsScenePrivate::sendTouchBeginEvent(QGraphicsItem *origin, QTouchEve
         touchEvent->spont = false;
         if (res && eventAccepted) {
             // the first item to accept the TouchBegin gets an implicit grab.
-            const auto touchPoints = touchEvent->touchPoints();
+            const auto &touchPoints = touchEvent->points();
             for (const auto &touchPoint : touchPoints)
                 itemForTouchPointId[touchPoint.id()] = item; // can be zero
             break;

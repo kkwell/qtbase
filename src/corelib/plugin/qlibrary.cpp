@@ -270,7 +270,7 @@ static bool findPatternUnloaded(const QString &library, QLibraryPrivate *lib)
     qsizetype pos = 0;
     char pattern[] = "qTMETADATA ";
     pattern[0] = 'Q'; // Ensure the pattern "QTMETADATA" is not found in this library should QPluginLoader ever encounter it.
-    const ulong plen = qstrlen(pattern);
+    const ulong plen = ulong(qstrlen(pattern));
 #if defined (Q_OF_ELF) && defined(Q_CC_GNU)
     int r = QElfParser().parse(filedata, fdlen, library, lib, &pos, &fdlen);
     if (r == QElfParser::Corrupt || r == QElfParser::NotElf) {
@@ -286,7 +286,7 @@ static bool findPatternUnloaded(const QString &library, QLibraryPrivate *lib)
             pos += rel;
         hasMetaData = true;
     }
-#elif defined (Q_OF_MACH_O)
+#elif defined(Q_OF_MACH_O)
     {
         QString errorString;
         int r = QMachOParser::parse(filedata, fdlen, library, &errorString, &pos, &fdlen);
@@ -382,7 +382,7 @@ private:
     static inline QLibraryStore *instance();
 
     // all members and instance() are protected by qt_library_mutex
-    typedef QMap<QString, QLibraryPrivate*> LibraryMap;
+    typedef QMap<QString, QLibraryPrivate *> LibraryMap;
     LibraryMap libraryMap;
 };
 
@@ -608,8 +608,8 @@ bool QLibraryPrivate::unload(UnloadFlag flag)
             if (qt_debug_component())
                 qWarning() << "QLibraryPrivate::unload succeeded on" << fileName
                            << (flag == NoUnloadSys ? "(faked)" : "");
-            //when the library is unloaded, we release the reference on it so that 'this'
-            //can get deleted
+            // when the library is unloaded, we release the reference on it so that 'this'
+            // can get deleted
             libraryRefCount.deref();
             pHnd.storeRelaxed(nullptr);
             instanceFactory.storeRelaxed(nullptr);
@@ -772,7 +772,7 @@ void QLibraryPrivate::updatePluginState()
     }
 
     if (!success) {
-        if (errorString.isEmpty()){
+        if (errorString.isEmpty()) {
             if (fileName.isEmpty())
                 errorString = QLibrary::tr("The shared library was not found.");
             else
@@ -825,9 +825,10 @@ bool QLibrary::load()
 {
     if (!d)
         return false;
-    if (did_load)
+    if (d.tag() == Loaded)
         return d->pHnd.loadRelaxed();
-    did_load = true;
+    else
+        d.setTag(Loaded);
     return d->load();
 }
 
@@ -848,8 +849,8 @@ bool QLibrary::load()
 */
 bool QLibrary::unload()
 {
-    if (did_load) {
-        did_load = false;
+    if (d.tag() == Loaded) {
+        d.setTag(NotLoaded);
         return d->unload();
     }
     return false;
@@ -869,8 +870,7 @@ bool QLibrary::isLoaded() const
 /*!
     Constructs a library with the given \a parent.
  */
-QLibrary::QLibrary(QObject *parent)
-    :QObject(parent), d(nullptr), did_load(false)
+QLibrary::QLibrary(QObject *parent) : QObject(parent)
 {
 }
 
@@ -884,12 +884,10 @@ QLibrary::QLibrary(QObject *parent)
     suffix in accordance with the platform, e.g. ".so" on Unix,
     ".dylib" on \macos and iOS, and ".dll" on Windows. (See \l{fileName}.)
  */
-QLibrary::QLibrary(const QString& fileName, QObject *parent)
-    :QObject(parent), d(nullptr), did_load(false)
+QLibrary::QLibrary(const QString &fileName, QObject *parent) : QObject(parent)
 {
     setFileName(fileName);
 }
-
 
 /*!
     Constructs a library object with the given \a parent that will
@@ -901,8 +899,7 @@ QLibrary::QLibrary(const QString& fileName, QObject *parent)
     suffix in accordance with the platform, e.g. ".so" on Unix,
     ".dylib" on \macos and iOS, and ".dll" on Windows. (See \l{fileName}.)
 */
-QLibrary::QLibrary(const QString& fileName, int verNum, QObject *parent)
-    :QObject(parent), d(nullptr), did_load(false)
+QLibrary::QLibrary(const QString &fileName, int verNum, QObject *parent) : QObject(parent)
 {
     setFileNameAndVersion(fileName, verNum);
 }
@@ -917,8 +914,8 @@ QLibrary::QLibrary(const QString& fileName, int verNum, QObject *parent)
     suffix in accordance with the platform, e.g. ".so" on Unix,
     ".dylib" on \macos and iOS, and ".dll" on Windows. (See \l{fileName}.)
  */
-QLibrary::QLibrary(const QString& fileName, const QString &version, QObject *parent)
-    :QObject(parent), d(nullptr), did_load(false)
+QLibrary::QLibrary(const QString &fileName, const QString &version, QObject *parent)
+    : QObject(parent)
 {
     setFileNameAndVersion(fileName, version);
 }
@@ -936,7 +933,6 @@ QLibrary::~QLibrary()
     if (d)
         d->release();
 }
-
 
 /*!
     \property QLibrary::fileName
@@ -965,8 +961,7 @@ void QLibrary::setFileName(const QString &fileName)
     if (d) {
         lh = d->loadHints();
         d->release();
-        d = nullptr;
-        did_load = false;
+        d = {};
     }
     d = QLibraryPrivate::findOrCreate(fileName, QString(), lh);
 }
@@ -995,8 +990,7 @@ void QLibrary::setFileNameAndVersion(const QString &fileName, int verNum)
     if (d) {
         lh = d->loadHints();
         d->release();
-        d = nullptr;
-        did_load = false;
+        d = {};
     }
     d = QLibraryPrivate::findOrCreate(fileName, verNum >= 0 ? QString::number(verNum) : QString(), lh);
 }
@@ -1016,8 +1010,7 @@ void QLibrary::setFileNameAndVersion(const QString &fileName, const QString &ver
     if (d) {
         lh = d->loadHints();
         d->release();
-        d = nullptr;
-        did_load = false;
+        d = {};
     }
     d = QLibraryPrivate::findOrCreate(fileName, version, lh);
 }

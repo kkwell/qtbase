@@ -48,13 +48,13 @@
 
 QT_REQUIRE_CONFIG(processenvironment);
 
-#ifdef Q_OS_WIN
-typedef struct _PROCESS_INFORMATION *Q_PID;
-#endif
-
 #if defined(Q_OS_WIN) || defined(Q_CLANG_QDOC)
-typedef struct _SECURITY_ATTRIBUTES Q_SECURITY_ATTRIBUTES;
-typedef struct _STARTUPINFOW Q_STARTUPINFO;
+struct _PROCESS_INFORMATION;
+struct _SECURITY_ATTRIBUTES;
+struct _STARTUPINFOW;
+using Q_PROCESS_INFORMATION = _PROCESS_INFORMATION;
+using Q_SECURITY_ATTRIBUTES = _SECURITY_ATTRIBUTES;
+using Q_STARTUPINFO = _STARTUPINFOW;
 #endif
 
 QT_BEGIN_NAMESPACE
@@ -62,17 +62,13 @@ QT_BEGIN_NAMESPACE
 class QProcessPrivate;
 class QProcessEnvironmentPrivate;
 
-#ifndef Q_OS_WIN
-typedef qint64 Q_PID;
-#endif
-
 class Q_CORE_EXPORT QProcessEnvironment
 {
 public:
     QProcessEnvironment();
     QProcessEnvironment(const QProcessEnvironment &other);
     ~QProcessEnvironment();
-    QProcessEnvironment &operator=(QProcessEnvironment && other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QProcessEnvironment)
     QProcessEnvironment &operator=(const QProcessEnvironment &other);
 
     void swap(QProcessEnvironment &other) noexcept { qSwap(d, other.d); }
@@ -160,6 +156,7 @@ public:
 
     void start(const QString &program, const QStringList &arguments = {}, OpenMode mode = ReadWrite);
     void start(OpenMode mode = ReadWrite);
+    void startCommand(const QString &command, OpenMode mode = ReadWrite);
     bool startDetached(qint64 *pid = nullptr);
     bool open(OpenMode mode = ReadWrite) override;
 
@@ -199,12 +196,16 @@ public:
         void *environment;
         const wchar_t *currentDirectory;
         Q_STARTUPINFO *startupInfo;
-        Q_PID processInformation;
+        Q_PROCESS_INFORMATION *processInformation;
     };
     typedef std::function<void(CreateProcessArguments *)> CreateProcessArgumentModifier;
     CreateProcessArgumentModifier createProcessArgumentsModifier() const;
     void setCreateProcessArgumentsModifier(CreateProcessArgumentModifier modifier);
 #endif // Q_OS_WIN || Q_CLANG_QDOC
+#if defined(Q_OS_UNIX) || defined(Q_CLANG_QDOC)
+    std::function<void(void)> childProcessModifier() const;
+    void setChildProcessModifier(const std::function<void(void)> &modifier);
+#endif
 
     QString workingDirectory() const;
     void setWorkingDirectory(const QString &dir);
@@ -217,8 +218,6 @@ public:
     QProcess::ProcessError error() const;
     QProcess::ProcessState state() const;
 
-    // #### Qt 5: Q_PID is a pointer on Windows and a value on Unix
-    Q_PID pid() const;
     qint64 processId() const;
 
     bool waitForStarted(int msecs = 30000);
@@ -263,8 +262,6 @@ Q_SIGNALS:
 protected:
     void setProcessState(ProcessState state);
 
-    virtual void setupChildProcess();
-
     // QIODevice
     qint64 readData(char *data, qint64 maxlen) override;
     qint64 writeData(const char *data, qint64 len) override;
@@ -272,6 +269,15 @@ protected:
 private:
     Q_DECLARE_PRIVATE(QProcess)
     Q_DISABLE_COPY(QProcess)
+
+#if QT_VERSION < QT_VERSION_CHECK(7,0,0)
+    // ### Qt7: Remove this struct and the virtual function; they're here only
+    // to cause build errors in Qt 5 code that wasn't updated to Qt 6's
+    // setChildProcessModifier()
+    struct Use_setChildProcessModifier_Instead {};
+    QT_DEPRECATED_X("Use setChildProcessModifier() instead")
+    virtual Use_setChildProcessModifier_Instead setupChildProcess();
+#endif
 
     Q_PRIVATE_SLOT(d_func(), bool _q_canReadStandardOutput())
     Q_PRIVATE_SLOT(d_func(), bool _q_canReadStandardError())

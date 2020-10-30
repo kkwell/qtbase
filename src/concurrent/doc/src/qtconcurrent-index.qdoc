@@ -34,7 +34,7 @@
     \include module-use.qdocinc using qt module
     \snippet snippets/CMakeLists.txt cmake_use
 
-    See also the \l[QtDoc]{Building with CMake} overview.
+    See also the \l[QtDoc]{Build with CMake} overview.
 
     \include module-use.qdocinc building with qmake
     \snippet snippets/snippets.pro qmake_use
@@ -81,15 +81,10 @@
             folded into a single result.
     \endlist
 
-    \li \l {Concurrent Run and Run With Promise}
+    \li \l {Concurrent Run}
     \list
         \li \l {QtConcurrent::run}{QtConcurrent::run()} runs a function in
             another thread.
-        \li \l {QtConcurrent::runWithPromise}{QtConcurrent::runWithPromise()}
-            is like run(), except that the function to run accepts additional
-            argument of QPromise type that enables more control over the function
-            execution, like suspending or canceling the execution when requested,
-            progress reporting or reporting multiple results.
     \endlist
 
     \li \l {Concurrent Task}
@@ -107,6 +102,10 @@
 
     \li QFutureSynchronizer is a convenience class that automatically
     synchronizes several QFutures.
+
+    \li QPromise provides a way to report progress and results of the asynchronous
+    computation to QFuture. Allows suspending or canceling the task when
+    requested by QFuture.
 
     \endlist
 
@@ -153,6 +152,10 @@
     copy of the container when called. If you are using STL containers this copy operation
     might take some time, in this case we recommend specifying the begin and end iterators
     for the container instead.
+
+    \section1 Module Evolution
+    \l{Porting to Qt 6 - Qt Concurrent} lists important changes in the module API
+    and functionality that were done for the Qt 6 series of Qt.
 
     \section1 Licenses
 

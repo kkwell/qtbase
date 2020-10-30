@@ -99,13 +99,12 @@ struct GuiTypesFilter {
     };
 };
 
-
 static const struct : QMetaTypeModuleHelper
 {
 #define QT_IMPL_METATYPEINTERFACE_GUI_TYPES(MetaTypeName, MetaTypeId, RealName) \
     QT_METATYPE_INTERFACE_INIT(RealName),
 
-    QtPrivate::QMetaTypeInterface *interfaceForType(int type) const override {
+    const QtPrivate::QMetaTypeInterface *interfaceForType(int type) const override {
         switch (type) {
             QT_FOR_EACH_STATIC_GUI_CLASS(QT_METATYPE_CONVERT_ID_TO_TYPE)
             default: return nullptr;
@@ -146,7 +145,7 @@ static const struct : QMetaTypeModuleHelper
         );
         QMETATYPE_CONVERTER(QKeySequence, QString, result = source; return true;);
         QMETATYPE_CONVERTER(Int, QKeySequence,
-            result = source.isEmpty() ? 0 : source[0];
+            result = source.isEmpty() ? 0 : source[0].toCombined();
             return true;
         );
         QMETATYPE_CONVERTER(QKeySequence, Int, result = source; return true;);
@@ -156,7 +155,7 @@ static const struct : QMetaTypeModuleHelper
         QMETATYPE_CONVERTER(QPixmap, QImage, result = QPixmap::fromImage(source); return true;);
         QMETATYPE_CONVERTER(QImage, QPixmap, result = source.toImage(); return true;);
         QMETATYPE_CONVERTER(QPixmap, QBitmap, result = source; return true;);
-        QMETATYPE_CONVERTER(QBitmap, QPixmap, result = source; return true;);
+        QMETATYPE_CONVERTER(QBitmap, QPixmap, result = QBitmap::fromPixmap(source); return true;);
         QMETATYPE_CONVERTER(QImage, QBitmap, result = source.toImage(); return true;);
         QMETATYPE_CONVERTER(QBitmap, QImage, result = QBitmap::fromImage(source); return true;);
         QMETATYPE_CONVERTER(QPixmap, QBrush, result = source.texture(); return true;);

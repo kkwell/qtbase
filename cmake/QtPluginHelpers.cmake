@@ -67,7 +67,7 @@ function(qt_internal_add_plugin target)
     if(arg_OUTPUT_NAME)
         set(output_name "${arg_OUTPUT_NAME}")
     endif()
-    set_property(TARGET "${target}" PROPERTY OUTPUT_NAME "${output_name}")
+    set_property(TARGET "${target}" PROPERTY OUTPUT_NAME "${output_name}${QT_LIBINFIX}")
 
     # Add a custom target with the Qt5 qmake name for a more user friendly ninja experience.
     if(arg_OUTPUT_NAME AND NOT TARGET "${output_name}")
@@ -133,11 +133,31 @@ function(qt_internal_add_plugin target)
                               _qt_plugin_install_package_suffix "${plugin_install_package_suffix}")
     endif()
 
-    set(_default_plugin 1)
+    # TODO: This is a bit too coarse for generic plugins.
+    # The generic plugins should also be enabled by default, once QTBUG-87861 is fixed.
+    # But platform plugins should always be disabled by default, and only one is enabled
+    # based on the platform (condition specified in arg_DEFAULT_IF).
+    if(plugin_type_escaped STREQUAL "generic" OR plugin_type_escaped STREQUAL "platforms")
+        set(_default_plugin 0)
+    else()
+        set(_default_plugin 1)
+    endif()
+
     if (DEFINED arg_DEFAULT_IF)
       if (NOT ${arg_DEFAULT_IF})
           set(_default_plugin 0)
+      else()
+          set(_default_plugin 1)
       endif()
+    endif()
+
+    add_dependencies(qt_plugins "${target}")
+    if(arg_TYPE STREQUAL "platforms")
+        add_dependencies(qpa_plugins "${target}")
+
+        if(_default_plugin)
+            add_dependencies(qpa_default_plugins "${target}")
+        endif()
     endif()
 
     set_property(TARGET "${target}" PROPERTY QT_DEFAULT_PLUGIN "${_default_plugin}")
@@ -155,7 +175,7 @@ function(qt_internal_add_plugin target)
         ${arg_PUBLIC_INCLUDE_DIRECTORIES}
     )
 
-    qt_extend_target("${target}"
+    qt_internal_extend_target("${target}"
         SOURCES ${arg_SOURCES}
         INCLUDE_DIRECTORIES
             ${private_includes}
@@ -166,7 +186,7 @@ function(qt_internal_add_plugin target)
         DEFINES
             ${arg_DEFINES}
             QT_DEPRECATED_WARNINGS
-            "${deprecation_define}"
+            ${deprecation_define}
             "${static_plugin_define}"
             QT_PLUGIN
         PUBLIC_DEFINES
@@ -217,6 +237,10 @@ function(qt_internal_add_plugin target)
         qt_path_join(config_build_dir ${QT_CONFIG_BUILD_DIR} ${path_suffix})
         qt_path_join(config_install_dir ${QT_CONFIG_INSTALL_DIR} ${path_suffix})
 
+        qt_internal_export_additional_targets_file(
+            TARGETS ${target}
+            EXPORT_NAME_PREFIX ${INSTALL_CMAKE_NAMESPACE}${target}
+            CONFIG_INSTALL_DIR "${config_install_dir}")
         configure_package_config_file(
             "${QT_CMAKE_DIR}/QtPluginConfig.cmake.in"
             "${config_build_dir}/${INSTALL_CMAKE_NAMESPACE}${target}Config.cmake"
@@ -263,6 +287,7 @@ function(qt_internal_add_plugin target)
 
     qt_internal_add_linker_version_script(${target})
     qt_add_list_file_finalizer(qt_finalize_plugin ${target} "${install_directory}")
+    qt_internal_install_pdb_files(${target} "${install_directory}")
 endfunction()
 
 function(qt_finalize_plugin target install_directory)

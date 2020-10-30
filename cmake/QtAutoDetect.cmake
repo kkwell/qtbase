@@ -6,6 +6,27 @@
 # done when initially configuring qtbase.
 
 function(qt_auto_detect_android)
+    # Auto-detect NDK root
+    if(NOT DEFINED CMAKE_ANDROID_NDK_ROOT AND DEFINED ANDROID_SDK_ROOT)
+        set(ndk_root "${ANDROID_SDK_ROOT}/ndk-bundle")
+        if(IS_DIRECTORY "${ndk_root}")
+            message(STATUS "Android NDK detected: ${ndk_root}")
+            set(ANDROID_NDK_ROOT "${ndk_root}" CACHE STRING "")
+        endif()
+    endif()
+
+    # Auto-detect toolchain file
+    if(NOT DEFINED CMAKE_TOOLCHAIN_FILE AND DEFINED ANDROID_NDK_ROOT)
+        set(toolchain_file "${ANDROID_NDK_ROOT}/build/cmake/android.toolchain.cmake")
+        if(EXISTS "${toolchain_file}")
+            message(STATUS "Android toolchain file within NDK detected: ${toolchain_file}")
+            set(CMAKE_TOOLCHAIN_FILE "${toolchain_file}" CACHE STRING "")
+        else()
+            message(FATAL_ERROR "Cannot find the toolchain file '${toolchain_file}'. "
+                "Please specify the toolchain file with -DCMAKE_TOOLCHAIN_FILE=<file>.")
+        endif()
+    endif()
+
     if(DEFINED CMAKE_TOOLCHAIN_FILE AND NOT DEFINED QT_AUTODETECT_ANDROID)
 
         file(READ ${CMAKE_TOOLCHAIN_FILE} toolchain_file_content OFFSET 0 LIMIT 80)
@@ -19,8 +40,8 @@ function(qt_auto_detect_android)
         if(android_detected)
             message(STATUS "Android toolchain file detected, checking configuration defaults...")
             if(NOT DEFINED ANDROID_NATIVE_API_LEVEL)
-                message(STATUS "ANDROID_NATIVE_API_LEVEL was not specified, using API level 21 as default")
-                set(ANDROID_NATIVE_API_LEVEL 21 CACHE STRING "")
+                message(STATUS "ANDROID_NATIVE_API_LEVEL was not specified, using API level 23 as default")
+                set(ANDROID_NATIVE_API_LEVEL 23 CACHE STRING "")
             endif()
             if(NOT DEFINED ANDROID_STL)
                 set(ANDROID_STL "c++_shared" CACHE STRING "")
@@ -69,14 +90,10 @@ function(qt_auto_detect_ios)
         # If the variable is explicitly provided, assume simulator_and_device to be off.
         if(QT_UIKIT_SDK)
             set(simulator_and_device OFF)
-        elseif(QT_FORCE_SIMULATOR_AND_DEVICE)
-            # TODO: Once we get simulator_and_device support in upstream CMake, only then allow
-            # usage of simulator_and_device without forcing.
-            set(simulator_and_device ON)
         else()
-            # If QT_UIKIT_SDK is not provided, default to simulator.
-            set(simulator_and_device OFF)
-            set(QT_UIKIT_SDK "iphonesimulator" CACHE "STRING" "Chosen uikit SDK.")
+            # Default to simulator_and_device when an explicit sdk is not requested.
+            # Requires CMake 3.17.0+.
+            set(simulator_and_device ON)
         endif()
 
         message(STATUS "simulator_and_device set to: \"${simulator_and_device}\".")
@@ -222,7 +239,7 @@ function(qt_internal_get_xcode_version out_var)
                         OUTPUT_VARIABLE xcode_version
                         ERROR_VARIABLE xcrun_error)
         if(NOT xcode_version)
-            message(WARNING "Can't determine Xcode version. Error: ${xcrun_error}")
+            message(NOTICE "Can't determine Xcode version. Error: ${xcrun_error}")
         endif()
         string(REPLACE "\n" " " xcode_version "${xcode_version}")
         string(STRIP "${xcode_version}" xcode_version)

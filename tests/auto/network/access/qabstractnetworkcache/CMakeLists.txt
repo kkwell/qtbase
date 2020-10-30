@@ -10,12 +10,13 @@ file(GLOB_RECURSE test_data_glob
     tests/*)
 list(APPEND test_data ${test_data_glob})
 
-qt_add_test(tst_qabstractnetworkcache
+qt_internal_add_test(tst_qabstractnetworkcache
     SOURCES
         tst_qabstractnetworkcache.cpp
     PUBLIC_LIBRARIES
         Qt::Network
     TESTDATA ${test_data}
+    QT_TEST_SERVER_LIST "apache2" # special case
 )
 
 #### Keys ignored in scope 1:.:.:qabstractnetworkcache.pro:<TRUE>:

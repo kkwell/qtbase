@@ -67,7 +67,7 @@ public:
 
     QUrlQuery(const QUrlQuery &other);
     QUrlQuery &operator=(const QUrlQuery &other);
-    QUrlQuery &operator=(QUrlQuery &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QUrlQuery)
     ~QUrlQuery();
 
     bool operator==(const QUrlQuery &other) const;
@@ -106,6 +106,7 @@ private:
     friend class QUrl;
     friend Q_CORE_EXPORT size_t qHash(const QUrlQuery &key, size_t seed) noexcept;
     QSharedDataPointer<QUrlQueryPrivate> d;
+
 public:
     typedef QSharedDataPointer<QUrlQueryPrivate> DataPtr;
     inline DataPtr &data_ptr() { return d; }

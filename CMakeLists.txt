@@ -1,9 +1,10 @@
 # special case skip regeneration
 cmake_minimum_required(VERSION 3.15.0)
 
-# Run auto detection routines, but not when doing stnadalone tests. In that case the detection
-# results are takend from either QtBuildInternals or the qt.toolchain.cmake file.
-if(NOT QT_BUILD_STANDALONE_TESTS)
+# Run auto detection routines, but not when doing standalone tests. In that case, the detection
+# results are taken from either QtBuildInternals or the qt.toolchain.cmake file. Also, inhibit
+# auto-detection in a top-level build, because the top-level project file already includes it.
+if(NOT QT_BUILD_STANDALONE_TESTS AND NOT QT_SUPER_BUILD)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QtAutoDetect.cmake)
 endif()
 
@@ -14,6 +15,9 @@ project(QtBase
     HOMEPAGE_URL "https://qt.io/"
     LANGUAGES CXX C ASM
 )
+
+# Make sure we only use latest private CMake API, aka no compatibility wrappers.
+set(QT_NO_INTERNAL_COMPATIBILITY_FUNCTIONS TRUE)
 
 if (CMAKE_CROSSCOMPILING AND CMAKE_SYSROOT)
     # When cross compiling with CMake any calls to pkg_check_modules() will
@@ -80,6 +84,13 @@ if(NOT QT_BUILD_STANDALONE_TESTS)
     # Needed when building qtbase for android.
     include(src/corelib/Qt6AndroidMacros.cmake)
 
+    # Set up optimization flags like in qmake.
+    # This function must be called after the global QT_FEATURE_xxx variables have been set up,
+    # aka after QtBaseGlobalTargets is processed.
+    # It also has to be called /before/ adding add_subdirectory(src), so that per-directory
+    # modifications can still be applied if necessary (like in done in Core and Gui).
+    qt_internal_set_up_config_optimizations_like_in_qmake()
+
     ## Setup documentation
     add_subdirectory(doc)
 
@@ -109,7 +120,8 @@ if(NOT QT_BUILD_STANDALONE_TESTS)
     foreach(entry IN LISTS mkspecs_subdirs)
         if (IS_DIRECTORY ${entry})
             qt_copy_or_install(DIRECTORY "${entry}"
-                               DESTINATION ${mkspecs_install_dir})
+                               DESTINATION ${mkspecs_install_dir}
+                               USE_SOURCE_PERMISSIONS)
         else()
             qt_copy_or_install(FILES "${entry}"
                                DESTINATION ${mkspecs_install_dir})
@@ -118,9 +130,6 @@ if(NOT QT_BUILD_STANDALONE_TESTS)
 endif()
 
 qt_build_repo_end()
-
-# This function must be called after the QT_FEATURE_xxx variables have been set up.
-qt_internal_set_up_config_optimizations_like_in_qmake()
 
 if(NOT QT_BUILD_STANDALONE_TESTS AND BUILD_EXAMPLES)
     add_subdirectory(examples)

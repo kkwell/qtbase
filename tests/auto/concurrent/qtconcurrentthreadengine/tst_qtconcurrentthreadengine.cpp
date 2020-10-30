@@ -56,7 +56,7 @@ class PrintUser : public ThreadEngine<void>
 {
 public:
     PrintUser() : ThreadEngine(QThreadPool::globalInstance()) {}
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         QTest::qSleep(50);
         QTest::qSleep(100);
@@ -86,18 +86,18 @@ public:
     : ThreadEngine(QThreadPool::globalInstance())
     , done(false) { }
 
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return !done;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         done = true;
         return ThreadFinished;
     }
 
-    QString *result()
+    QString *result() override
     {
         foo = "Foo";
         return &foo;
@@ -117,18 +117,18 @@ class VoidResultUser : public ThreadEngine<void>
 public:
     VoidResultUser() : ThreadEngine(QThreadPool::globalInstance()) {}
 
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return !done;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         done = true;
         return ThreadFinished;
     }
 
-    void *result()
+    void *result() override
     {
         return 0;
     }
@@ -155,12 +155,12 @@ class CancelUser : public ThreadEngine<void>
 public:
     CancelUser() : ThreadEngine(QThreadPool::globalInstance()) {}
 
-    void *result()
+    void *result() override
     {
         return 0;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         while (this->isCanceled() == false)
         {
@@ -198,12 +198,12 @@ public:
         finishing = false;
     }
 
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return !finishing;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         forever {
             const int local = count.loadRelaxed();
@@ -253,12 +253,12 @@ public:
         finishing = finishImmediately;
     }
 
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return !finishing;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         {
             QMutexLocker lock(&mutex);
@@ -315,12 +315,12 @@ class MultipleResultsUser : public ThreadEngine<int>
 {
 public:
     MultipleResultsUser() : ThreadEngine(QThreadPool::globalInstance()) {}
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return false;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         for (int i = 0; i < 10; ++i)
             this->reportResult(&i);
@@ -344,17 +344,17 @@ void tst_QtConcurrentThreadEngine::multipleResults()
 class NoThreadsUser : public ThreadEngine<void>
 {
 public:
-    bool shouldStartThread()
+    bool shouldStartThread() override
     {
         return false;
     }
 
-    ThreadFunctionResult threadFunction()
+    ThreadFunctionResult threadFunction() override
     {
         return ThreadFinished;
     }
 
-    void *result()
+    void *result() override
     {
         return 0;
     }
@@ -385,8 +385,8 @@ class SlowUser : public ThreadEngine<void>
 {
 public:
     SlowUser() : ThreadEngine(QThreadPool::globalInstance()) {}
-    bool shouldStartThread() { return false; }
-    ThreadFunctionResult threadFunction() { QTest::qSleep(sleepTime); return ThreadFinished; }
+    bool shouldStartThread() override { return false; }
+    ThreadFunctionResult threadFunction() override { QTest::qSleep(sleepTime); return ThreadFinished; }
 };
 
 void tst_QtConcurrentThreadEngine::cancelQueuedSlowUser()
@@ -415,7 +415,7 @@ void tst_QtConcurrentThreadEngine::cancelQueuedSlowUser()
 class QtConcurrentExceptionThrower : public ThreadEngine<void>
 {
 public:
-    QtConcurrentExceptionThrower(QThread *blockThread = 0)
+    QtConcurrentExceptionThrower(QThread *blockThread = nullptr)
     : ThreadEngine(QThreadPool::globalInstance())
     {
         this->blockThread = blockThread;
@@ -430,10 +430,10 @@ public:
     QThread *blockThread;
 };
 
-class UnrelatedExceptionThrower : public ThreadEngine<void>
+class IntExceptionThrower : public ThreadEngine<void>
 {
 public:
-    UnrelatedExceptionThrower(QThread *blockThread = 0)
+    IntExceptionThrower(QThread *blockThread = nullptr)
     : ThreadEngine(QThreadPool::globalInstance())
     {
         this->blockThread = blockThread;
@@ -480,7 +480,7 @@ void tst_QtConcurrentThreadEngine::exceptions()
     {
         bool caught = false;
         try  {
-            QtConcurrentExceptionThrower e(0);
+            QtConcurrentExceptionThrower e(nullptr);
             e.startBlocking();
         } catch (const QException &) {
             caught = true;
@@ -492,11 +492,17 @@ void tst_QtConcurrentThreadEngine::exceptions()
     {
         bool caught = false;
         try  {
-            UnrelatedExceptionThrower *e = new UnrelatedExceptionThrower();
+            IntExceptionThrower *e = new IntExceptionThrower();
             QFuture<void> f = e->startAsynchronously();
             f.waitForFinished();
-        } catch (const QUnhandledException &) {
-            caught = true;
+        } catch (const QUnhandledException &ex) {
+            // Make sure the exception info is not lost
+            try {
+                if (ex.exception())
+                    std::rethrow_exception(ex.exception());
+            } catch (int) {
+                caught = true;
+            }
         }
         QVERIFY2(caught, "did not get exception");
     }
@@ -506,10 +512,16 @@ void tst_QtConcurrentThreadEngine::exceptions()
     {
         bool caught = false;
         try  {
-            UnrelatedExceptionThrower e(QThread::currentThread());
+            IntExceptionThrower e(QThread::currentThread());
             e.startBlocking();
-        } catch (const QUnhandledException &) {
-            caught = true;
+        } catch (const QUnhandledException &ex) {
+            // Make sure the exception info is not lost
+            try {
+                if (ex.exception())
+                    std::rethrow_exception(ex.exception());
+            } catch (int) {
+                caught = true;
+            }
         }
         QVERIFY2(caught, "did not get exception");
     }
@@ -518,10 +530,16 @@ void tst_QtConcurrentThreadEngine::exceptions()
     {
         bool caught = false;
         try  {
-            UnrelatedExceptionThrower e(0);
+            IntExceptionThrower e(nullptr);
             e.startBlocking();
-        } catch (const QUnhandledException &) {
-            caught = true;
+        } catch (const QUnhandledException &ex) {
+            // Make sure the exception info is not lost
+            try {
+                if (ex.exception())
+                    std::rethrow_exception(ex.exception());
+            } catch (int) {
+                caught = true;
+            }
         }
         QVERIFY2(caught, "did not get exception");
     }

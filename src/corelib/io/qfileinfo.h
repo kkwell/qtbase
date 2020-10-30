@@ -61,7 +61,7 @@ public:
 
     QFileInfo();
     QFileInfo(const QString &file);
-    QFileInfo(const QFile &file);
+    QFileInfo(const QFileDevice &file);
     QFileInfo(const QDir &dir, const QString &file);
     QFileInfo(const QFileInfo &fileinfo);
 #ifdef Q_CLANG_QDOC
@@ -79,7 +79,7 @@ public:
     ~QFileInfo();
 
     QFileInfo &operator=(const QFileInfo &fileinfo);
-    QFileInfo &operator=(QFileInfo &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QFileInfo)
 
     void swap(QFileInfo &other) noexcept
     { qSwap(d_ptr, other.d_ptr); }
@@ -88,7 +88,7 @@ public:
     inline bool operator!=(const QFileInfo &fileinfo) const { return !(operator==(fileinfo)); }
 
     void setFile(const QString &file);
-    void setFile(const QFile &file);
+    void setFile(const QFileDevice &file);
     void setFile(const QDir &dir, const QString &file);
 #ifdef Q_CLANG_QDOC
     void setFile(const std::filesystem::path &file);
@@ -104,7 +104,7 @@ public:
     QString filePath() const;
     QString absoluteFilePath() const;
     QString canonicalFilePath() const;
-#if QT_CONFIG(cxx17_filesystem)
+#if QT_CONFIG(cxx17_filesystem) || defined(Q_CLANG_QDOC)
     std::filesystem::path filesystemFilePath() const
     { return QtPrivate::toFilesystemPath(filePath()); }
     std::filesystem::path filesystemAbsoluteFilePath() const
@@ -122,7 +122,7 @@ public:
     QString path() const;
     QString absolutePath() const;
     QString canonicalPath() const;
-#if QT_CONFIG(cxx17_filesystem)
+#if QT_CONFIG(cxx17_filesystem) || defined(Q_CLANG_QDOC)
     std::filesystem::path filesystemPath() const { return QtPrivate::toFilesystemPath(path()); }
     std::filesystem::path filesystemAbsolutePath() const
     { return QtPrivate::toFilesystemPath(absolutePath()); }
@@ -152,7 +152,7 @@ public:
     bool isBundle() const;
 
     QString symLinkTarget() const;
-#if QT_CONFIG(cxx17_filesystem)
+#if QT_CONFIG(cxx17_filesystem) || defined(Q_CLANG_QDOC)
     std::filesystem::path filesystemSymLinkTarget() const
     { return QtPrivate::toFilesystemPath(symLinkTarget()); }
 #endif // QT_CONFIG(cxx17_filesystem)

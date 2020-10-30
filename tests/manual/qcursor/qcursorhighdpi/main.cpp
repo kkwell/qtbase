@@ -287,7 +287,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     QMenu *fileMenu = menuBar()->addMenu("File");
     QAction *quitAction = fileMenu->addAction("Quit");
-    quitAction->setShortcut(Qt::CTRL + Qt::Key_Q);
+    quitAction->setShortcut(Qt::CTRL | Qt::Key_Q);
     connect(quitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
 
     QToolBar *fileToolBar = addToolBar("File");
@@ -337,11 +337,6 @@ int main(int argc, char *argv[])
 {
     QStringList arguments;
     std::copy(argv + 1, argv + argc, std::back_inserter(arguments));
-
-#if QT_VERSION > 0x050000
-    if (arguments.contains("-n"))
-        QCoreApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
-#endif // Qt 5
 
     QApplication app(argc, argv);
 

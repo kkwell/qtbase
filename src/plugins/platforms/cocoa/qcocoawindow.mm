@@ -223,14 +223,7 @@ QCocoaWindow::~QCocoaWindow()
 
 QSurfaceFormat QCocoaWindow::format() const
 {
-    QSurfaceFormat format = window()->requestedFormat();
-
-    // Upgrade the default surface format to include an alpha channel. The default RGB format
-    // causes Cocoa to spend an unreasonable amount of time converting it to RGBA internally.
-    if (format.alphaBufferSize() < 0)
-        format.setAlphaBufferSize(8);
-
-    return format;
+    return window()->requestedFormat();
 }
 
 void QCocoaWindow::setGeometry(const QRect &rectIn)
@@ -306,6 +299,9 @@ bool QCocoaWindow::startSystemMove()
     case NSEventTypeRightMouseDown:
     case NSEventTypeOtherMouseDown:
     case NSEventTypeMouseMoved:
+    case NSEventTypeLeftMouseDragged:
+    case NSEventTypeRightMouseDragged:
+    case NSEventTypeOtherMouseDragged:
         // The documentation only describes starting a system move
         // based on mouse down events, but move events also work.
         [m_view.window performWindowDragWithEvent:NSApp.currentEvent];
@@ -1226,15 +1222,18 @@ void QCocoaWindow::windowDidResignKey()
     if (isForeignWindow())
         return;
 
-    // Key window will be non-nil if another window became key, so do not
-    // set the active window to zero here -- the new key window's
-    // NSWindowDidBecomeKeyNotification hander will change the active window.
-    NSWindow *keyWindow = [NSApp keyWindow];
-    if (!keyWindow || keyWindow == m_view.window) {
-        // No new key window, go ahead and set the active window to zero
-        if (!windowIsPopupType())
-            QWindowSystemInterface::handleWindowActivated<QWindowSystemInterface::SynchronousDelivery>(
-                nullptr, Qt::ActiveWindowFocusReason);
+    // The current key window will be non-nil if another window became key. If that
+    // window is a Qt window, we delay the window activation event until the didBecomeKey
+    // notification is delivered to the active window, to ensure an atomic update.
+    NSWindow *newKeyWindow = [NSApp keyWindow];
+    if (newKeyWindow && newKeyWindow != m_view.window
+        && [newKeyWindow conformsToProtocol:@protocol(QNSWindowProtocol)])
+        return;
+
+    // Lost key window, go ahead and set the active window to zero
+    if (!windowIsPopupType()) {
+        QWindowSystemInterface::handleWindowActivated<QWindowSystemInterface::SynchronousDelivery>(
+            nullptr, Qt::ActiveWindowFocusReason);
     }
 }
 
@@ -1660,7 +1659,7 @@ QCocoaNSWindow *QCocoaWindow::createNSWindow(bool shouldBePanel)
 
     applyContentBorderThickness(nsWindow);
 
-    if (format().colorSpace() == QSurfaceFormat::sRGBColorSpace)
+    if (format().colorSpace() == QColorSpace::SRgb)
         nsWindow.colorSpace = NSColorSpace.sRGBColorSpace;
 
     return nsWindow;

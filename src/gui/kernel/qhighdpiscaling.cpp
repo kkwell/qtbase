@@ -55,11 +55,6 @@ QT_BEGIN_NAMESPACE
 Q_LOGGING_CATEGORY(lcScaling, "qt.scaling");
 
 #ifndef QT_NO_HIGHDPISCALING
-static const char legacyDevicePixelEnvVar[] = "QT_DEVICE_PIXEL_RATIO";
-
-// Note: QT_AUTO_SCREEN_SCALE_FACTOR is Done on X11, and should be kept
-// working as-is. It's Deprecated on all other platforms.
-static const char legacyAutoScreenEnvVar[] = "QT_AUTO_SCREEN_SCALE_FACTOR";
 
 static const char enableHighDpiScalingEnvVar[] = "QT_ENABLE_HIGHDPI_SCALING";
 static const char scaleFactorEnvVar[] = "QT_SCALE_FACTOR";
@@ -94,20 +89,8 @@ static inline qreal initialGlobalScaleFactor()
             qCDebug(lcScaling) << "Apply " << scaleFactorEnvVar << f;
             result = f;
         }
-    } else {
-        // Check for deprecated environment variables.
-        if (qEnvironmentVariableIsSet(legacyDevicePixelEnvVar)) {
-            qWarning("Warning: %s is deprecated. Instead use:\n"
-                     "   %s to enable platform plugin controlled per-screen factors.\n"
-                     "   %s to set per-screen DPI.\n"
-                     "   %s to set the application global scale factor.",
-                     legacyDevicePixelEnvVar, legacyAutoScreenEnvVar, screenFactorsEnvVar, scaleFactorEnvVar);
-
-            int dpr = qEnvironmentVariableIntValue(legacyDevicePixelEnvVar);
-            if (dpr > 0)
-                result = dpr;
-        }
     }
+
     return result;
 }
 
@@ -121,8 +104,9 @@ static inline qreal initialGlobalScaleFactor()
     \brief Collection of utility functions for UI scaling.
 
     QHighDpiScaling implements utility functions for high-dpi scaling for use
-    on operating systems that provide limited support for native scaling. In
-    addition this functionality can be used for simulation and testing purposes.
+    on operating systems that provide limited support for native scaling, such
+    as Windows, X11, and Android. In addition this functionality can be used
+    for simulation and testing purposes.
 
     The functions support scaling between the device independent coordinate
     system used by Qt applications and the native coordinate system used by
@@ -152,14 +136,13 @@ static inline qreal initialGlobalScaleFactor()
     pixels.
 
     The devicePixelRatio seen by applications is the product of the Qt scale
-    factor and the OS scale factor. The value of the scale factors may be 1,
-    in which case two or more of the coordinate systems are equivalent. Platforms
-    that (may) have an OS scale factor include \macos, iOS and Wayland.
+    factor and the OS scale factor (see QWindow::devicePixelRatio()). The value
+    of the scale factors may be 1, in which case two or more of the coordinate
+    systems are equivalent. Platforms that (may) have an OS scale factor include
+    macOS, iOS, Wayland, and Web(Assembly).
 
-    Note that the functions in this file do not work with the OS scale factor
-    directly and are limited to converting between device independent and native
-    pixels. The OS scale factor is accounted for by QWindow::devicePixelRatio()
-    and similar functions.
+    Note that the API implemented in this file do use the OS scale factor, and
+    is used for converting between device independent and native pixels only.
 
     Configuration Examples:
 
@@ -172,7 +155,7 @@ static inline qreal initialGlobalScaleFactor()
     |  Display                          100 x 100       |
     -----------------------------------------------------
 
-    'Retina Device': Device Independent Pixels = Native Pixels
+    '2x Apple Device': Device Independent Pixels = Native Pixels
      ---------------------------------------------------    devicePixelRatio: 2
     |  Application / Qt Gui             100 x 100       |
     |                                                   |   Qt Scale Factor: 1
@@ -181,7 +164,7 @@ static inline qreal initialGlobalScaleFactor()
     |  Display                          200 x 200       |
     -----------------------------------------------------
 
-    '2x Qt Scaling': Native Pixels = Device Pixels
+    'Windows at 200%': Native Pixels = Device Pixels
      ---------------------------------------------------    devicePixelRatio: 2
     |  Application / Qt Gui             100 x 100       |
     |---------------------------------------------------|   Qt Scale Factor: 2
@@ -190,67 +173,106 @@ static inline qreal initialGlobalScaleFactor()
     |  Display                          200 x 200       |
     -----------------------------------------------------
 
-    The Qt Scale Factor is the product of two sub-scale factors, which
-    are independently either set or determined by the platform plugin.
-    Several APIs are offered for this, targeting both developers and
-    end users. All scale factors are of type qreal.
+    * Configuration
 
-    1) A global scale factor
-        The QT_SCALE_FACTOR environment variable can be used to set
-        a global scale factor for all windows in the process. This
-        is useful for testing and debugging (you can simulate any
-        devicePixelRatio without needing access to special hardware),
-        and perhaps also for targeting a specific application to
-        a specific display type (embedded use cases).
+    - Enabling: In Qt 6, high-dpi scaling (the functionality implemented in this file)
+      is always enabled. The Qt scale factor value is typically determined by the
+      QPlatformScreen implementation - see below.
 
-    2) Per-screen scale factors
-        Some platform plugins support providing a per-screen scale
-        factor based on display density information. These platforms
-        include X11, Windows, and Android.
+      There is one environment variable based opt-out option: set QT_ENABLE_HIGH_DPI_SCALING=0.
+      Keep in mind that this does not affect the OS scale factor, which is controlled by
+      the operating system.
 
-        There are two APIs for enabling or disabling this behavior:
-            - The QT_AUTO_SCREEN_SCALE_FACTOR environment variable.
-            - The AA_EnableHighDpiScaling and AA_DisableHighDpiScaling
-              application attributes
+    - Qt scale factor value: The Qt scale factor is the product of the screen scale
+      factor and the global scale factor, which are independently either set or determined
+      by the platform plugin. Several APIs are offered for this, targeting both developers
+      and end users. All scale factors are of type qreal.
 
-        Enabling either will make QHighDpiScaling call QPlatformScreen::pixelDensity()
-        and use the value provided as the scale factor for the screen in
-        question. Disabling is done on a 'veto' basis where either the
-        environment or the application can disable the scaling. The intended use
-        cases are 'My system is not providing correct display density
-        information' and 'My application needs to work in display pixels',
-        respectively.
+      1) Per-screen scale factors
 
-        The QT_SCREEN_SCALE_FACTORS environment variable can be used to set the screen
-        scale factors manually. Set this to a semicolon-separated
-        list of scale factors (matching the order of QGuiApplications::screens()),
-        or to a list of name=value pairs (where name matches QScreen::name()).
+        Per-screen scale factors are computed based on logical DPI provided by
+        by the platform plugin.
 
-    Coordinate conversion functions must be used when writing code that passes
-    geometry across the Qt Gui / Platform plugin boundary. The main conversion
-    functions are:
-        T toNativePixels(T, QWindow *)
-        T fromNativePixels(T, QWindow*)
+        The platform plugin implements DPI accessor functions:
+            QDpi QPlatformScreen::logicalDpi()
+            QDpi QPlatformScreen::logicalBaseDpi()
 
-    The following classes in QtGui use native pixels, for the convenience of the
-    platform plugins:
-        QPlatformWindow
-        QPlatformScreen
-        QWindowSystemInterface (API only - Events are in device independent pixels)
+        QHighDpiScaling then computes the per-screen scale factor as follows:
 
-    As a special consideration platform plugin code should be careful about
-    calling QtGui geometry accessor functions:
-        QRect r = window->geometry();
-    Here the returned geometry is in device independent pixels. Add a conversion call:
-        QRect r = QHighDpi::toNativePixels(window->geometry());
-    (Avoiding calling QWindow and instead using the QPlatformWindow geometry
-     might be a better course of action in this case.)
+            factor = logicalDpi / logicalBaseDpi
+
+        Alternatively, QT_SCREEN_SCALE_FACTORS can be used to set the screen
+        scale factors.
+
+      2) The global scale factor
+
+        The QT_SCALE_FACTOR environment variable can be used to set a global scale
+        factor which applies to all application windows. This allows developing and
+        testing at any DPR, independently of available hardware and without changing
+        global desktop settings.
+
+    - Rounding
+
+      Qt 6 does not round scale factors by default. Qt 5 rounds the screen scale factor
+      to the nearest integer (except for Qt on Android which does not round).
+
+      The rounding policy can be set by the application, or on the environment:
+
+        Application (C++):    QGuiApplication::setHighDpiScaleFactorRoundingPolicy()
+        User (environment):   QT_SCALE_FACTOR_ROUNDING_POLICY
+
+      Note that the OS scale factor, and global scale factors set with QT_SCALE_FACTOR
+      are never rounded by Qt.
+
+    * C++ API Overview
+
+    - Coordinate Conversion ("scaling")
+
+      The QHighDpi namespace provides several functions for converting geometry
+      between the device independent and native coordinate systems. These should
+      be used when calling "QPlatform*" API from QtGui. Callers are responsible
+      for selecting a function variant based on geometry type:
+
+            Type                        From Native                              To Native
+        local               :    QHighDpi::fromNativeLocalPosition()    QHighDpi::toNativeLocalPosition()
+        global (screen)     :    QHighDpi::fromNativeGlobalPosition()   QHighDpi::toNativeGlobalPosition()
+        QWindow::geometry() :    QHighDpi::fromNativeWindowGeometry()   QHighDpi::toNativeWindowGeometry()
+        sizes, margins, etc :    QHighDpi::fromNativePixels()           QHighDpi::toNativePixels()
+
+     The conversion functions take two arguments; the geometry and a context:
+
+        QSize nativeSize = toNativePixels(deviceIndependentSize, window);
+
+     The context is usually a QWindow instance, but can also be a QScreen instance,
+     or the corresponding QPlatform classes.
+
+    - Activation
+
+      QHighDpiScaling::isActive() returns true iff
+            Qt high-dpi scaling is enabled (e.g. with AA_EnableHighDpiScaling) AND
+            there is a Qt scale factor != 1
+
+      (the value of the OS scale factor does not affect this API)
+
+    - Calling QtGui from the platform plugins
+
+      Platform plugin code should be careful about calling QtGui geometry accessor
+      functions like geometry():
+
+         QRect r = window->geometry();
+
+      In this case the returned geometry is in the wrong coordinate system (device independent
+      instead of native pixels). Fix this by adding a conversion call:
+
+         QRect r = QHighDpi::toNativeWindowGeometry(window->geometry());
+
+      (Also consider if the call to QtGui is really needed - prefer calling QPlatform* API.)
 */
 
 qreal QHighDpiScaling::m_factor = 1.0;
 bool QHighDpiScaling::m_active = false; //"overall active" - is there any scale factor set.
-bool QHighDpiScaling::m_usePixelDensity = false; // use scale factor from platform plugin
-bool QHighDpiScaling::m_pixelDensityScalingActive = false; // pixel density scale factor > 1
+bool QHighDpiScaling::m_usePlatformPluginDpi = false; // use scale factor based on platform plugin DPI
+bool QHighDpiScaling::m_platformPluginDpiScalingActive  = false; // platform plugin DPI gives a scale factor > 1
 bool QHighDpiScaling::m_globalScalingActive = false; // global scale factor is active
 bool QHighDpiScaling::m_screenFactorSet = false; // QHighDpiScaling::setScreenFactor has been used
 
@@ -259,19 +281,11 @@ bool QHighDpiScaling::m_screenFactorSet = false; // QHighDpiScaling::setScreenFa
     platform plugin is created.
 */
 
-static inline bool usePixelDensity()
+static inline bool usePlatformPluginDpi()
 {
-    // Determine if we should set a scale factor based on the pixel density
-    // reported by the platform plugin. There are several enablers and several
-    // disablers. A single disable may veto all other enablers.
+    // Determine if we should set a scale factor based on the logical DPI
+    // reported by the platform plugin.
 
-    // Check if there is an explicit disable
-    if (QCoreApplication::testAttribute(Qt::AA_DisableHighDpiScaling))
-        return false;
-    bool screenEnvValueOk;
-    const int screenEnvValue = qEnvironmentVariableIntValue(legacyAutoScreenEnvVar, &screenEnvValueOk);
-    if (screenEnvValueOk && screenEnvValue < 1)
-        return false;
     bool enableEnvValueOk;
     const int enableEnvValue = qEnvironmentVariableIntValue(enableHighDpiScalingEnvVar, &enableEnvValueOk);
     if (enableEnvValueOk && enableEnvValue < 1)
@@ -479,25 +493,22 @@ void QHighDpiScaling::initHighDpiScaling()
     m_factor = initialGlobalScaleFactor();
     m_globalScalingActive = !qFuzzyCompare(m_factor, qreal(1));
 
-    m_usePixelDensity = usePixelDensity();
+    m_usePlatformPluginDpi = usePlatformPluginDpi();
 
-    m_pixelDensityScalingActive = false; //set in updateHighDpiScaling below
+    m_platformPluginDpiScalingActive  = false; //set in updateHighDpiScaling below
 
-    m_active = m_globalScalingActive || m_usePixelDensity;
+    m_active = m_globalScalingActive || m_usePlatformPluginDpi;
 }
 
 void QHighDpiScaling::updateHighDpiScaling()
 {
-    if (QCoreApplication::testAttribute(Qt::AA_DisableHighDpiScaling))
-        return;
+    m_usePlatformPluginDpi = usePlatformPluginDpi();
 
-    m_usePixelDensity = usePixelDensity();
-
-    if (m_usePixelDensity && !m_pixelDensityScalingActive) {
+    if (m_usePlatformPluginDpi && !m_platformPluginDpiScalingActive ) {
         const auto screens = QGuiApplication::screens();
         for (QScreen *screen : screens) {
             if (!qFuzzyCompare(screenSubfactor(screen->handle()), qreal(1))) {
-                m_pixelDensityScalingActive = true;
+                m_platformPluginDpiScalingActive  = true;
                 break;
             }
         }
@@ -535,7 +546,7 @@ void QHighDpiScaling::updateHighDpiScaling()
             ++i;
         }
     }
-    m_active = m_globalScalingActive || m_screenFactorSet || m_pixelDensityScalingActive;
+    m_active = m_globalScalingActive || m_screenFactorSet || m_platformPluginDpiScalingActive ;
 }
 
 /*
@@ -550,7 +561,7 @@ void QHighDpiScaling::setGlobalFactor(qreal factor)
 
     m_globalScalingActive = !qFuzzyCompare(factor, qreal(1));
     m_factor = m_globalScalingActive ? factor : qreal(1);
-    m_active = m_globalScalingActive || m_screenFactorSet || m_pixelDensityScalingActive;
+    m_active = m_globalScalingActive || m_screenFactorSet || m_platformPluginDpiScalingActive ;
     const auto screens = QGuiApplication::screens();
     for (QScreen *screen : screens)
          screen->d_func()->updateHighDpi();
@@ -599,46 +610,6 @@ QPoint QHighDpiScaling::mapPositionFromNative(const QPoint &pos, const QPlatform
     return (pos - topLeft) / scaleFactor + topLeft;
 }
 
-QPointF QHighDpiScaling::mapPositionToGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window)
-{
-    QPointF globalPosCandidate = pos + QPointF(windowGlobalPosition);
-    if (QGuiApplicationPrivate::screen_list.size() <= 1)
-        return globalPosCandidate;
-
-    // The global position may be outside device independent screen geometry
-    // in cases where a window spans screens. Detect this case and map via
-    // native coordinates to the correct screen.
-    auto currentScreen = window->screen();
-    if (currentScreen && !currentScreen->geometry().contains(globalPosCandidate.toPoint())) {
-        QPointF nativeGlobalPos = QHighDpi::toNativePixels(globalPosCandidate, currentScreen);
-        if (auto actualPlatformScreen = currentScreen->handle()->screenForPosition(nativeGlobalPos.toPoint()))
-            return QHighDpi::fromNativePixels(nativeGlobalPos, actualPlatformScreen->screen());
-    }
-
-    return globalPosCandidate;
-}
-
-QPointF QHighDpiScaling::mapPositionFromGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window)
-{
-    QPointF windowPosCandidate = pos - QPointF(windowGlobalPosition);
-    if (QGuiApplicationPrivate::screen_list.size() <= 1 || window->handle() == nullptr)
-        return windowPosCandidate;
-
-    // Device independent global (screen) space may discontiguous when high-dpi scaling
-    // is active. This means that the normal subtracting of the window global position from the
-    // position-to-be-mapped may not work in cases where a window spans multiple screens.
-    // Map both positions to native global space (using the correct screens), subtract there,
-    // and then map the difference back using the scale factor for the window.
-    QScreen *posScreen = QGuiApplication::screenAt(pos.toPoint());
-    if (posScreen && posScreen != window->screen()) {
-        QPointF nativePos = QHighDpi::toNativePixels(pos, posScreen);
-        QPointF windowNativePos = window->handle()->geometry().topLeft();
-        return QHighDpi::fromNativeLocalPosition(nativePos - windowNativePos, window);
-    }
-
-    return windowPosCandidate;
-}
-
 qreal QHighDpiScaling::screenSubfactor(const QPlatformScreen *screen)
 {
     auto factor = qreal(1.0);
@@ -667,7 +638,7 @@ qreal QHighDpiScaling::screenSubfactor(const QPlatformScreen *screen)
         }
     }
 
-    if (!screenPropertyUsed && m_usePixelDensity)
+    if (!screenPropertyUsed && m_usePlatformPluginDpi)
         factor = roundScaleFactor(rawScaleFactor(screen));
 
     return factor;
@@ -679,7 +650,7 @@ QDpi QHighDpiScaling::logicalDpi(const QScreen *screen)
     if (!screen || !screen->handle())
         return QDpi(96, 96);
 
-    if (!m_usePixelDensity) {
+    if (!m_usePlatformPluginDpi) {
         const qreal screenScaleFactor = screenSubfactor(screen->handle());
         const QDpi dpi = QPlatformScreen::overrideDpi(screen->handle()->logicalDpi());
         return QDpi{ dpi.first / screenScaleFactor, dpi.second / screenScaleFactor };
@@ -690,34 +661,77 @@ QDpi QHighDpiScaling::logicalDpi(const QScreen *screen)
     return effectiveLogicalDpi(screen->handle(), scaleFactor, roundedScaleFactor);
 }
 
-QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QPlatformScreen *platformScreen, QPoint *nativePosition)
+// Returns the screen containing \a position, using \a guess as a starting point
+// for the search. \a guess might be nullptr. Returns nullptr if \a position is outside
+// of all screens.
+QScreen *QHighDpiScaling::screenForPosition(QHighDpiScaling::Point position, QScreen *guess)
 {
+    if (position.kind == QHighDpiScaling::Point::Invalid)
+        return nullptr;
+
+    auto getPlatformScreenGuess = [](QScreen *maybeScreen) -> QPlatformScreen * {
+        if (maybeScreen)
+            return maybeScreen->handle();
+        if (QScreen *primary = QGuiApplication::primaryScreen())
+            return primary->handle();
+        return nullptr;
+    };
+
+    QPlatformScreen *platformGuess = getPlatformScreenGuess(guess);
+    if (!platformGuess)
+        return nullptr;
+
+    auto onScreen = [](QHighDpiScaling::Point position, const QPlatformScreen *platformScreen) -> bool {
+        return position.kind == Point::Native
+          ?  platformScreen->geometry().contains(position.point)
+          :  platformScreen->screen()->geometry().contains(position.point);
+    };
+
+    // is the guessed screen correct?
+    if (onScreen(position, platformGuess))
+        return platformGuess->screen();
+
+    // search sibling screens
+    const auto screens = platformGuess->virtualSiblings();
+    for (const QPlatformScreen *screen : screens) {
+        if (onScreen(position, screen))
+            return screen->screen();
+    }
+
+    return nullptr;
+}
+
+QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QPlatformScreen *platformScreen, QHighDpiScaling::Point position)
+{
+    Q_UNUSED(position)
     if (!m_active)
         return { qreal(1), QPoint() };
     if (!platformScreen)
         return { m_factor, QPoint() }; // the global factor
-    const QPlatformScreen *actualScreen = nativePosition ?
-        platformScreen->screenForPosition(*nativePosition) : platformScreen;
-    return { m_factor * screenSubfactor(actualScreen), actualScreen->geometry().topLeft() };
+    return { m_factor * screenSubfactor(platformScreen), platformScreen->geometry().topLeft() };
 }
 
-QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QScreen *screen, QPoint *nativePosition)
+QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QScreen *screen, QHighDpiScaling::Point position)
 {
+    Q_UNUSED(position)
     if (!m_active)
         return { qreal(1), QPoint() };
     if (!screen)
         return { m_factor, QPoint() }; // the global factor
-    return scaleAndOrigin(screen->handle(), nativePosition);
+    return scaleAndOrigin(screen->handle(), position);
 }
 
-QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QWindow *window, QPoint *nativePosition)
+QHighDpiScaling::ScaleAndOrigin QHighDpiScaling::scaleAndOrigin(const QWindow *window, QHighDpiScaling::Point position)
 {
     if (!m_active)
         return { qreal(1), QPoint() };
 
+    // Determine correct screen; use the screen which contains the given
+    // position if a valid position is passed.
     QScreen *screen = window ? window->screen() : QGuiApplication::primaryScreen();
-    const bool searchScreen = !window || window->isTopLevel();
-    return scaleAndOrigin(screen, searchScreen ? nativePosition : nullptr);
+    QScreen *overrideScreen = QHighDpiScaling::screenForPosition(position, screen);
+    QScreen *targetScreen = overrideScreen ? overrideScreen : screen;
+    return scaleAndOrigin(targetScreen, position);
 }
 
 #else

@@ -20,7 +20,7 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS Concurrent)
 
-add_qt_gui_executable(hellovulkancubes
+qt_add_executable(hellovulkancubes
     camera.cpp camera.h
     main.cpp
     mainwindow.cpp mainwindow.h
@@ -28,6 +28,10 @@ add_qt_gui_executable(hellovulkancubes
     renderer.cpp renderer.h
     shader.cpp shader.h
     vulkanwindow.cpp vulkanwindow.h
+)
+set_target_properties(hellovulkancubes PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(hellovulkancubes PUBLIC
     Qt::Concurrent

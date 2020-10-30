@@ -121,7 +121,7 @@ public:
     ~QDir();
 
     QDir &operator=(const QDir &);
-    QDir &operator=(QDir &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QDir)
 
     void swap(QDir &other) noexcept
     { qSwap(d_ptr, other.d_ptr); }
@@ -139,7 +139,7 @@ public:
     QString path() const;
     QString absolutePath() const;
     QString canonicalPath() const;
-#if QT_CONFIG(cxx17_filesystem)
+#if QT_CONFIG(cxx17_filesystem) || defined(Q_CLANG_QDOC)
     std::filesystem::path filesystemPath() const
     { return QtPrivate::toFilesystemPath(path()); }
     std::filesystem::path filesystemAbsolutePath() const
@@ -213,7 +213,7 @@ public:
     bool makeAbsolute();
 
     bool operator==(const QDir &dir) const;
-    inline bool operator!=(const QDir &dir) const {  return !operator==(dir); }
+    inline bool operator!=(const QDir &dir) const { return !operator==(dir); }
 
     bool remove(const QString &fileName);
     bool rename(const QString &oldName, const QString &newName);
@@ -266,12 +266,8 @@ protected:
 private:
     friend class QDirIterator;
     // Q_DECLARE_PRIVATE equivalent for shared data pointers
-    QDirPrivate* d_func();
-    inline const QDirPrivate* d_func() const
-    {
-        return d_ptr.constData();
-    }
-
+    QDirPrivate *d_func();
+    const QDirPrivate *d_func() const { return d_ptr.constData(); }
 };
 
 Q_DECLARE_SHARED(QDir)

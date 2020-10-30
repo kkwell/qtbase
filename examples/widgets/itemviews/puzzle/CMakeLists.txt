@@ -19,11 +19,15 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(itemviews_puzzle # special case: renamed puzzle
+qt_add_executable(itemviews_puzzle # special case: renamed puzzle
     main.cpp
     mainwindow.cpp mainwindow.h
     piecesmodel.cpp piecesmodel.h
     puzzlewidget.cpp puzzlewidget.h
+)
+set_target_properties(itemviews_puzzle PROPERTIES # special case
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(itemviews_puzzle PUBLIC # special case
     Qt::Core

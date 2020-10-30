@@ -220,7 +220,7 @@ static void stackTrace()
 #endif
 #ifdef Q_OS_LINUX
     char cmd[512];
-    qsnprintf(cmd, 512, "gdb --pid %d 2>/dev/null <<EOF\n"
+    qsnprintf(cmd, 512, "gdb --pid %d 1>&2 2>/dev/null <<EOF\n"
                          "set prompt\n"
                          "set height 0\n"
                          "thread apply all where full\n"
@@ -233,7 +233,7 @@ static void stackTrace()
     fprintf(stderr, "=== End of stack trace ===\n");
 #elif defined(Q_OS_MACOS)
     char cmd[512];
-    qsnprintf(cmd, 512, "lldb -p %d 2>/dev/null <<EOF\n"
+    qsnprintf(cmd, 512, "lldb -p %d 1>&2 2>/dev/null <<EOF\n"
                          "bt all\n"
                          "quit\n"
                          "EOF\n",
@@ -2193,7 +2193,7 @@ QString QTest::qFindTestData(const QString& base, const char *file, int line, co
     if (found.isEmpty()) {
         const char *testObjectName = QTestResult::currentTestObjectName();
         if (testObjectName) {
-            const QString testsPath = QLibraryInfo::location(QLibraryInfo::TestsPath);
+            const QString testsPath = QLibraryInfo::path(QLibraryInfo::TestsPath);
             const QString candidate = QString::fromLatin1("%1/%2/%3")
                 .arg(testsPath, QFile::decodeName(testObjectName).toLower(), base);
             if (QFileInfo::exists(candidate)) {
@@ -2472,30 +2472,6 @@ const char *QTest::currentDataTag()
 bool QTest::currentTestFailed()
 {
     return QTestResult::currentTestFailed();
-}
-
-/*!
-    Sleeps for \a ms milliseconds, blocking execution of the
-    test. qSleep() will not do any event processing and leave your test
-    unresponsive. Network communication might time out while
-    sleeping. Use \l {QTest::qWait()} to do non-blocking sleeping.
-
-    \a ms must be greater than 0.
-
-    \b {Note:} The qSleep() function calls either \c nanosleep() on
-    unix or \c Sleep() on windows, so the accuracy of time spent in
-    qSleep() depends on the operating system.
-
-    Example:
-    \snippet code/src_qtestlib_qtestcase.cpp 23
-
-    \sa {QTest::qWait()}
-*/
-void QTest::qSleep(int ms)
-{
-    // ### Qt 6, move to QtCore or remove altogether
-    QTEST_ASSERT(ms > 0);
-    QTestPrivate::qSleep(ms);
 }
 
 /*! \internal

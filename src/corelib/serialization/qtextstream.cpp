@@ -434,7 +434,7 @@ bool QTextStreamPrivate::fillReadBuffer(qint64 maxBytes)
     if (autoDetectUnicode) {
         autoDetectUnicode = false;
 
-        auto e = QStringConverter::encodingForData(buf, bytesRead);
+        auto e = QStringConverter::encodingForData(QByteArrayView(buf, bytesRead));
         // QStringConverter::Locale implies unknown, so keep the current encoding
         if (e) {
             encoding = *e;
@@ -452,7 +452,7 @@ bool QTextStreamPrivate::fillReadBuffer(qint64 maxBytes)
 #endif
 
     int oldReadBufferSize = readBuffer.size();
-    readBuffer += toUtf16(buf, bytesRead);
+    readBuffer += toUtf16(QByteArrayView(buf, bytesRead));
 
     // remove all '\r\n' in the string.
     if (readBuffer.size() > oldReadBufferSize && textModeEnabled) {
@@ -943,6 +943,11 @@ void QTextStreamPrivate::putString(QLatin1String data, bool number)
     } else {
         write(data);
     }
+}
+
+void QTextStreamPrivate::putString(QUtf8StringView data, bool number)
+{
+    putString(data.toString(), number);
 }
 
 /*!
@@ -2186,7 +2191,7 @@ QTextStream &QTextStream::operator>>(QString &str)
 /*!
     \overload
 
-    Converts the word to ISO-8859-1, then stores it in \a array.
+    Converts the word to UTF-8, then stores it in \a array.
 
     \sa QString::toLatin1()
 */
@@ -2195,7 +2200,6 @@ QTextStream &QTextStream::operator>>(QByteArray &array)
     Q_D(QTextStream);
     CHECK_VALID_STREAM(*this);
 
-    array.clear();
     d->scan(nullptr, nullptr, 0, QTextStreamPrivate::NotSpace);
     d->consumeLastToken();
 
@@ -2203,11 +2207,11 @@ QTextStream &QTextStream::operator>>(QByteArray &array)
     int length;
     if (!d->scan(&ptr, &length, 0, QTextStreamPrivate::Space)) {
         setStatus(ReadPastEnd);
+        array.clear();
         return *this;
     }
 
-    for (int i = 0; i < length; ++i)
-        array += ptr[i].toLatin1();
+    array = QStringView(ptr, length).toUtf8();
 
     d->consumeLastToken();
     return *this;
@@ -2216,13 +2220,14 @@ QTextStream &QTextStream::operator>>(QByteArray &array)
 /*!
     \overload
 
-    Stores the word in \a c, terminated by a '\\0' character. If no word is
-    available, only the '\\0' character is stored.
+    Converts the word to UTF-8 and stores it in \a c, terminated by a '\\0'
+    character. If no word is available, only the '\\0' character is stored.
 
     Warning: Although convenient, this operator is dangerous and must
     be used with care. QTextStream assumes that \a c points to a
     buffer with enough space to hold the word. If the buffer is too
-    small, your application may crash.
+    small, your application may crash. For a word consisting of \c{n} QChars,
+    the buffer needs to be at least \c{3*n+1} characters long.
 
     If possible, use the QByteArray operator instead.
 */
@@ -2241,9 +2246,9 @@ QTextStream &QTextStream::operator>>(char *c)
         return *this;
     }
 
-    for (int i = 0; i < length; ++i)
-        *c++ = ptr[i].toLatin1();
-    *c = '\0';
+    QStringEncoder encoder(QStringConverter::Utf8);
+    char *e = encoder.appendToBuffer(c, QStringView(ptr, length));
+    *e = '\0';
     d->consumeLastToken();
     return *this;
 }
@@ -2559,7 +2564,7 @@ QTextStream &QTextStream::operator<<(const QByteArray &array)
     \overload
 
     Writes the constant string pointed to by \a string to the stream. \a
-    string is assumed to be in ISO-8859-1 encoding. This operator
+    string is assumed to be in UTF-8 encoding. This operator
     is convenient when working with constant string data. Example:
 
     \snippet code/src_corelib_io_qtextstream.cpp 8
@@ -2572,8 +2577,7 @@ QTextStream &QTextStream::operator<<(const char *string)
 {
     Q_D(QTextStream);
     CHECK_VALID_STREAM(*this);
-    // ### Qt6: consider changing to UTF-8
-    d->putString(QLatin1String(string));
+    d->putString(QUtf8StringView(string));
     return *this;
 }
 
@@ -2830,7 +2834,7 @@ QTextStream &scientific(QTextStream &stream)
 
     \since 5.14
 
-    \sa {QTextStream::}{right()}, {QTextStream::}{center()}, {QTextStream manipulators}
+    \sa right(), center(), {QTextStream manipulators}
 */
 QTextStream &left(QTextStream &stream)
 {
@@ -2844,7 +2848,7 @@ QTextStream &left(QTextStream &stream)
 
     \since 5.14
 
-    \sa {QTextStream::}{left()}, {QTextStream::}{center()}, {QTextStream manipulators}
+    \sa left(), center(), {QTextStream manipulators}
 */
 QTextStream &right(QTextStream &stream)
 {
@@ -2858,7 +2862,7 @@ QTextStream &right(QTextStream &stream)
 
     \since 5.14
 
-    \sa {QTextStream::}{left()}, {QTextStream::}{right()}, {QTextStream manipulators}
+    \sa left(), right(), {QTextStream manipulators}
 */
 QTextStream &center(QTextStream &stream)
 {
@@ -3050,7 +3054,7 @@ bool QTextStream::autoDetectUnicode() const
     device. If \a generate is false, no BOM will be inserted. This function
     must be called before any data is written. Otherwise, it does nothing.
 
-    \sa generateByteOrderMark(), bom()
+    \sa generateByteOrderMark(), {Qt::}{bom()}
 */
 void QTextStream::setGenerateByteOrderMark(bool generate)
 {
@@ -3104,43 +3108,6 @@ QLocale QTextStream::locale() const
     Q_D(const QTextStream);
     return d->locale;
 }
-
-#if QT_DEPRECATED_SINCE(5, 15) && !defined(Q_QDOC)
-// Deprecated source compatible migration versions:
-namespace QTextStreamFunctions {
-QTextStream &bin(QTextStream &s) { return Qt::bin(s); }
-QTextStream &oct(QTextStream &s) { return Qt::oct(s); }
-QTextStream &dec(QTextStream &s) { return Qt::dec(s); }
-QTextStream &hex(QTextStream &s) { return Qt::hex(s); }
-
-QTextStream &showbase(QTextStream &s) { return Qt::showbase(s); }
-QTextStream &forcesign(QTextStream &s) { return Qt::forcesign(s); }
-QTextStream &forcepoint(QTextStream &s) { return Qt::forcepoint(s); }
-QTextStream &noshowbase(QTextStream &s) { return Qt::noshowbase(s); }
-QTextStream &noforcesign(QTextStream &s) { return Qt::noforcesign(s); }
-QTextStream &noforcepoint(QTextStream &s) { return Qt::noforcepoint(s); }
-
-QTextStream &uppercasebase(QTextStream &s) { return Qt::uppercasebase(s); }
-QTextStream &uppercasedigits(QTextStream &s) { return Qt::uppercasedigits(s); }
-QTextStream &lowercasebase(QTextStream &s) { return Qt::lowercasebase(s); }
-QTextStream &lowercasedigits(QTextStream &s) { return Qt::lowercasedigits(s); }
-
-QTextStream &fixed(QTextStream &s) { return Qt::fixed(s); }
-QTextStream &scientific(QTextStream &s) { return Qt::scientific(s); }
-
-QTextStream &left(QTextStream &s) { return Qt::left(s); }
-QTextStream &right(QTextStream &s) { return Qt::right(s); }
-QTextStream &center(QTextStream &s) { return Qt::center(s); }
-
-QTextStream &endl(QTextStream &s) { return Qt::endl(s); }
-QTextStream &flush(QTextStream &s) { return Qt::flush(s); }
-QTextStream &reset(QTextStream &s) { return Qt::reset(s); }
-
-QTextStream &ws(QTextStream &s) { return Qt::ws(s); }
-
-QTextStream &bom(QTextStream &s) { return Qt::bom(s); }
-} // namespace QTextStreamFunctions
-#endif
 
 QT_END_NAMESPACE
 

@@ -340,7 +340,7 @@ static void setNativeService(JNIEnv *env, jclass, jobject service)
 
 jint QtAndroidPrivate::initJNI(JavaVM *vm, JNIEnv *env)
 {
-    jclass jQtNative = env->FindClass("org/qtproject/qt5/android/QtNative");
+    jclass jQtNative = env->FindClass("org/qtproject/qt/android/QtNative");
 
     if (exceptionCheck(env))
         return JNI_ERR;
@@ -543,7 +543,7 @@ QtAndroidPrivate::PermissionsHash QtAndroidPrivate::requestPermissionsSync(JNIEn
 
 QtAndroidPrivate::PermissionsResult QtAndroidPrivate::checkPermission(const QString &permission)
 {
-    const auto res = QJNIObjectPrivate::callStaticMethod<jint>("org/qtproject/qt5/android/QtNative",
+    const auto res = QJNIObjectPrivate::callStaticMethod<jint>("org/qtproject/qt/android/QtNative",
                                                                "checkSelfPermission",
                                                                "(Ljava/lang/String;)I",
                                                                QJNIObjectPrivate::fromString(permission).object());
@@ -601,7 +601,7 @@ int QtAndroidPrivate::acuqireServiceSetup(int flags)
 
 void QtAndroidPrivate::setOnBindListener(QtAndroidPrivate::OnBindListener *listener)
 {
-    QMutexLocker lock(g_onBindListenerMutex);
+    QMutexLocker lock(g_onBindListenerMutex());
     *g_onBindListener = listener;
     if (!g_serviceSetupLockers->deref())
         g_waitForServiceSetupSemaphore->release();
@@ -609,7 +609,7 @@ void QtAndroidPrivate::setOnBindListener(QtAndroidPrivate::OnBindListener *liste
 
 jobject QtAndroidPrivate::callOnBindListener(jobject intent)
 {
-    QMutexLocker lock(g_onBindListenerMutex);
+    QMutexLocker lock(g_onBindListenerMutex());
     if (*g_onBindListener)
         return (*g_onBindListener)->onBind(intent);
     return nullptr;

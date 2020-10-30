@@ -162,6 +162,8 @@ inline Q_DECL_PURE_FUNCTION size_t qHash(const QString &key, size_t seed = 0) no
 #endif
 Q_CORE_EXPORT Q_DECL_PURE_FUNCTION size_t qHash(const QBitArray &key, size_t seed = 0) noexcept;
 Q_CORE_EXPORT Q_DECL_PURE_FUNCTION size_t qHash(QLatin1String key, size_t seed = 0) noexcept;
+Q_DECL_CONST_FUNCTION constexpr inline size_t qHash(QKeyCombination key, size_t seed = 0) noexcept
+{ return qHash(key.toCombined(), seed); }
 Q_CORE_EXPORT Q_DECL_PURE_FUNCTION uint qt_hash(QStringView key, uint chained = 0) noexcept;
 
 template<typename T> inline size_t qHash(const T &t, size_t seed)
@@ -170,7 +172,8 @@ template<typename T> inline size_t qHash(const T &t, size_t seed)
 
 namespace QtPrivate {
 
-struct QHashCombine {
+struct QHashCombine
+{
     typedef size_t result_type;
     template <typename T>
     constexpr result_type operator()(size_t seed, const T &t) const noexcept(noexcept(qHash(t)))
@@ -178,7 +181,8 @@ struct QHashCombine {
     { return seed ^ (qHash(t) + 0x9e3779b9 + (seed << 6) + (seed >> 2)) ; }
 };
 
-struct QHashCombineCommutative {
+struct QHashCombineCommutative
+{
     // QHashCombine is a good hash combiner, but is not commutative,
     // ie. it depends on the order of the input elements. That is
     // usually what we want: {0,1,3} should hash differently than

@@ -20,9 +20,13 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(broadcastsender
+qt_add_executable(broadcastsender
     main.cpp
     sender.cpp sender.h
+)
+set_target_properties(broadcastsender PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(broadcastsender PUBLIC
     Qt::Core

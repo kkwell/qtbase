@@ -96,9 +96,9 @@ class TestAnimation : public QVariantAnimation
 {
     Q_OBJECT
 public:
-    virtual void updateCurrentValue(const QVariant &value) { Q_UNUSED(value)};
+    virtual void updateCurrentValue(const QVariant &value) override { Q_UNUSED(value)};
     virtual void updateState(QAbstractAnimation::State newState,
-                             QAbstractAnimation::State oldState)
+                             QAbstractAnimation::State oldState) override
     {
         Q_UNUSED(oldState);
         Q_UNUSED(newState);
@@ -108,7 +108,7 @@ public:
 class DummyPropertyAnimation : public QPropertyAnimation
 {
 public:
-    DummyPropertyAnimation(QObject *parent = 0) : QPropertyAnimation(parent)
+    DummyPropertyAnimation(QObject *parent = nullptr) : QPropertyAnimation(parent)
     {
         setTargetObject(&o);
         this->setPropertyName("value");
@@ -122,17 +122,17 @@ class UncontrolledAnimation : public QPropertyAnimation
 {
     Q_OBJECT
 public:
-    UncontrolledAnimation(QObject *target, QObject *parent = 0)
+    UncontrolledAnimation(QObject *target, QObject *parent = nullptr)
         : QPropertyAnimation(target, "value", parent)
     {
         setDuration(250);
         setEndValue(0);
     }
 
-    int duration() const { return -1; /* not time driven */ }
+    int duration() const override { return -1; /* not time driven */ }
 
 protected:
-    void updateCurrentTime(int currentTime)
+    void updateCurrentTime(int currentTime) override
     {
         QPropertyAnimation::updateCurrentTime(currentTime);
         if (currentTime >= QPropertyAnimation::duration())

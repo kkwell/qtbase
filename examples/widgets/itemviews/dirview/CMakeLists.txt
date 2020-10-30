@@ -19,8 +19,12 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(dirview
+qt_add_executable(dirview
     main.cpp
+)
+set_target_properties(dirview PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(dirview PUBLIC
     Qt::Core

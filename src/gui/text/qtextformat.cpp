@@ -919,13 +919,13 @@ void QTextFormat::merge(const QTextFormat &other)
     if (!other.d)
         return;
 
-    QTextFormatPrivate *d = this->d;
+    QTextFormatPrivate *p = d.data();
 
-    const QList<QT_PREPEND_NAMESPACE(Property)> &otherProps = other.d->props;
-    d->props.reserve(d->props.size() + otherProps.size());
+    const QList<QT_PREPEND_NAMESPACE(Property)> &otherProps = other.d.constData()->props;
+    p->props.reserve(p->props.size() + otherProps.size());
     for (int i = 0; i < otherProps.count(); ++i) {
-        const QT_PREPEND_NAMESPACE(Property) &p = otherProps.at(i);
-        d->insertProperty(p.key, p.value);
+        const QT_PREPEND_NAMESPACE(Property) &prop = otherProps.at(i);
+        p->insertProperty(prop.key, prop.value);
     }
 }
 
@@ -1036,7 +1036,7 @@ int QTextFormat::intProperty(int propertyId) const
 
 /*!
     Returns the value of the property specified by \a propertyId. If the
-    property isn't of QVariant::Double or QMetaType::Float type, 0 is
+    property isn't of QMetaType::Double or QMetaType::Float type, 0 is
     returned instead.
 
     \sa setProperty(), boolProperty(), intProperty(), stringProperty(), colorProperty(),
@@ -1054,7 +1054,7 @@ qreal QTextFormat::doubleProperty(int propertyId) const
 
 /*!
     Returns the value of the property given by \a propertyId; if the
-    property isn't of QVariant::String type, an empty string is
+    property isn't of QMetaType::QString type, an empty string is
     returned instead.
 
     \sa setProperty(), boolProperty(), intProperty(), doubleProperty(), colorProperty(),
@@ -1072,7 +1072,7 @@ QString QTextFormat::stringProperty(int propertyId) const
 
 /*!
     Returns the value of the property given by \a propertyId; if the
-    property isn't of QVariant::Color type, an invalid color is
+    property isn't of QMetaType::QColor type, an invalid color is
     returned instead.
 
     \sa setProperty(), boolProperty(), intProperty(), doubleProperty(),
@@ -1090,7 +1090,7 @@ QColor QTextFormat::colorProperty(int propertyId) const
 
 /*!
     Returns the value of the property given by \a propertyId; if the
-    property isn't of QVariant::Pen type, Qt::NoPen is
+    property isn't of QMetaType::QPen type, Qt::NoPen is
     returned instead.
 
     \sa setProperty(), boolProperty(), intProperty(), doubleProperty(), stringProperty(),
@@ -1108,7 +1108,7 @@ QPen QTextFormat::penProperty(int propertyId) const
 
 /*!
     Returns the value of the property given by \a propertyId; if the
-    property isn't of QVariant::Brush type, Qt::NoBrush is
+    property isn't of QMetaType::QBrush type, Qt::NoBrush is
     returned instead.
 
     \sa setProperty(), boolProperty(), intProperty(), doubleProperty(), stringProperty(),
@@ -1261,10 +1261,10 @@ int QTextFormat::objectIndex() const
 void QTextFormat::setObjectIndex(int o)
 {
     if (o == -1) {
-        if (d)
+        if (d.constData())
             d->clearProperty(ObjectIndex);
     } else {
-        if (!d)
+        if (!d.constData())
             d = new QTextFormatPrivate;
         // ### type
         d->insertProperty(ObjectIndex, o);
@@ -1803,7 +1803,8 @@ void QTextCharFormat::setUnderlineStyle(UnderlineStyle style)
     \fn void QTextCharFormat::setSuperScriptBaseline(qreal baseline)
     \since 6.0
 
-    Sets the superscript's base line as a % of font height. The default value is 50% (1/2 of height)
+    Sets the superscript's base line as a % of font height to \a baseline.
+    The default value is 50% (1/2 of height).
 
     \sa superScriptBaseline(), setSubScriptBaseline(), subScriptBaseline(), setBaselineOffset(), baselineOffset()
 */
@@ -1821,7 +1822,8 @@ void QTextCharFormat::setUnderlineStyle(UnderlineStyle style)
     \fn void QTextCharFormat::setSubScriptBaseline(qreal baseline)
     \since 6.0
 
-    Sets the subscript's base line as a % of font height. The default value is 16.67% (1/6 of height)
+    Sets the subscript's base line as a % of font height to \a baseline.
+    The default value is 16.67% (1/6 of height)
 
     \sa subScriptBaseline(), setSuperScriptBaseline(), superScriptBaseline(), setBaselineOffset(), baselineOffset()
 */
@@ -1839,8 +1841,8 @@ void QTextCharFormat::setUnderlineStyle(UnderlineStyle style)
     \fn void QTextCharFormat::setBaselineOffset(qreal baseline)
     \since 6.0
 
-    Sets the baseline (in % of height) of text. A positive value moves up the text, by the corresponding %;
-    a negative value moves it down. The default value is 0.
+    Sets the base line (in % of height) of text to \a baseline. A positive value moves the text
+    up, by the corresponding %; a negative value moves it down. The default value is 0.
 
     \sa baselineOffset(), setSubScriptBaseline(), subScriptBaseline(), setSuperScriptBaseline(), superScriptBaseline()
 */

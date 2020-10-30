@@ -80,7 +80,17 @@ _qt_library_map = [
     LibraryMapping(
         "androidextras", "Qt6", "Qt::AndroidExtras", extra=["COMPONENTS", "AndroidExtras"]
     ),
-    LibraryMapping("animation", "Qt6", "Qt::3DAnimation", extra=["COMPONENTS", "3DAnimation"]),
+    LibraryMapping("3danimation", "Qt6", "Qt::3DAnimation", extra=["COMPONENTS", "3DAnimation"]),
+    LibraryMapping("3dcore", "Qt6", "Qt::3DCore", extra=["COMPONENTS", "3DCore"]),
+    LibraryMapping("3dcoretest", "Qt6", "Qt::3DCoreTest", extra=["COMPONENTS", "3DCoreTest"]),
+    LibraryMapping("3dextras", "Qt6", "Qt::3DExtras", extra=["COMPONENTS", "3DExtras"]),
+    LibraryMapping("3dinput", "Qt6", "Qt::3DInput", extra=["COMPONENTS", "3DInput"]),
+    LibraryMapping("3dlogic", "Qt6", "Qt::3DLogic", extra=["COMPONENTS", "3DLogic"]),
+    LibraryMapping("3dquick", "Qt6", "Qt::3DQuick", extra=["COMPONENTS", "3DQuick"]),
+    LibraryMapping("3dquickextras", "Qt6", "Qt::3DQuickExtras", extra=["COMPONENTS", "3DQuickExtras"]),
+    LibraryMapping("3dquickinput", "Qt6", "Qt::3DQuickInput", extra=["COMPONENTS", "3DQuickInput"]),
+    LibraryMapping("3dquickrender", "Qt6", "Qt::3DQuickRender", extra=["COMPONENTS", "3DQuickRender"]),
+    LibraryMapping("3drender", "Qt6", "Qt::3DRender", extra=["COMPONENTS", "3DRender"]),
     LibraryMapping(
         "application-lib", "Qt6", "Qt::AppManApplication", extra=["COMPONENTS", "AppManApplication"]
     ),
@@ -103,7 +113,6 @@ _qt_library_map = [
         "core_headers", "Qt6", "Qt::WebEngineCore", extra=["COMPONENTS", "WebEngineCore"]
     ),
     LibraryMapping("core", "Qt6", "Qt::Core", extra=["COMPONENTS", "Core"]),
-    LibraryMapping("coretest", "Qt6", "Qt::3DCoreTest", extra=["COMPONENTS", "3DCoreTest"]),
     LibraryMapping("crypto-lib", "Qt6", "Qt::AppManCrypto", extra=["COMPONENTS", "AppManCrypto"]),
     LibraryMapping("dbus", "Qt6", "Qt::DBus", extra=["COMPONENTS", "DBus"]),
     LibraryMapping("designer", "Qt6", "Qt::Designer", extra=["COMPONENTS", "Designer"]),
@@ -151,7 +160,6 @@ _qt_library_map = [
         "Qt::EventDispatcherSupport",
         extra=["COMPONENTS", "EventDispatcherSupport"],
     ),
-    LibraryMapping("extras", "Qt6", "Qt::3DExtras", extra=["COMPONENTS", "3DExtras"]),
     LibraryMapping("fbconvenience", "Qt6", "Qt::FbSupport", extra=["COMPONENTS", "FbSupport"]),
     LibraryMapping("fb_support", "Qt6", "Qt::FbSupport", extra=["COMPONENTS", "FbSupport"]),
     LibraryMapping(
@@ -197,7 +205,6 @@ _qt_library_map = [
         extra=["COMPONENTS", "LinuxAccessibilitySupport"],
     ),
     LibraryMapping("location", "Qt6", "Qt::Location", extra=["COMPONENTS", "Location"]),
-    LibraryMapping("logic", "Qt6", "Qt::3DLogic", extra=["COMPONENTS", "3DLogic"]),
     LibraryMapping("macextras", "Qt6", "Qt::MacExtras", extra=["COMPONENTS", "MacExtras"]),
     LibraryMapping("main-lib", "Qt6", "Qt::AppManMain", extra=["COMPONENTS", "AppManMain"]),
     LibraryMapping(
@@ -249,6 +256,7 @@ _qt_library_map = [
     LibraryMapping("purchasing", "Qt6", "Qt::Purchasing", extra=["COMPONENTS", "Purchasing"]),
     LibraryMapping("qmldebug", "Qt6", "Qt::QmlDebug", extra=["COMPONENTS", "QmlDebug"]),
     LibraryMapping("qmldevtools", "Qt6", "Qt::QmlDevTools", extra=["COMPONENTS", "QmlDevTools"]),
+    LibraryMapping("qmlcompiler", "Qt6", "Qt::QmlCompiler", extra=["COMPONENTS", "QmlCompiler"]),
     LibraryMapping("qml", "Qt6", "Qt::Qml", extra=["COMPONENTS", "Qml"]),
     LibraryMapping("qmlmodels", "Qt6", "Qt::QmlModels", extra=["COMPONENTS", "QmlModels"]),
     LibraryMapping("qmltest", "Qt6", "Qt::QuickTest", extra=["COMPONENTS", "QuickTest"]),
@@ -288,7 +296,6 @@ _qt_library_map = [
         "quicktemplates2", "Qt6", "Qt::QuickTemplates2", extra=["COMPONENTS", "QuickTemplates2"]
     ),
     LibraryMapping("quickwidgets", "Qt6", "Qt::QuickWidgets", extra=["COMPONENTS", "QuickWidgets"]),
-    LibraryMapping("render", "Qt6", "Qt::3DRender", extra=["COMPONENTS", "3DRender"]),
     LibraryMapping(
         "remoteobjects", "Qt6", "Qt::RemoteObjects", extra=["COMPONENTS", "RemoteObjects"]
     ),
@@ -491,6 +498,9 @@ _library_map = [
         "xcb_image", "XCB", "XCB::IMAGE", extra=["0.3.9", "COMPONENTS", "IMAGE"], resultVariable="XCB_IMAGE"
     ),
     LibraryMapping(
+        "xcb_util", "XCB", "XCB::UTIL", extra=["0.3.9", "COMPONENTS", "UTIL"], resultVariable="XCB_UTIL"
+    ),
+    LibraryMapping(
         "xcb_keysyms",
         "XCB",
         "XCB::KEYSYMS",
@@ -536,13 +546,6 @@ _library_map = [
         "XCB::XFIXES",
         extra=["COMPONENTS", "XFIXES"],
         resultVariable="XCB_XFIXES",
-    ),
-    LibraryMapping(
-        "xcb_xinerama",
-        "XCB",
-        "XCB::XINERAMA",
-        extra=["COMPONENTS", "XINERAMA"],
-        resultVariable="XCB_XINERAMA",
     ),
     LibraryMapping(
         "xcb_xinput",

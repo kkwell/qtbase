@@ -41,6 +41,7 @@
 #include "qdatastream.h"
 
 #include <private/qdebug_p.h>
+#include <QtCore/qhashfunctions.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -243,23 +244,20 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn bool operator==(const QPoint &p1, const QPoint &p2)
-    \relates QPoint
+    \fn bool QPoint::operator==(const QPoint &p1, const QPoint &p2)
 
     Returns \c true if \a p1 and \a p2 are equal; otherwise returns
     false.
 */
 
 /*!
-    \fn bool operator!=(const QPoint &p1, const QPoint &p2)
-    \relates QPoint
+    \fn bool QPoint::operator!=(const QPoint &p1, const QPoint &p2)
 
     Returns \c true if \a p1 and \a p2 are not equal; otherwise returns \c false.
 */
 
 /*!
-    \fn const QPoint operator+(const QPoint &p1, const QPoint &p2)
-    \relates QPoint
+    \fn QPoint QPoint::operator+(const QPoint &p1, const QPoint &p2)
 
     Returns a QPoint object that is the sum of the given points, \a p1
     and \a p2; each component is added separately.
@@ -268,8 +266,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator-(const QPoint &p1, const QPoint &p2)
-    \relates QPoint
+    \fn Point QPoint::operator-(const QPoint &p1, const QPoint &p2)
 
     Returns a QPoint object that is formed by subtracting \a p2 from
     \a p1; each component is subtracted separately.
@@ -278,8 +275,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(const QPoint &point, float factor)
-    \relates QPoint
+    \fn QPoint QPoint::operator*(const QPoint &point, float factor)
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -290,8 +286,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(const QPoint &point, double factor)
-    \relates QPoint
+    \fn QPoint QPoint::operator*(const QPoint &point, double factor)
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -302,8 +297,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(const QPoint &point, int factor)
-    \relates QPoint
+    \fn QPoint QPoint::operator*(const QPoint &point, int factor)
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -311,9 +305,8 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(float factor, const QPoint &point)
+    \fn QPoint QPoint::operator*(float factor, const QPoint &point)
     \overload
-    \relates QPoint
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -324,9 +317,8 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(double factor, const QPoint &point)
+    \fn QPoint QPoint::operator*(double factor, const QPoint &point)
     \overload
-    \relates QPoint
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -337,9 +329,8 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator*(int factor, const QPoint &point)
+    \fn QPoint QPoint::operator*(int factor, const QPoint &point)
     \overload
-    \relates QPoint
 
     Returns a copy of the given \a point multiplied by the given \a factor.
 
@@ -347,17 +338,15 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator+(const QPoint &point)
-    \relates QPoint
+    \fn QPoint QPoint::operator+(const QPoint &point)
     \since 5.0
 
     Returns \a point unmodified.
 */
 
 /*!
-    \fn const QPoint operator-(const QPoint &point)
+    \fn QPoint QPoint::operator-(const QPoint &point)
     \overload
-    \relates QPoint
 
     Returns a QPoint object that is formed by changing the sign of
     both components of the given \a point.
@@ -381,8 +370,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \fn const QPoint operator/(const QPoint &point, qreal divisor)
-    \relates QPoint
+    \fn const QPoint QPoint::operator/(const QPoint &point, qreal divisor)
 
     Returns the QPoint formed by dividing both components of the given \a point
     by the given \a divisor.
@@ -482,6 +470,19 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
     return dbg;
 }
 #endif
+
+/*!
+    \fn size_t qHash(QPoint key, size_t seed = 0)
+    \relates QHash
+    \since 6.0
+
+    Returns the hash value for the \a key, using \a seed to seed the
+    calculation.
+*/
+size_t qHash(QPoint key, size_t seed) noexcept
+{
+    return qHashMulti(seed, key.x(), key.y());
+}
 
 /*!
     \class QPointF
@@ -674,8 +675,7 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator+(const QPointF &p1, const QPointF &p2)
-    \relates QPointF
+    \fn QPointF QPointF::operator+(const QPointF &p1, const QPointF &p2)
 
     Returns a QPointF object that is the sum of the given points, \a p1
     and \a p2; each component is added separately.
@@ -684,8 +684,7 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator-(const QPointF &p1, const QPointF &p2)
-    \relates QPointF
+    \fn QPointF QPointF::operator-(const QPointF &p1, const QPointF &p2)
 
     Returns a QPointF object that is formed by subtracting \a p2 from \a p1;
     each component is subtracted separately.
@@ -694,8 +693,7 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator*(const QPointF &point, qreal factor)
-    \relates QPointF
+    \fn QPointF QPointF::operator*(const QPointF &point, qreal factor)
 
     Returns a copy of the given \a point,  multiplied by the given \a factor.
 
@@ -703,8 +701,7 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator*(qreal factor, const QPointF &point)
-    \relates QPointF
+    \fn QPointF QPointF::operator*(qreal factor, const QPointF &point)
 
     \overload
 
@@ -712,16 +709,14 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator+(const QPointF &point)
-    \relates QPointF
+    \fn QPointF QPointF::operator+(const QPointF &point)
     \since 5.0
 
     Returns \a point unmodified.
 */
 
 /*!
-    \fn const QPointF operator-(const QPointF &point)
-    \relates QPointF
+    \fn QPointF QPointF::operator-(const QPointF &point)
     \overload
 
     Returns a QPointF object that is formed by changing the sign of
@@ -731,8 +726,7 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn const QPointF operator/(const QPointF &point, qreal divisor)
-    \relates QPointF
+    \fn QPointF QPointF::operator/(const QPointF &point, qreal divisor)
 
     Returns the QPointF object formed by dividing both components of
     the given \a point by the given \a divisor.
@@ -759,17 +753,27 @@ QDebug operator<<(QDebug dbg, const QPointF &p)
 */
 
 /*!
-    \fn bool operator==(const QPointF &p1, const QPointF &p2)
-    \relates QPointF
+    \fn bool QPointF::operator==(const QPointF &p1, const QPointF &p2)
 
-    Returns \c true if \a p1 is equal to \a p2; otherwise returns \c false.
+    Returns \c true if \a p1 is approximately equal to \a p2; otherwise
+    returns \c false.
+
+    \warning This function does not check for strict equality; instead,
+    it uses a fuzzy comparison to compare the points' coordinates.
+
+    \sa qFuzzyCompare
 */
 
 /*!
-    \fn bool operator!=(const QPointF &p1, const QPointF &p2);
-    \relates QPointF
+    \fn bool QPointF::operator!=(const QPointF &p1, const QPointF &p2);
 
-    Returns \c true if \a p1 is not equal to \a p2; otherwise returns \c false.
+    Returns \c true if \a p1 is sufficiently different from \a p2;
+    otherwise returns \c false.
+
+    \warning This function does not check for strict inequality; instead,
+    it uses a fuzzy comparison to compare the points' coordinates.
+
+    \sa qFuzzyCompare
 */
 
 #ifndef QT_NO_DATASTREAM

@@ -20,9 +20,13 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Sql)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(relationaltablemodel
+qt_add_executable(relationaltablemodel
     ../connection.h
     relationaltablemodel.cpp
+)
+set_target_properties(relationaltablemodel PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(relationaltablemodel PUBLIC
     Qt::Core

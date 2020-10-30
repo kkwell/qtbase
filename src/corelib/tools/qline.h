@@ -40,8 +40,6 @@
 #ifndef QLINE_H
 #define QLINE_H
 
-#include "qmath.h"
-
 #include <QtCore/qpoint.h>
 
 QT_BEGIN_NAMESPACE
@@ -75,10 +73,10 @@ public:
     inline void translate(const QPoint &p);
     inline void translate(int dx, int dy);
 
-    Q_REQUIRED_RESULT constexpr inline QLine translated(const QPoint &p) const;
-    Q_REQUIRED_RESULT constexpr inline QLine translated(int dx, int dy) const;
+    [[nodiscard]] constexpr inline QLine translated(const QPoint &p) const;
+    [[nodiscard]] constexpr inline QLine translated(int dx, int dy) const;
 
-    Q_REQUIRED_RESULT constexpr inline QPoint center() const;
+    [[nodiscard]] constexpr inline QPoint center() const;
 
     inline void setP1(const QPoint &p1);
     inline void setP2(const QPoint &p2);
@@ -225,7 +223,7 @@ public:
     constexpr inline QLineF(qreal x1, qreal y1, qreal x2, qreal y2);
     constexpr inline QLineF(const QLine &line) : pt1(line.p1()), pt2(line.p2()) { }
 
-    Q_REQUIRED_RESULT static QLineF fromPolar(qreal length, qreal angle);
+    [[nodiscard]] static QLineF fromPolar(qreal length, qreal angle);
 
     constexpr bool isNull() const;
 
@@ -249,8 +247,8 @@ public:
 
     qreal angleTo(const QLineF &l) const;
 
-    Q_REQUIRED_RESULT QLineF unitVector() const;
-    Q_REQUIRED_RESULT constexpr inline QLineF normalVector() const;
+    [[nodiscard]] QLineF unitVector() const;
+    [[nodiscard]] constexpr inline QLineF normalVector() const;
 
     IntersectionType intersects(const QLineF &l, QPointF *intersectionPoint = nullptr) const;
 
@@ -258,10 +256,10 @@ public:
     inline void translate(const QPointF &p);
     inline void translate(qreal dx, qreal dy);
 
-    Q_REQUIRED_RESULT constexpr inline QLineF translated(const QPointF &p) const;
-    Q_REQUIRED_RESULT constexpr inline QLineF translated(qreal dx, qreal dy) const;
+    [[nodiscard]] constexpr inline QLineF translated(const QPointF &p) const;
+    [[nodiscard]] constexpr inline QLineF translated(qreal dx, qreal dy) const;
 
-    Q_REQUIRED_RESULT constexpr inline QPointF center() const;
+    [[nodiscard]] constexpr inline QPointF center() const;
 
     inline void setP1(const QPointF &p1);
     inline void setP2(const QPointF &p2);
@@ -372,15 +370,14 @@ constexpr inline QPointF QLineF::center() const
     return QPointF(0.5 * pt1.x() + 0.5 * pt2.x(), 0.5 * pt1.y() + 0.5 * pt2.y());
 }
 
-QT_WARNING_DISABLE_FLOAT_COMPARE
-
 inline void QLineF::setLength(qreal len)
 {
-    const qreal oldlength = qSqrt(dx() * dx() + dy() * dy());
-    if (!oldlength)
+    if (isNull())
         return;
-    const qreal factor = len / oldlength;
-    pt2 = QPointF(pt1.x() + dx() * factor, pt1.y() + dy() * factor);
+    Q_ASSERT(length() > 0);
+    const QLineF v = unitVector();
+    len /= v.length(); // In case it's not quite exactly 1.
+    pt2 = QPointF(pt1.x() + len * v.dx(), pt1.y() + len * v.dy());
 }
 
 constexpr inline QPointF QLineF::pointAt(qreal t) const

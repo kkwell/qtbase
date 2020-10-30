@@ -297,7 +297,7 @@ void WidgetWindowControl::statesChanged()
 class Window : public QWindow
 {
 public:
-    explicit Window(QWindow *parent = 0)
+    explicit Window(QWindow *parent = nullptr)
         : QWindow(parent)
         , m_backingStore(new QBackingStore(this))
     {
@@ -400,7 +400,7 @@ ControllerWidget::ControllerWidget(QWidget *parent)
     QMenu *fileMenu = menuBar()->addMenu(tr("File"));
     QAction *exitAction = fileMenu->addAction(tr("Exit"));
     exitAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Q));
-    connect(exitAction, SIGNAL(triggered()), qApp, SLOT(closeAllWindows()));
+    connect(exitAction, SIGNAL(triggered()), qApp, SLOT(quit()));
 
     QString title = QLatin1String("Geometry test, (Qt ");
     title += QLatin1String(QT_VERSION_STR);

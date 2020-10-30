@@ -185,7 +185,7 @@ public:
 
     void restart();
     void maybeUpdateAnimationsToCurrentTime();
-    void updateAnimationTimers(qint64 currentTick);
+    void updateAnimationTimers();
 
     //useful for profiling/debugging
     int runningAnimationCount();

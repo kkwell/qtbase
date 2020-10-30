@@ -290,7 +290,7 @@ bool QProcessEnvironment::isEmpty() const
 */
 void QProcessEnvironment::clear()
 {
-    if (d)
+    if (d.constData())
         d->vars.clear();
     // Unix: Don't clear d->nameMap, as the environment is likely to be
     // re-populated with the same keys again.
@@ -339,9 +339,9 @@ void QProcessEnvironment::insert(const QString &name, const QString &value)
 */
 void QProcessEnvironment::remove(const QString &name)
 {
-    if (d) {
-        d.detach(); // detach before prepareName()
-        d->vars.remove(d->prepareName(name));
+    if (d.constData()) {
+        QProcessEnvironmentPrivate *p = d.data();
+        p->vars.remove(p->prepareName(name));
     }
 }
 
@@ -828,27 +828,6 @@ QProcessPrivate::QProcessPrivate()
 {
     readBufferChunkSize = QRINGBUFFER_CHUNKSIZE;
     writeBufferChunkSize = QRINGBUFFER_CHUNKSIZE;
-    processChannelMode = QProcess::SeparateChannels;
-    inputChannelMode = QProcess::ManagedInputChannel;
-    processError = QProcess::UnknownError;
-    processState = QProcess::NotRunning;
-    pid = 0;
-    sequenceNumber = 0;
-    exitCode = 0;
-    exitStatus = QProcess::NormalExit;
-    startupSocketNotifier = nullptr;
-    deathNotifier = nullptr;
-    childStartedPipe[0] = INVALID_Q_PIPE;
-    childStartedPipe[1] = INVALID_Q_PIPE;
-    forkfd = -1;
-    crashed = false;
-    dying = false;
-    emittedReadyRead = false;
-    emittedBytesWritten = false;
-#ifdef Q_OS_WIN
-    stdinWriteTrigger = 0;
-    processFinishedNotifier = 0;
-#endif // Q_OS_WIN
 }
 
 /*!
@@ -1529,7 +1508,7 @@ QProcess::CreateProcessArgumentModifier QProcess::createProcessArgumentsModifier
     \note This function is available only on the Windows platform and requires
     C++11.
 
-    \sa QProcess::CreateProcessArgumentModifier
+    \sa QProcess::CreateProcessArgumentModifier, setChildProcessModifier()
 */
 void QProcess::setCreateProcessArgumentsModifier(CreateProcessArgumentModifier modifier)
 {
@@ -1537,6 +1516,59 @@ void QProcess::setCreateProcessArgumentsModifier(CreateProcessArgumentModifier m
     d->modifyCreateProcessArgs = modifier;
 }
 
+#endif
+
+#if defined(Q_OS_UNIX) || defined(Q_QDOC)
+/*!
+    \since 6.0
+
+    Returns the modifier function previously set by calling
+    setChildProcessModifier().
+
+    \note This function is only available on Unix platforms.
+
+    \sa setChildProcessModifier()
+*/
+std::function<void(void)> QProcess::childProcessModifier() const
+{
+    Q_D(const QProcess);
+    return d->childProcessModifier;
+}
+
+/*!
+    \since 6.0
+
+    Sets the \a modifier function for the child process, for Unix systems
+    (including \macos; for Windows, see setCreateProcessArgumentsModifier()).
+    The function contained by the \a modifier argument will be invoked in the
+    child process after \c{fork()} is completed and QProcess has set up the
+    standard file descriptors for the child process, but before \c{execve()},
+    inside start(). The modifier is useful to change certain properties of the
+    child process, such as setting up additional file descriptors or closing
+    others, changing the nice level, disconnecting from the controlling TTY,
+    etc.
+
+    The following shows an example of setting up a child process to run without
+    privileges:
+
+    \snippet code/src_corelib_io_qprocess.cpp 4
+
+    If the modifier function needs to exit the process, remember to use
+    \c{_exit()}, not \c{exit()}.
+
+    \note In multithreaded applications, this function must be careful not to
+    call any functions that may lock mutexes that may have been in use in
+    other threads (in general, using only functions defined by POSIX as
+    "async-signal-safe" is advised). Most of the Qt API is unsafe inside this
+    callback, including qDebug(), and may lead to deadlocks.
+
+    \sa childProcessModifier()
+*/
+void QProcess::setChildProcessModifier(const std::function<void(void)> &modifier)
+{
+    Q_D(QProcess);
+    d->childProcessModifier = modifier;
+}
 #endif
 
 /*!
@@ -1568,24 +1600,6 @@ void QProcess::setWorkingDirectory(const QString &dir)
 {
     Q_D(QProcess);
     d->workingDirectory = dir;
-}
-
-
-/*!
-    \deprecated
-    Use processId() instead.
-
-    Returns the native process identifier for the running process, if
-    available.  If no process is currently running, \c 0 is returned.
-
-    \note Unlike \l processId(), pid() returns an integer on Unix and a pointer on Windows.
-
-    \sa Q_PID, processId()
-*/
-Q_PID QProcess::pid() const // ### Qt 6 remove or rename this method to processInformation()
-{
-    Q_D(const QProcess);
-    return d->pid;
 }
 
 /*!
@@ -1843,25 +1857,16 @@ void QProcess::setProcessState(ProcessState state)
     emit stateChanged(state, QPrivateSignal());
 }
 
+#if QT_VERSION < QT_VERSION_CHECK(7,0,0)
 /*!
-  This function is called in the child process context just before the
-    program is executed on Unix or \macos (i.e., after \c fork(), but before
-    \c execve()). Reimplement this function to do last minute initialization
-    of the child process. Example:
-
-    \snippet code/src_corelib_io_qprocess.cpp 4
-
-    You cannot exit the process (by calling exit(), for instance) from
-    this function. If you need to stop the program before it starts
-    execution, your workaround is to emit finished() and then call
-    exit().
-
-    \warning This function is called by QProcess on Unix and \macos
-    only. On Windows and QNX, it is not called.
+    \internal
 */
-void QProcess::setupChildProcess()
+auto QProcess::setupChildProcess() -> Use_setChildProcessModifier_Instead
 {
+    Q_UNREACHABLE();
+    return {};
 }
+#endif
 
 /*! \reimp
 */
@@ -2019,6 +2024,47 @@ void QProcess::start(OpenMode mode)
 }
 
 /*!
+    \since 6.0
+
+    Starts the command \a command in a new process.
+    The OpenMode is set to \a mode.
+
+    \a command is a single string of text containing both the program name
+    and its arguments. The arguments are separated by one or more spaces.
+    For example:
+
+    \snippet code/src_corelib_io_qprocess.cpp 5
+
+    Arguments containing spaces must be quoted to be correctly supplied to
+    the new process. For example:
+
+    \snippet code/src_corelib_io_qprocess.cpp 6
+
+    Literal quotes in the \a command string are represented by triple quotes.
+    For example:
+
+    \snippet code/src_corelib_io_qprocess.cpp 7
+
+    After the \a command string has been split and unquoted, this function
+    behaves like start().
+
+    On operating systems where the system API for passing command line
+    arguments to a subprocess natively uses a single string (Windows), one can
+    conceive command lines which cannot be passed via QProcess's portable
+    list-based API. In these rare cases you need to use setProgram() and
+    setNativeArguments() instead of this function.
+
+    \sa splitCommand()
+    \sa start()
+ */
+void QProcess::startCommand(const QString &command, OpenMode mode)
+{
+    QStringList args = splitCommand(command);
+    const QString program = args.takeFirst();
+    start(program, args, mode);
+}
+
+/*!
     \since 5.10
 
     Starts the program set by setProgram() with arguments set by setArguments()
@@ -2064,7 +2110,6 @@ void QProcess::start(OpenMode mode)
     \sa start()
     \sa startDetached(const QString &program, const QStringList &arguments,
                       const QString &workingDirectory, qint64 *pid)
-    \sa startDetached(const QString &command)
 */
 bool QProcess::startDetached(qint64 *pid)
 {
@@ -2458,17 +2503,6 @@ QString QProcess::nullDevice()
     return QStringLiteral("/dev/null");
 #endif
 }
-
-/*!
-    \typedef Q_PID
-    \relates QProcess
-
-    Typedef for the identifiers used to represent processes on the underlying
-    platform. On Unix, this corresponds to \l qint64; on Windows, it
-    corresponds to \c{_PROCESS_INFORMATION*}.
-
-    \sa QProcess::pid()
-*/
 
 #endif // QT_CONFIG(process)
 

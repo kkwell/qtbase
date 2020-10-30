@@ -328,8 +328,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 }
 
 /*!
-    \fn bool operator<(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator<(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is less than \a rhs; otherwise returns \c false.
 
@@ -337,8 +336,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 */
 
 /*!
-    \fn bool operator<=(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator<=(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is less than or equal to \a rhs; otherwise
     returns \c false.
@@ -347,8 +345,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 */
 
 /*!
-    \fn bool operator>(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator>(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is greater than \a rhs; otherwise returns \c
     false.
@@ -357,8 +354,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 */
 
 /*!
-    \fn bool operator>=(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator>=(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is greater than or equal to \a rhs; otherwise
     returns \c false.
@@ -367,8 +363,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 */
 
 /*!
-    \fn bool operator==(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator==(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is equal to \a rhs; otherwise returns \c false.
 
@@ -376,8 +371,7 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &v1,
 */
 
 /*!
-    \fn bool operator!=(const QVersionNumber &lhs, const QVersionNumber &rhs)
-    \relates QVersionNumber
+    \fn bool QVersionNumber::operator!=(const QVersionNumber &lhs, const QVersionNumber &rhs)
 
     Returns \c true if \a lhs is not equal to \a rhs; otherwise returns
     \c false.
@@ -578,7 +572,7 @@ size_t qHash(const QVersionNumber &key, size_t seed)
     \fn template<typename Integer> static bool QTypeRevision::isValidSegment(Integer segment)
 
     Returns true if the given number can be used as either major or minor
-    version in a QTypeRevision. Valid segments need to be \c {>= 0} and \c {< 255}.
+    version in a QTypeRevision. The valid range for \a segment is \c {>= 0} and \c {< 255}.
 */
 
 /*!
@@ -698,7 +692,7 @@ size_t qHash(const QVersionNumber &key, size_t seed)
 
    Writes the revision \a revision to stream \a out.
  */
-QDataStream& operator<<(QDataStream &out, const QTypeRevision &revision)
+QDataStream &operator<<(QDataStream &out, const QTypeRevision &revision)
 {
     return out << revision.toEncodedVersion<quint16>();
 }
@@ -710,7 +704,7 @@ QDataStream& operator<<(QDataStream &out, const QTypeRevision &revision)
 
    Reads a revision from stream \a in and stores it in \a revision.
  */
-QDataStream& operator>>(QDataStream &in, QTypeRevision &revision)
+QDataStream &operator>>(QDataStream &in, QTypeRevision &revision)
 {
     quint16 value;
     in >> value;

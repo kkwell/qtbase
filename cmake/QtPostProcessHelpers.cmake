@@ -25,7 +25,7 @@ macro(qt_collect_third_party_deps target)
     endif()
     unset(_target_is_static)
 
-    foreach(dep ${${depends_var}})
+    foreach(dep ${${depends_var}} ${optional_public_depends})
         # Gather third party packages that should be found when using the Qt module.
         # Also handle nolink target dependencies.
         string(REGEX REPLACE "_nolink$" "" base_dep "${dep}")
@@ -43,6 +43,10 @@ macro(qt_collect_third_party_deps target)
             get_target_property(package_name ${dep} INTERFACE_QT_PACKAGE_NAME)
             if(dep_seen EQUAL -1 AND package_name)
                 list(APPEND third_party_deps_seen ${dep})
+                get_target_property(package_is_optional ${dep} INTERFACE_QT_PACKAGE_IS_OPTIONAL)
+                if(NOT package_is_optional AND dep IN_LIST optional_public_depends)
+                    set(package_is_optional TRUE)
+                endif()
                 get_target_property(package_version ${dep} INTERFACE_QT_PACKAGE_VERSION)
                 if(NOT package_version)
                     set(package_version "")
@@ -54,7 +58,7 @@ macro(qt_collect_third_party_deps target)
                 endif()
 
                 list(APPEND third_party_deps
-                            "${package_name}\;${package_version}\;${package_components}")
+                    "${package_name}\;${package_is_optional}\;${package_version}\;${package_components}")
             endif()
         endif()
     endforeach()
@@ -74,6 +78,11 @@ function(qt_internal_create_module_depends_file target)
     endif()
 
     get_target_property(public_depends "${target}" INTERFACE_LINK_LIBRARIES)
+
+    unset(optional_public_depends)
+    if(TARGET "${target}Private")
+        get_target_property(optional_public_depends "${target}Private" INTERFACE_LINK_LIBRARIES)
+    endif()
 
     # Used for collecting Qt module dependencies that should be find_package()'d in
     # ModuleDependencies.cmake.
@@ -105,6 +114,16 @@ function(qt_internal_create_module_depends_file target)
     # ModuleDependencies.cmake.
     set(main_module_tool_deps "")
 
+    # Extra QtFooModuleTools packages to be added as dependencies to
+    # QtModuleDependencies.cmake. Needed for QtWaylandCompositor / QtWaylandClient.
+    if(NOT arg_HEADER_MODULE)
+        get_target_property(extra_tools_package_dependencies "${target}"
+                            QT_EXTRA_TOOLS_PACKAGE_DEPENDENCIES)
+        if(extra_tools_package_dependencies)
+            list(APPEND main_module_tool_deps "${extra_tools_package_dependencies}")
+        endif()
+    endif()
+
     qt_internal_get_qt_all_known_modules(known_modules)
 
     set(all_depends ${depends} ${public_depends})
@@ -117,6 +136,11 @@ function(qt_internal_create_module_depends_file target)
                 if (NOT dep_type STREQUAL "INTERFACE_LIBRARY")
                     get_target_property(skip_module_depends_include Qt::${dep} QT_MODULE_SKIP_DEPENDS_INCLUDE)
                     if (skip_module_depends_include)
+                        continue()
+                    endif()
+                else()
+                    get_target_property(module_has_headers Qt::${dep} INTERFACE_MODULE_HAS_HEADERS)
+                    if (NOT module_has_headers)
                         continue()
                     endif()
                 endif()
@@ -144,7 +168,7 @@ function(qt_internal_create_module_depends_file target)
 
     # Add dependency to the main ModuleTool package to ModuleDependencies file.
     if(${target} IN_LIST QT_KNOWN_MODULES_WITH_TOOLS)
-        set(main_module_tool_deps
+        list(APPEND main_module_tool_deps
             "${INSTALL_CMAKE_NAMESPACE}${target}Tools\;${PROJECT_VERSION}")
     endif()
 
@@ -216,6 +240,7 @@ function(qt_internal_create_plugin_depends_file target)
     get_target_property(depends "${target}" LINK_LIBRARIES)
     get_target_property(public_depends "${target}" INTERFACE_LINK_LIBRARIES)
     get_target_property(target_deps "${target}" _qt_target_deps)
+    unset(optional_public_depends)
     set(target_deps_seen "")
 
     qt_collect_third_party_deps(${target})
@@ -277,6 +302,8 @@ function(qt_internal_create_qt6_dependencies_file)
     # This is the actual target we're querying.
     set(actual_target Platform)
     get_target_property(public_depends "${actual_target}" INTERFACE_LINK_LIBRARIES)
+    unset(depends)
+    unset(optional_public_depends)
 
     # We need to collect third party deps that are set on the public Platform target,
     # like Threads::Threads.
@@ -506,6 +533,14 @@ endif()\n")
         if(ECM_ENABLE_SANITIZERS)
             string(APPEND QT_EXTRA_BUILD_INTERNALS_VARS
                 "set(ECM_ENABLE_SANITIZERS \"${ECM_ENABLE_SANITIZERS}\" CACHE BOOL \"\" FORCE)\n")
+        endif()
+
+        # Save the default qpa platform.
+        # Used by qtwayland/src/plugins/platforms/qwayland-generic/CMakeLists.txt. Otherwise
+        # the DEFAULT_IF condition is evaluated incorrectly.
+        if(DEFINED QT_QPA_DEFAULT_PLATFORM)
+            string(APPEND QT_EXTRA_BUILD_INTERNALS_VARS
+                "set(QT_QPA_DEFAULT_PLATFORM \"${QT_QPA_DEFAULT_PLATFORM}\" CACHE STRING \"\")\n")
         endif()
 
         # Rpath related things that need to be re-used when building other repos.

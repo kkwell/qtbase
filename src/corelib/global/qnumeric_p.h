@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2019 The Qt Company Ltd.
-** Copyright (C) 2018 Intel Corporation.
+** Copyright (C) 2020 The Qt Company Ltd.
+** Copyright (C) 2020 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -55,6 +55,7 @@
 #include "QtCore/private/qglobal_p.h"
 #include <cmath>
 #include <limits>
+#include <type_traits>
 
 #if defined(Q_CC_MSVC)
 #  include <intrin.h>
@@ -129,7 +130,7 @@ Q_DECL_CONST_FUNCTION static inline int fpclassify(float f) { return std::fpclas
 constexpr Q_DECL_CONST_FUNCTION static inline double qt_inf() noexcept
 {
     static_assert(std::numeric_limits<double>::has_infinity,
-                      "platform has no definition for infinity for type double");
+                  "platform has no definition for infinity for type double");
     return std::numeric_limits<double>::infinity();
 }
 
@@ -137,7 +138,7 @@ constexpr Q_DECL_CONST_FUNCTION static inline double qt_inf() noexcept
 constexpr Q_DECL_CONST_FUNCTION static inline double qt_snan() noexcept
 {
     static_assert(std::numeric_limits<double>::has_signaling_NaN,
-                      "platform has no definition for signaling NaN for type double");
+                  "platform has no definition for signaling NaN for type double");
     return std::numeric_limits<double>::signaling_NaN();
 }
 #endif
@@ -146,7 +147,7 @@ constexpr Q_DECL_CONST_FUNCTION static inline double qt_snan() noexcept
 constexpr Q_DECL_CONST_FUNCTION static inline double qt_qnan() noexcept
 {
     static_assert(std::numeric_limits<double>::has_quiet_NaN,
-                      "platform has no definition for quiet NaN for type double");
+                  "platform has no definition for quiet NaN for type double");
     return std::numeric_limits<double>::quiet_NaN();
 }
 
@@ -202,7 +203,8 @@ namespace {
     This function works for v containing infinities, but not NaN. It's the
     caller's responsibility to exclude that possibility before calling it.
 */
-template <typename T> static inline bool convertDoubleTo(double v, T *value, bool allow_precision_upgrade = true)
+template<typename T>
+static inline bool convertDoubleTo(double v, T *value, bool allow_precision_upgrade = true)
 {
     static_assert(std::numeric_limits<T>::is_integer);
 
@@ -255,6 +257,7 @@ QT_WARNING_POP
 #if ((defined(Q_CC_INTEL) ? (Q_CC_INTEL >= 1800 && !defined(Q_OS_WIN)) : defined(Q_CC_GNU)) \
      && Q_CC_GNU >= 500) || __has_builtin(__builtin_add_overflow)
 // GCC 5, ICC 18, and Clang 3.8 have builtins to detect overflows
+#define Q_INTRINSIC_MUL_OVERFLOW64
 
 template <typename T> inline
 typename std::enable_if<std::is_unsigned<T>::value || std::is_signed<T>::value, bool>::type
@@ -409,6 +412,83 @@ template <> inline bool add_overflow(quint64 v1, quint64 v2, quint64 *r)
 }
 #  endif // MSVC X86
 #endif // !GCC
+
+// Implementations for addition, subtraction or multiplication by a
+// compile-time constant. For addition and subtraction, we simply call the code
+// that detects overflow at runtime. For multiplication, we compare to the
+// maximum possible values before multiplying to ensure no overflow happens.
+
+template <typename T, T V2> bool add_overflow(T v1, std::integral_constant<T, V2>, T *r)
+{
+    return add_overflow(v1, V2, r);
+}
+
+template <auto V2, typename T> bool add_overflow(T v1, T *r)
+{
+    return add_overflow(v1, std::integral_constant<T, V2>{}, r);
+}
+
+template <typename T, T V2> bool sub_overflow(T v1, std::integral_constant<T, V2>, T *r)
+{
+    return sub_overflow(v1, V2, r);
+}
+
+template <auto V2, typename T> bool sub_overflow(T v1, T *r)
+{
+    return sub_overflow(v1, std::integral_constant<T, V2>{}, r);
+}
+
+template <typename T, T V2> bool mul_overflow(T v1, std::integral_constant<T, V2>, T *r)
+{
+    // Runtime detection for anything smaller than or equal to a register
+    // width, as most architectures' multiplication instructions actually
+    // produce a result twice as wide as the input registers, allowing us to
+    // efficiently detect the overflow.
+    if constexpr (sizeof(T) <= sizeof(qregisteruint)) {
+        return mul_overflow(v1, V2, r);
+
+#ifdef Q_INTRINSIC_MUL_OVERFLOW64
+    } else if constexpr (sizeof(T) <= sizeof(quint64)) {
+        // If we have intrinsics detecting overflow of 64-bit multiplications,
+        // then detect overflows through them up to 64 bits.
+        return mul_overflow(v1, V2, r);
+#endif
+
+    } else if constexpr (V2 == 0 || V2 == 1) {
+        // trivial cases (and simplify logic below due to division by zero)
+        *r = v1 * V2;
+        return false;
+    } else if constexpr (V2 == -1) {
+        // multiplication by -1 is valid *except* for signed minimum values
+        // (necessary to avoid diving min() by -1, which is an overflow)
+        if (v1 < 0 && v1 == std::numeric_limits<T>::min())
+            return true;
+        *r = -v1;
+        return false;
+    } else {
+        // For 64-bit multiplications on 32-bit platforms, let's instead compare v1
+        // against the bounds that would overflow.
+        constexpr T Highest = std::numeric_limits<T>::max() / V2;
+        constexpr T Lowest = std::numeric_limits<T>::min() / V2;
+        if constexpr (Highest > Lowest) {
+            if (v1 > Highest || v1 < Lowest)
+                return true;
+        } else {
+            // this can only happen if V2 < 0
+            static_assert(V2 < 0);
+            if (v1 > Lowest || v1 < Highest)
+                return true;
+        }
+
+        *r = v1 * V2;
+        return false;
+    }
+}
+
+template <auto V2, typename T> bool mul_overflow(T v1, T *r)
+{
+    return mul_overflow(v1, std::integral_constant<T, V2>{}, r);
+}
 }
 #endif // Q_CLANG_QDOC
 

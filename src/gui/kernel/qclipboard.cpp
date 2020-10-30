@@ -83,7 +83,7 @@ QT_BEGIN_NAMESPACE
 
     A typical example of the use of these functions follows:
 
-    \snippet droparea.cpp 0
+    \snippet droparea/droparea.cpp 0
 
     \section1 Notes for X11 Users
 
@@ -286,7 +286,7 @@ QString QClipboard::text(QString &subtype, Mode mode) const
     }
 
     const QByteArray rawData = data->data(QLatin1String("text/") + subtype);
-    auto encoding = QStringConverter::encodingForData(rawData.constData(), rawData.size());
+    auto encoding = QStringConverter::encodingForData(rawData);
     if (!encoding)
         encoding = QStringConverter::Utf8;
     return QStringDecoder(*encoding).decode(rawData);

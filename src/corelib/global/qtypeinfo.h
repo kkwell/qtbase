@@ -218,7 +218,7 @@ inline void swap(TYPE &value1, TYPE &value2) \
 { value1.swap(value2); }
 #define Q_DECLARE_SHARED(TYPE) Q_DECLARE_SHARED_IMPL(TYPE, Q_MOVABLE_TYPE)
 #define Q_DECLARE_SHARED_NOT_MOVABLE_UNTIL_QT6(TYPE) \
-                               Q_DECLARE_SHARED_IMPL(TYPE, QT_VERSION >= QT_VERSION_CHECK(6,0,0) ? Q_MOVABLE_TYPE : Q_RELOCATABLE_TYPE)
+                               Q_DECLARE_SHARED_IMPL(TYPE, Q_MOVABLE_TYPE)
 
 namespace QTypeTraits
 {
@@ -250,11 +250,14 @@ struct is_container<T, std::void_t<
 
 
 // Checks the existence of the comparison operator for the class itself
+QT_WARNING_PUSH
+QT_WARNING_DISABLE_FLOAT_COMPARE
 template <typename, typename = void>
 struct has_operator_equal : std::false_type {};
 template <typename T>
 struct has_operator_equal<T, std::void_t<decltype(bool(std::declval<const T&>() == std::declval<const T&>()))>>
         : std::true_type {};
+QT_WARNING_POP
 
 // Two forward declarations
 template<typename T, bool = is_container<T>::value>
@@ -324,6 +327,16 @@ struct expand_operator_less_than_tuple<std::variant<T...>> : expand_operator_les
 
 }
 
+template<typename T, typename = void>
+struct is_dereferenceable : std::false_type {};
+
+template<typename T>
+struct is_dereferenceable<T, std::void_t<decltype(std::declval<T>().operator->())> >
+    : std::true_type {};
+
+template <typename T>
+constexpr bool is_dereferenceable_v = is_dereferenceable<T>::value;
+
 template<typename T>
 struct has_operator_equal : detail::expand_operator_equal<T> {};
 template<typename T>
@@ -343,7 +356,7 @@ using compare_lt_result = std::enable_if_t<std::conjunction_v<QTypeTraits::has_o
 namespace detail {
 
 template<typename T>
-const T const_value();
+const T &const_reference();
 template<typename T>
 T &reference();
 
@@ -352,7 +365,7 @@ T &reference();
 template <typename Stream, typename, typename = void>
 struct has_ostream_operator : std::false_type {};
 template <typename Stream, typename T>
-struct has_ostream_operator<Stream, T, std::void_t<decltype(detail::reference<Stream>() << detail::const_value<T>())>>
+struct has_ostream_operator<Stream, T, std::void_t<decltype(detail::reference<Stream>() << detail::const_reference<T>())>>
         : std::true_type {};
 template <typename Stream, typename T>
 constexpr bool has_ostream_operator_v = has_ostream_operator<Stream, T>::value;

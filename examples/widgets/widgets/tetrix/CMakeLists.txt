@@ -19,11 +19,15 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(tetrix
+qt_add_executable(tetrix
     main.cpp
     tetrixboard.cpp tetrixboard.h
     tetrixpiece.cpp tetrixpiece.h
     tetrixwindow.cpp tetrixwindow.h
+)
+set_target_properties(tetrix PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(tetrix PUBLIC
     Qt::Core

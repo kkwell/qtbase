@@ -259,6 +259,7 @@ void QHttpNetworkConnectionPrivate::prepareRequest(HttpMessagePair &messagePair)
     QByteArray value;
     // check if Content-Length is provided
     QNonContiguousByteDevice* uploadByteDevice = request.uploadByteDevice();
+#ifndef Q_OS_WASM
     if (uploadByteDevice) {
         const qint64 contentLength = request.contentLength();
         const qint64 uploadDeviceSize = uploadByteDevice->size();
@@ -274,6 +275,7 @@ void QHttpNetworkConnectionPrivate::prepareRequest(HttpMessagePair &messagePair)
             qFatal("QHttpNetworkConnectionPrivate: Neither content-length nor upload device size were given");
         }
     }
+#endif
     // set the Connection/Proxy-Connection: Keep-Alive headers
 #ifndef QT_NO_NETWORKPROXY
     if (networkProxy.type() == QNetworkProxy::HttpCachingProxy)  {
@@ -447,7 +449,14 @@ bool QHttpNetworkConnectionPrivate::handleAuthenticateChallenge(QAbstractSocket 
         if (auth->isNull())
             auth->detach();
         QAuthenticatorPrivate *priv = QAuthenticatorPrivate::getPrivate(*auth);
-        priv->parseHttpResponse(fields, isProxy);
+        priv->parseHttpResponse(fields, isProxy, reply->url().host());
+        // Update method in case it changed
+        if (priv->method == QAuthenticatorPrivate::None)
+            return false;
+        if (isProxy)
+            channels[i].proxyAuthMethod = priv->method;
+        else
+            channels[i].authMethod = priv->method;
 
         if (priv->phase == QAuthenticatorPrivate::Done) {
             pauseConnection();
@@ -1064,8 +1073,18 @@ void QHttpNetworkConnectionPrivate::_q_startNextRequest()
             channels[0].networkLayerPreference = QAbstractSocket::IPv6Protocol;
         channels[0].ensureConnection();
         if (channels[0].socket && channels[0].socket->state() == QAbstractSocket::ConnectedState
-                && !channels[0].pendingEncrypt && channels[0].h2RequestsToSend.size())
-            channels[0].sendRequest();
+            && !channels[0].pendingEncrypt) {
+            if (channels[0].h2RequestsToSend.size()) {
+                channels[0].sendRequest();
+            } else if (!channels[0].reply && !channels[0].switchedToHttp2) {
+                // This covers an edge-case where we're already connected and the "connected"
+                // signal was already sent, but we didn't have any request available at the time,
+                // so it was missed. As such we need to dequeue a request and send it now that we
+                // have one.
+                dequeueRequest(channels[0].socket);
+                channels[0].sendRequest();
+            }
+        }
         break;
     }
     }

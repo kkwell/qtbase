@@ -96,24 +96,33 @@ public:
 
     static bool isActive() { return m_active; }
 
+    struct Point {
+        enum Kind {
+            Invalid,
+            DeviceIndependent,
+            Native
+        };
+        Kind kind;
+        QPoint point;
+    };
+
     struct ScaleAndOrigin
     {
         qreal factor;
         QPoint origin;
     };
-    static ScaleAndOrigin scaleAndOrigin(const QPlatformScreen *platformScreen, QPoint *nativePosition = nullptr);
-    static ScaleAndOrigin scaleAndOrigin(const QScreen *screen, QPoint *nativePosition = nullptr);
-    static ScaleAndOrigin scaleAndOrigin(const QWindow *platformScreen, QPoint *nativePosition = nullptr);
+
+    static ScaleAndOrigin scaleAndOrigin(const QPlatformScreen *platformScreen, Point position = Point{ Point::Invalid, QPoint() });
+    static ScaleAndOrigin scaleAndOrigin(const QScreen *screen, Point position = Point{ Point::Invalid, QPoint() });
+    static ScaleAndOrigin scaleAndOrigin(const QWindow *platformScreen, Point position = Point{ Point::Invalid, QPoint() });
 
     template<typename C>
-    static qreal factor(C *context, QPoint *nativePosition = nullptr) {
-        return scaleAndOrigin(context, nativePosition).factor;
+    static qreal factor(C *context) {
+        return scaleAndOrigin(context).factor;
     }
 
     static QPoint mapPositionFromNative(const QPoint &pos, const QPlatformScreen *platformScreen);
     static QPoint mapPositionToNative(const QPoint &pos, const QPlatformScreen *platformScreen);
-    static QPointF mapPositionToGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window);
-    static QPointF mapPositionFromGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window);
     static QDpi logicalDpi(const QScreen *screen);
 
 private:
@@ -121,19 +130,16 @@ private:
     static qreal roundScaleFactor(qreal rawFactor);
     static QDpi effectiveLogicalDpi(const QPlatformScreen *screen, qreal rawFactor, qreal roundedFactor);
     static qreal screenSubfactor(const QPlatformScreen *screen);
+    static QScreen *screenForPosition(Point position, QScreen *guess);
 
     static qreal m_factor;
     static bool m_active;
-    static bool m_usePixelDensity;
+    static bool m_usePlatformPluginDpi;
+    static bool m_platformPluginDpiScalingActive;
     static bool m_globalScalingActive;
-    static bool m_pixelDensityScalingActive;
     static bool m_screenFactorSet;
     static QDpi m_logicalDpi;
 };
-
-// Coordinate system conversion functions:
-// QHighDpi::fromNativePixels   : from physical(screen/backing) to logical pixels
-// QHighDpi::toNativePixels              : from logical to physical pixels
 
 namespace QHighDpi {
 
@@ -209,17 +215,26 @@ inline QRegion scale(const QRegion &region, qreal scaleFactor, QPoint origin = Q
 }
 
 template <typename T>
-inline QPoint position(T) { return QPoint(); }
-inline QPoint position(QPoint point) { return point; }
-inline QPoint position(QPointF point) { return point.toPoint(); }
-inline QPoint position(QRect rect) { return rect.center(); }
-inline QPoint position(QRectF rect) { return rect.center().toPoint(); }
+inline QHighDpiScaling::Point position(T, QHighDpiScaling::Point::Kind) {
+    return QHighDpiScaling::Point{ QHighDpiScaling::Point::Invalid, QPoint() };
+}
+inline QHighDpiScaling::Point position(QPoint point, QHighDpiScaling::Point::Kind kind) {
+    return QHighDpiScaling::Point{ kind, point };
+}
+inline QHighDpiScaling::Point position(QPointF point, QHighDpiScaling::Point::Kind kind) {
+    return QHighDpiScaling::Point{ kind, point.toPoint() };
+}
+inline QHighDpiScaling::Point position(QRect rect, QHighDpiScaling::Point::Kind kind) {
+    return QHighDpiScaling::Point{ kind, rect.topLeft() };
+}
+inline QHighDpiScaling::Point position(QRectF rect, QHighDpiScaling::Point::Kind kind) {
+    return QHighDpiScaling::Point{ kind, rect.topLeft().toPoint() };
+}
 
 template <typename T, typename C>
 T fromNativePixels(const T &value, const C *context)
 {
-    QPoint nativePosition = position(value);
-    QHighDpiScaling::ScaleAndOrigin so = QHighDpiScaling::scaleAndOrigin(context, &nativePosition);
+    QHighDpiScaling::ScaleAndOrigin so = QHighDpiScaling::scaleAndOrigin(context);
     return scale(value, qreal(1) / so.factor, so.origin);
 }
 
@@ -240,6 +255,38 @@ template <typename T, typename C>
 T toNativeLocalPosition(const T &value, const C *context)
 {
     return scale(value, QHighDpiScaling::factor(context));
+}
+
+template <typename T, typename C>
+T fromNativeGlobalPosition(const T &value, const C *context)
+{
+    QHighDpiScaling::ScaleAndOrigin so =
+        QHighDpiScaling::scaleAndOrigin(context, position(value, QHighDpiScaling::Point::Native));
+    return scale(value, qreal(1) / so.factor, so.origin);
+}
+
+template <typename T, typename C>
+T toNativeGlobalPosition(const T &value, const C *context)
+{
+    QHighDpiScaling::ScaleAndOrigin so =
+        QHighDpiScaling::scaleAndOrigin(context, position(value, QHighDpiScaling::Point::DeviceIndependent));
+    return scale(value, so.factor, so.origin);
+}
+
+template <typename T, typename C>
+T fromNativeWindowGeometry(const T &value, const C *context)
+{
+    QHighDpiScaling::ScaleAndOrigin so = QHighDpiScaling::scaleAndOrigin(context);
+    QPoint effectiveOrigin = (context && context->isTopLevel()) ? so.origin : QPoint(0,0);
+    return scale(value, qreal(1) / so.factor, effectiveOrigin);
+}
+
+template <typename T, typename C>
+T toNativeWindowGeometry(const T &value, const C *context)
+{
+    QHighDpiScaling::ScaleAndOrigin so = QHighDpiScaling::scaleAndOrigin(context);
+    QPoint effectiveOrigin = (context && context->isTopLevel()) ? so.origin : QPoint(0,0);
+    return scale(value, so.factor, effectiveOrigin);
 }
 
 template <typename T>
@@ -279,13 +326,9 @@ inline QRegion fromNativeLocalExposedRegion(const QRegion &pixelRegion, const QW
 
     const qreal scaleFactor = QHighDpiScaling::factor(window);
     QRegion pointRegion;
-    for (const QRectF rect: pixelRegion) {
-        const QPointF topLeftP = rect.topLeft() / scaleFactor;
-        const QSizeF sizeP = rect.size() / scaleFactor;
-        pointRegion += QRect(QPoint(qFloor(topLeftP.x()), qFloor(topLeftP.y())),
-                             QPoint(qCeil(topLeftP.x() + sizeP.width()  - 1.0),
-                                    qCeil(topLeftP.y() + sizeP.height() - 1.0)));
-    }
+    for (const QRectF rect: pixelRegion)
+        pointRegion += QRectF(rect.topLeft() / scaleFactor, rect.size() / scaleFactor).toAlignedRect();
+
     return pointRegion;
 }
 
@@ -320,8 +363,8 @@ public:
     static inline QPoint origin(const QPlatformScreen *) { return QPoint(); }
     static inline QPoint mapPositionFromNative(const QPoint &pos, const QPlatformScreen *) { return pos; }
     static inline QPoint mapPositionToNative(const QPoint &pos, const QPlatformScreen *) { return pos; }
-    static inline QPoint mapPositionToGlobal(const QPoint &pos, const QPoint &windowGlobalPosition, const QWindow *window) { return pos; }
-    static inline QPoint mapPositionFromGlobal(const QPoint &pos, const QPoint &windowGlobalPosition, const QWindow *window) { return pos; }
+    static inline QPointF mapPositionToGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window) { return pos; }
+    static inline QPointF mapPositionFromGlobal(const QPointF &pos, const QPoint &windowGlobalPosition, const QWindow *window) { return pos; }
     static inline QDpi logicalDpi(const QScreen *screen) { return QDpi(-1,-1); }
 };
 

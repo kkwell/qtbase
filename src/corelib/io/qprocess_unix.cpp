@@ -459,8 +459,14 @@ void QProcessPrivate::startProcess()
     // safe with vfork semantics: suspend the parent execution until the child
     // either execve()s or _exit()s.
     int ffdflags = FFD_CLOEXEC;
-    if (typeid(*q) != typeid(QProcess))
+    if (childProcessModifier)
         ffdflags |= FFD_USE_FORK;
+
+    // QTBUG-86285
+#if !QT_CONFIG(forkfd_pidfd)
+    ffdflags |= FFD_USE_FORK;
+#endif
+
     pid_t childPid;
     forkfd = ::forkfd(ffdflags , &childPid);
     int lastForkErrno = errno;
@@ -497,7 +503,8 @@ void QProcessPrivate::startProcess()
         ::_exit(-1);
     }
 
-    pid = Q_PID(childPid);
+    pid = qint64(childPid);
+    Q_ASSERT(pid > 0);
 
     // parent
     // close the ends we don't use and make all pipes non-blocking
@@ -544,7 +551,6 @@ void QProcessPrivate::execChild(const char *workingDir, char **argv, char **envp
 {
     ::signal(SIGPIPE, SIG_DFL);         // reset the signal that we ignored
 
-    Q_Q(QProcess);
     ChildError error = { 0, {} };       // force zeroing of function[8]
 
     // copy the stdin socket if asked to (without closing on exec)
@@ -574,8 +580,8 @@ void QProcessPrivate::execChild(const char *workingDir, char **argv, char **envp
         goto report_errno;
     }
 
-    // this is a virtual call, and it base behavior is to do nothing.
-    q->setupChildProcess();
+    if (childProcessModifier)
+        childProcessModifier();
 
     // execute the process
     if (!envp) {
@@ -686,18 +692,18 @@ bool QProcessPrivate::writeToStdin()
 void QProcessPrivate::terminateProcess()
 {
 #if defined (QPROCESS_DEBUG)
-    qDebug("QProcessPrivate::terminateProcess()");
+    qDebug("QProcessPrivate::terminateProcess() pid=%jd", intmax_t(pid));
 #endif
-    if (pid)
+    if (pid > 0)
         ::kill(pid_t(pid), SIGTERM);
 }
 
 void QProcessPrivate::killProcess()
 {
 #if defined (QPROCESS_DEBUG)
-    qDebug("QProcessPrivate::killProcess()");
+    qDebug("QProcessPrivate::killProcess() pid=%jd", intmax_t(pid));
 #endif
-    if (pid)
+    if (pid > 0)
         ::kill(pid_t(pid), SIGKILL);
 }
 

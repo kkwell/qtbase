@@ -770,11 +770,14 @@ static ColorData parseColorValue(QCss::Value v)
     if (tokenCount < 5)
         return ColorData();
 
-    // ### Qt6: replace this with a check and return invalid color when token count does not match
-    if (hasAlpha && tokenCount != 7)
+    if (hasAlpha && tokenCount != 7) {
         qWarning("QCssParser::parseColorValue: Specified color with alpha value but no alpha given: '%s'", qPrintable(lst.join(QLatin1Char(' '))));
-    if (!hasAlpha && tokenCount != 5)
+        return ColorData();
+    }
+    if (!hasAlpha && tokenCount != 5) {
         qWarning("QCssParser::parseColorValue: Specified color without alpha value but alpha given: '%s'", qPrintable(lst.join(QLatin1Char(' '))));
+        return ColorData();
+    }
 
     int v1 = colorDigits.at(0).variant.toInt();
     int v2 = colorDigits.at(2).variant.toInt();
@@ -2045,8 +2048,15 @@ bool StyleSelector::basicSelectorMatches(const BasicSelector &sel, NodePtr node)
                     return false;
                 break;
             case QCss::AttributeSelector::MatchIncludes: {
-                const auto lst = QStringView{attrValue}.split(u' ');
-                if (!lst.contains(QStringView(a.value)))
+                const auto lst = QStringView{attrValue}.tokenize(u' ');
+                bool found = false;
+                for (auto s : lst) {
+                    if (s == a.value) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
                     return false;
                 break;
             }

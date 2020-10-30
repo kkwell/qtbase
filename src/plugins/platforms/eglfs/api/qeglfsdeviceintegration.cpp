@@ -224,19 +224,12 @@ QSize QEglFSDeviceIntegration::screenSize() const
 
 QDpi QEglFSDeviceIntegration::logicalDpi() const
 {
-    const QSizeF ps = physicalScreenSize();
-    const QSize s = screenSize();
-
-    if (!ps.isEmpty() && !s.isEmpty())
-        return QDpi(25.4 * s.width() / ps.width(),
-                    25.4 * s.height() / ps.height());
-    else
-        return QDpi(100, 100);
+    return QDpi(100, 100);
 }
 
-qreal QEglFSDeviceIntegration::pixelDensity() const
+QDpi QEglFSDeviceIntegration::logicalBaseDpi() const
 {
-    return qMax(1, qRound(logicalDpi().first / qreal(100)));
+    return QDpi(100, 100);
 }
 
 Qt::ScreenOrientation QEglFSDeviceIntegration::nativeOrientation() const

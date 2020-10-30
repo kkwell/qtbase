@@ -19,9 +19,13 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(collidingmice
+qt_add_executable(collidingmice
     main.cpp
     mouse.cpp mouse.h
+)
+set_target_properties(collidingmice PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(collidingmice PUBLIC
     Qt::Core

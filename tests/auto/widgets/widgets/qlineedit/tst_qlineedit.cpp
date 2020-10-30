@@ -250,6 +250,8 @@ private slots:
     void textMargin_data();
     void textMargin();
 
+    void returnKeyClearsEditedFlag();
+
     // task-specific tests:
     void task180999_focus();
     void task174640_editingFinished();
@@ -902,11 +904,11 @@ static const int chars = 8;
 class ValidatorWithFixup : public QValidator
 {
 public:
-    ValidatorWithFixup(QWidget *parent = 0)
+    ValidatorWithFixup(QWidget *parent = nullptr)
         : QValidator(parent)
     {}
 
-    QValidator::State validate(QString &str, int &) const
+    QValidator::State validate(QString &str, int &) const override
     {
         const int s = str.size();
         if (s < chars) {
@@ -917,7 +919,7 @@ public:
         return Acceptable;
     }
 
-    void fixup(QString &str) const
+    void fixup(QString &str) const override
     {
         str = str.leftJustified(chars, 'X', true);
     }
@@ -1930,7 +1932,7 @@ void tst_QLineEdit::isReadOnly()
 class BlinkTestLineEdit : public QLineEdit
 {
 public:
-    void paintEvent(QPaintEvent *e)
+    void paintEvent(QPaintEvent *e) override
     {
         ++updates;
         QLineEdit::paintEvent(e);
@@ -2007,7 +2009,8 @@ void tst_QLineEdit::addKeySequenceStandardKey(QTestEventList &keys, QKeySequence
 {
     QKeySequence keyseq = QKeySequence(key);
     for (int i = 0; i < keyseq.count(); ++i)
-        keys.addKeyClick( Qt::Key( keyseq[i] & ~Qt::KeyboardModifierMask), Qt::KeyboardModifier(keyseq[i] & Qt::KeyboardModifierMask) );
+        keys.addKeyClick( Qt::Key( keyseq[i].toCombined() & ~Qt::KeyboardModifierMask),
+                          Qt::KeyboardModifier(keyseq[i].toCombined() & Qt::KeyboardModifierMask) );
 }
 
 #endif // QT_CONFIG(shortcut)
@@ -2431,7 +2434,7 @@ void tst_QLineEdit::returnPressed()
 class QIntFixValidator : public QIntValidator {
 public:
     QIntFixValidator(int min, int max, QObject *parent) : QIntValidator(min, max, parent) {}
-    void fixup (QString &input) const {
+    void fixup (QString &input) const override {
         for (int i=0; i<input.length(); ++i)
             if (!input.at(i).isNumber()) {
                 input[(int)i] = QChar('0');
@@ -3148,8 +3151,8 @@ void tst_QLineEdit::cutWithoutSelection()
 class InputMaskValidator : public QValidator
 {
 public:
-    InputMaskValidator(QObject *parent, const char *name = 0) : QValidator(parent) { setObjectName(name); }
-    State validate(QString &text, int &pos) const
+    InputMaskValidator(QObject *parent, const char *name = nullptr) : QValidator(parent) { setObjectName(name); }
+    State validate(QString &text, int &pos) const override
     {
         InputMaskValidator *that = (InputMaskValidator *)this;
         that->validateText = text;
@@ -3219,7 +3222,7 @@ class LineEdit : public QLineEdit
 public:
     LineEdit() { state = Other; }
 
-    void keyPressEvent(QKeyEvent *e)
+    void keyPressEvent(QKeyEvent *e) override
     {
         QLineEdit::keyPressEvent(e);
         if (e->key() == Qt::Key_Enter) {
@@ -3586,6 +3589,72 @@ void tst_QLineEdit::textMargin()
     QTRY_COMPARE(testWidget.cursorPosition(), cursorPosition);
 }
 
+void tst_QLineEdit::returnKeyClearsEditedFlag()
+{
+    /* Tests that pressing enter within the line edit correctly clears
+       the "edited" flag, preventing a redundant emission of
+       editingFinished() when its focus is dropped after no further
+       edits */
+    QLineEdit testWidget;
+    QSignalSpy leSpy(&testWidget, &QLineEdit::editingFinished);
+    QVERIFY(leSpy.isValid());
+
+    // Prepare widget for testing
+    testWidget.setFocus();
+    centerOnScreen(&testWidget);
+    testWidget.show();
+    testWidget.raise();
+    QVERIFY(QTest::qWaitForWindowExposed(&testWidget));
+    QTRY_VERIFY(testWidget.hasFocus());
+
+    // Focus drop with no edits shouldn't emit signal, edited flag == false
+    testWidget.clearFocus(); // Signal not emitted
+    QVERIFY(!testWidget.hasFocus());
+    QCOMPARE(leSpy.count(), 0);
+
+    // Focus drop after edits should emit signal, edited flag == true
+    testWidget.setFocus();
+    QTRY_VERIFY(testWidget.hasFocus());
+    QTest::keyClicks(&testWidget, "edit1 "); // edited flag set
+    testWidget.clearFocus(); // edited flag cleared, signal emitted
+    QVERIFY(!testWidget.hasFocus());
+    QCOMPARE(leSpy.count(), 1);
+
+    // Only text related keys should set edited flag
+    testWidget.setFocus();
+    QTRY_VERIFY(testWidget.hasFocus());
+    QTest::keyClick(&testWidget, Qt::Key_Left);
+    QTest::keyClick(&testWidget, Qt::Key_Alt);
+    QTest::keyClick(&testWidget, Qt::Key_PageUp);
+    testWidget.clearFocus(); // Signal not emitted
+    QVERIFY(!testWidget.hasFocus());
+    QCOMPARE(leSpy.count(), 1); // No change
+
+    // Return should always emit signal
+    testWidget.setFocus();
+    QTRY_VERIFY(testWidget.hasFocus());
+    QTest::keyClick(&testWidget, Qt::Key_Return); /* Without edits,
+                                                     signal emitted,
+                                                     edited flag cleared */
+    QCOMPARE(leSpy.count(), 2);
+    QTest::keyClicks(&testWidget, "edit2 "); // edited flag set
+    QTest::keyClick(&testWidget, Qt::Key_Return); /* With edits,
+                                                     signal emitted,
+                                                     edited flag cleared */
+    QCOMPARE(leSpy.count(), 3);
+
+    /* After editing the line edit following a Return key press with a
+       focus drop should not emit signal a second time since Return now
+       clears the edited flag */
+    QTest::keyClicks(&testWidget, "edit3 "); // edited flag set
+    QTest::keyClick(&testWidget, Qt::Key_Return); /* signal emitted,
+                                                     edited flag cleared */
+    QCOMPARE(leSpy.count(), 4);
+    testWidget.clearFocus(); // Signal not emitted since edited == false
+    QVERIFY(!testWidget.hasFocus());
+    QCOMPARE(leSpy.count(), 4); // No change
+}
+
 #ifndef QT_NO_CURSOR
 void tst_QLineEdit::cursor()
 {
@@ -3602,7 +3671,7 @@ void tst_QLineEdit::cursor()
 class task180999_Widget : public QWidget
 {
 public:
-    task180999_Widget(QWidget *parent = 0) : QWidget(parent)
+    task180999_Widget(QWidget *parent = nullptr) : QWidget(parent)
     {
         QHBoxLayout *layout  = new QHBoxLayout(this);
         lineEdit1.setText("some text 1 ...");
@@ -3707,7 +3776,7 @@ class task198789_Widget : public QWidget
 {
     Q_OBJECT
 public:
-    task198789_Widget(QWidget *parent = 0) : QWidget(parent)
+    task198789_Widget(QWidget *parent = nullptr) : QWidget(parent)
     {
         QStringList wordList;
         wordList << "alpha" << "omega" << "omicron" << "zeta";
@@ -4048,7 +4117,7 @@ class UpdateRegionLineEdit : public QLineEdit
 public:
     QRegion updateRegion;
 protected:
-    void paintEvent(QPaintEvent *event)
+    void paintEvent(QPaintEvent *event) override
     {
         updateRegion = event->region();
     }
@@ -4738,9 +4807,9 @@ void tst_QLineEdit::shortcutOverrideOnReadonlyLineEdit_data()
     QTest::newRow("b") << QKeySequence(Qt::Key_B) << false;
     QTest::newRow("c") << QKeySequence(Qt::Key_C) << false;
     QTest::newRow("x") << QKeySequence(Qt::Key_X) << false;
-    QTest::newRow("X") << QKeySequence(Qt::ShiftModifier + Qt::Key_X) << false;
+    QTest::newRow("X") << QKeySequence(Qt::ShiftModifier | Qt::Key_X) << false;
 
-    QTest::newRow("Alt+Home") << QKeySequence(Qt::AltModifier + Qt::Key_Home) << false;
+    QTest::newRow("Alt+Home") << QKeySequence(Qt::AltModifier | Qt::Key_Home) << false;
 }
 
 void tst_QLineEdit::shortcutOverrideOnReadonlyLineEdit()
@@ -4767,7 +4836,7 @@ void tst_QLineEdit::shortcutOverrideOnReadonlyLineEdit()
 
     const int keySequenceCount = keySequence.count();
     for (int i = 0; i < keySequenceCount; ++i) {
-        const uint key = keySequence[i];
+        const uint key = keySequence[i].toCombined();
         QTest::keyClick(lineEdit,
                         Qt::Key(key & ~Qt::KeyboardModifierMask),
                         Qt::KeyboardModifier(key & Qt::KeyboardModifierMask));

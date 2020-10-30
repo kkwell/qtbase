@@ -54,6 +54,13 @@
 
 QT_BEGIN_NAMESPACE
 
+Q_GLOBAL_STATIC(bool, forceSecurityLevel)
+
+Q_NETWORK_EXPORT void qt_ForceTlsSecurityLevel()
+{
+    *forceSecurityLevel() = true;
+}
+
 // defined in qsslsocket_openssl.cpp:
 extern int q_X509Callback(int ok, X509_STORE_CTX *ctx);
 extern "C" int q_X509CallbackDirect(int ok, X509_STORE_CTX *ctx);
@@ -187,7 +194,7 @@ SSL* QSslContext::createSsl()
     }
 
 #ifndef OPENSSL_NO_NEXTPROTONEG
-    QList<QByteArray> protocols = sslConfiguration.d->nextAllowedProtocols;
+    QList<QByteArray> protocols = sslConfiguration.d.constData()->nextAllowedProtocols;
     if (!protocols.isEmpty()) {
         m_supportedNPNVersions.clear();
         for (int a = 0; a < protocols.count(); ++a) {
@@ -333,6 +340,10 @@ init_context:
         sslContext->errorCode = QSslError::UnspecifiedError;
         return;
     }
+
+    // A nasty hacked OpenSSL using a level that will make our auto-tests fail:
+    if (q_SSL_CTX_get_security_level(sslContext->ctx) > 1 && *forceSecurityLevel())
+        q_SSL_CTX_set_security_level(sslContext->ctx, 1);
 
     const long anyVersion =
 #if QT_CONFIG(dtls)
@@ -710,7 +721,7 @@ void QSslContext::applyBackendConfig(QSslContext *sslContext)
             if (i.key() == "Qt-OCSP-response") // This never goes to SSL_CONF_cmd().
                 continue;
 
-            if (!i.value().canConvert(QMetaType::QByteArray)) {
+            if (!i.value().canConvert(QMetaType(QMetaType::QByteArray))) {
                 sslContext->errorCode = QSslError::UnspecifiedError;
                 sslContext->errorStr = msgErrorSettingBackendConfig(
                 QSslSocket::tr("Expecting QByteArray for %1").arg(

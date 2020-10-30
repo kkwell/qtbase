@@ -1496,7 +1496,7 @@ QStyleOptionTab::QStyleOptionTab(int version)
 QStyleOptionProgressBar::QStyleOptionProgressBar()
     : QStyleOption(QStyleOptionProgressBar::Version, SO_ProgressBar),
       minimum(0), maximum(0), progress(0), textAlignment(Qt::AlignLeft), textVisible(false),
-      orientation(Qt::Horizontal), invertedAppearance(false), bottomToTop(false)
+      invertedAppearance(false), bottomToTop(false)
 {
 }
 
@@ -1506,7 +1506,7 @@ QStyleOptionProgressBar::QStyleOptionProgressBar()
 QStyleOptionProgressBar::QStyleOptionProgressBar(int version)
     : QStyleOption(version, SO_ProgressBar),
       minimum(0), maximum(0), progress(0), textAlignment(Qt::AlignLeft), textVisible(false),
-      orientation(Qt::Horizontal), invertedAppearance(false), bottomToTop(false)
+      invertedAppearance(false), bottomToTop(false)
 {
 }
 
@@ -1606,17 +1606,6 @@ QStyleOptionProgressBar::QStyleOptionProgressBar(int version)
     value is 0.
 
     \sa QProgressBar::value
-*/
-
-/*!
-    \variable QStyleOptionProgressBar::orientation
-    \brief the progress bar's orientation (horizontal or vertical);
-    the default orentation is Qt::Horizontal
-
-    \deprecated
-    Use the QStyle::State_Horizontal flag instead (in the QStyleOption::state member).
-
-    \sa QProgressBar::orientation
 */
 
 /*!
@@ -2645,7 +2634,7 @@ QStyleOptionComboBox::QStyleOptionComboBox(int version)
 */
 
 /*!
-    \variable QStyleOptionGroupBox::textAlignment
+    \variable QStyleOptionComboBox::textAlignment
     \brief the alignment of the current text in the combo box
 
     The default value is Qt::AlignLeft | Qt::AlignVCenter.
@@ -3641,7 +3630,7 @@ QStyleOptionSizeGrip::QStyleOptionSizeGrip(int version)
     Constructs a QStyleOptionGraphicsItem.
 */
 QStyleOptionGraphicsItem::QStyleOptionGraphicsItem()
-    : QStyleOption(Version, Type), levelOfDetail(1)
+    : QStyleOption(Version, Type)
 {
 }
 
@@ -3649,7 +3638,7 @@ QStyleOptionGraphicsItem::QStyleOptionGraphicsItem()
     \internal
 */
 QStyleOptionGraphicsItem::QStyleOptionGraphicsItem(int version)
-    : QStyleOption(version, Type), levelOfDetail(1)
+    : QStyleOption(version, Type)
 {
 }
 
@@ -3694,38 +3683,6 @@ qreal QStyleOptionGraphicsItem::levelOfDetailFromTransform(const QTransform &wor
 
     This member is only initialized for items that have the
     QGraphicsItem::ItemUsesExtendedStyleOption flag set.
-*/
-
-/*!
-     \variable QStyleOptionGraphicsItem::matrix
-     \brief the complete transformation matrix for the item
-     \obsolete
-
-     The QTransform provided through this member does include information about
-     any perspective transformations applied to the view or item. To get the
-     correct transformation matrix, use QPainter::transform() on the painter
-     passed into the QGraphicsItem::paint() implementation.
-
-     This matrix is the combination of the item's scene matrix and the matrix
-     of the painter used for drawing the item. It is provided for convenience,
-     allowing anvanced level-of-detail metrics that can be used to speed up
-     item drawing.
-
-     To find the dimensions of an item in screen coordinates (i.e., pixels),
-     you can use the mapping functions of QTransform, such as QTransform::map().
-
-     This member is only initialized for items that have the
-     QGraphicsItem::ItemUsesExtendedStyleOption flag set.
-
-     \sa QStyleOptionGraphicsItem::levelOfDetailFromTransform()
-*/
-
-/*!
-    \variable QStyleOptionGraphicsItem::levelOfDetail
-    \obsolete
-
-    Use QStyleOptionGraphicsItem::levelOfDetailFromTransform()
-    together with QPainter::worldTransform() instead.
 */
 
 /*!

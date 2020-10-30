@@ -482,7 +482,7 @@ public:
       {};
 
 protected:
-      bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const
+      bool filterAcceptsRow(int source_row, const QModelIndex& source_parent) const override
       {
             QModelIndex parentIndex;
             parentIndex = source_parent;
@@ -515,7 +515,7 @@ public:
         {
         }
 protected:
-        virtual bool lessThan(const QModelIndex &left, const QModelIndex &right) const
+        virtual bool lessThan(const QModelIndex &left, const QModelIndex &right) const override
         {
             QFileSystemModel * const model = qobject_cast<QFileSystemModel *>(sourceModel());
             const QFileInfo leftInfo(model->fileInfo(left));
@@ -638,7 +638,7 @@ void tst_QFileDialog2::task226366_lowerCaseHardDriveWindows()
     QLineEdit *edit = fd.findChild<QLineEdit*>("fileNameEdit");
     QToolButton *buttonParent = fd.findChild<QToolButton*>("toParentButton");
     QTest::qWait(200);
-    QTest::mouseClick(buttonParent, Qt::LeftButton,0,QPoint(0,0));
+    QTest::mouseClick(buttonParent, Qt::LeftButton, {}, QPoint(0, 0));
     QTest::qWait(2000);
     QTest::keyClick(edit, Qt::Key_C);
     QTest::qWait(200);
@@ -918,7 +918,7 @@ void tst_QFileDialog2::task239706_editableFilterCombo()
     QVERIFY(QTest::qWaitForWindowExposed(&d));
 
     QList<QComboBox *> comboList = d.findChildren<QComboBox *>();
-    QComboBox *filterCombo = 0;
+    QComboBox *filterCombo = nullptr;
     foreach (QComboBox *combo, comboList) {
         if (combo->objectName() == QString("fileTypeCombo")) {
             filterCombo = combo;
@@ -991,7 +991,7 @@ void tst_QFileDialog2::task251321_sideBarHiddenEntries()
 class MyQSideBar : public QSidebar
 {
 public :
-    MyQSideBar(QWidget *parent = 0) : QSidebar(parent)
+    MyQSideBar(QWidget *parent = nullptr) : QSidebar(parent)
     {}
 
     void removeSelection() {

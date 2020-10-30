@@ -260,6 +260,12 @@ QT_BEGIN_NAMESPACE
     You can also use \l{QRegularExpressionMatchIterator::}{peekNext()} to get
     the next result without advancing the iterator.
 
+    It is also possible to simply use the result of
+    QRegularExpression::globalMatch in a range-based for loop, for instance
+    like this:
+
+    \snippet code/src_corelib_text_qregularexpression.cpp 34
+
     It is possible to pass a starting offset and one or more match options to
     the globalMatch() function, exactly like normal matching with match().
 
@@ -535,6 +541,12 @@ QT_BEGIN_NAMESPACE
     Moreover, QRegularExpressionMatchIterator offers a peekNext() function
     to get the next result \e{without} advancing the iterator.
 
+    Starting with Qt 6.0, it is also possible to simply use the result of
+    QRegularExpression::globalMatch in a range-based for loop, for instance
+    like this:
+
+    \snippet code/src_corelib_text_qregularexpression.cpp 34
+
     You can retrieve the QRegularExpression object the subject string was
     matched against by calling the regularExpression() function; the
     match type and the match options are available as well by calling
@@ -608,16 +620,6 @@ QT_BEGIN_NAMESPACE
         \c{\w} to match any character with either the Unicode L (letter) or N
         (digit) property, plus underscore, and so on. This option corresponds
         to the \c{/u} modifier in Perl regular expressions.
-
-    \value OptimizeOnFirstUsageOption
-        This option is ignored. A regular expression is automatically optimized
-        (including JIT compiling) the first time it is used. This enum value
-        was introduced in Qt 5.4.
-
-    \value DontAutomaticallyOptimizeOption
-        This option is ignored. A regular expression is automatically optimized
-        (including JIT compiling) the first time it is used. This enum value
-        was introduced in Qt 5.4.
 */
 
 /*!
@@ -1793,7 +1795,7 @@ QString QRegularExpression::escape(QStringView str)
 #if QT_STRINGVIEW_LEVEL < 2
 /*!
     \since 5.12
-    \fn QString QRegularExpression::wildcardToRegularExpression(const QString &pattern, WildcardConversionType type)
+    \fn QString QRegularExpression::wildcardToRegularExpression(const QString &pattern, WildcardConversionOptions options)
     \overload
 */
 #endif // QT_STRINGVIEW_LEVEL < 2
@@ -1826,7 +1828,7 @@ QString QRegularExpression::escape(QStringView str)
     By default, the returned regular expression is fully anchored. In other
     words, there is no need of calling anchoredPattern() again on the
     result. To get an a regular expression that is not anchored, pass
-    UnanchoredWildcardConversion as the conversion \a option.
+    UnanchoredWildcardConversion as the conversion \a options.
 
     This implementation follows closely the definition
     of wildcard for glob patterns:
@@ -1947,7 +1949,9 @@ QString QRegularExpression::wildcardToRegularExpression(QStringView pattern, Wil
 
 /*!
   \since 6.0
-  Returns a regular expression of the glob pattern \a pattern.
+  Returns a regular expression of the glob pattern \a pattern. The regular expression
+  will be case sensitive if \a cs is \l{Qt::CaseSensitive}, and converted according to
+  \a options.
 
   Equivalent to
   \code
@@ -1956,12 +1960,12 @@ QString QRegularExpression::wildcardToRegularExpression(QStringView pattern, Wil
   return QRegularExpression(wildcardToRegularExpression(str, options), reOptions);
   \endcode
 */
-QRegularExpression QRegularExpression::fromWildcard(QStringView str, Qt::CaseSensitivity cs,
+QRegularExpression QRegularExpression::fromWildcard(QStringView pattern, Qt::CaseSensitivity cs,
                                                     WildcardConversionOptions options)
 {
     auto reOptions = cs == Qt::CaseSensitive ? QRegularExpression::NoPatternOption :
                                              QRegularExpression::CaseInsensitiveOption;
-    return QRegularExpression(wildcardToRegularExpression(str, options), reOptions);
+    return QRegularExpression(wildcardToRegularExpression(pattern, options), reOptions);
 }
 
 #if QT_STRINGVIEW_LEVEL < 2
@@ -2156,7 +2160,8 @@ QStringView QRegularExpressionMatch::capturedView(int nth) const
 }
 
 #if QT_STRINGVIEW_LEVEL < 2
-/*!
+/*! \fn QString QRegularExpressionMatch::captured(const QString &name) const
+
     Returns the substring captured by the capturing group named \a name.
 
     If the named capturing group \a name did not capture a string, or if
@@ -2165,10 +2170,6 @@ QStringView QRegularExpressionMatch::capturedView(int nth) const
     \sa capturedView(), capturedStart(), capturedEnd(), capturedLength(),
     QString::isNull()
 */
-QString QRegularExpressionMatch::captured(const QString &name) const
-{
-    return captured(qToStringViewIgnoringNull(name));
-}
 #endif // QT_STRINGVIEW_LEVEL < 2
 
 /*!
@@ -2277,7 +2278,8 @@ qsizetype QRegularExpressionMatch::capturedEnd(int nth) const
 }
 
 #if QT_STRINGVIEW_LEVEL < 2
-/*!
+/*! \fn qsizetype QRegularExpressionMatch::capturedStart(const QString &name) const
+
     Returns the offset inside the subject string corresponding to the starting
     position of the substring captured by the capturing group named \a name.
     If the capturing group named \a name did not capture a string or doesn't
@@ -2285,12 +2287,9 @@ qsizetype QRegularExpressionMatch::capturedEnd(int nth) const
 
     \sa capturedEnd(), capturedLength(), captured()
 */
-qsizetype QRegularExpressionMatch::capturedStart(const QString &name) const
-{
-    return capturedStart(qToStringViewIgnoringNull(name));
-}
 
-/*!
+/*! \fn qsizetype QRegularExpressionMatch::capturedLength(const QString &name) const
+
     Returns the length of the substring captured by the capturing group named
     \a name.
 
@@ -2299,12 +2298,9 @@ qsizetype QRegularExpressionMatch::capturedStart(const QString &name) const
 
     \sa capturedStart(), capturedEnd(), captured()
 */
-qsizetype QRegularExpressionMatch::capturedLength(const QString &name) const
-{
-    return capturedLength(qToStringViewIgnoringNull(name));
-}
 
-/*!
+/*! \fn qsizetype QRegularExpressionMatch::capturedEnd(const QString &name) const
+
     Returns the offset inside the subject string immediately after the ending
     position of the substring captured by the capturing group named \a name. If
     the capturing group named \a name did not capture a string or doesn't
@@ -2312,10 +2308,6 @@ qsizetype QRegularExpressionMatch::capturedLength(const QString &name) const
 
     \sa capturedStart(), capturedLength(), captured()
 */
-qsizetype QRegularExpressionMatch::capturedEnd(const QString &name) const
-{
-    return capturedEnd(qToStringViewIgnoringNull(name));
-}
 #endif // QT_STRINGVIEW_LEVEL < 2
 
 /*!
@@ -2540,12 +2532,11 @@ QRegularExpressionMatch QRegularExpressionMatchIterator::next()
 {
     if (!hasNext()) {
         qWarning("QRegularExpressionMatchIterator::next() called on an iterator already at end");
-        return d->next;
+        return d.constData()->next;
     }
 
-    QRegularExpressionMatch current = d->next;
-    d->next = d->next.d.constData()->nextMatch();
-    return current;
+    d.detach();
+    return qExchange(d->next, d->next.d.constData()->nextMatch());
 }
 
 /*!
@@ -2582,6 +2573,19 @@ QRegularExpression::MatchOptions QRegularExpressionMatchIterator::matchOptions()
 {
     return d->matchOptions;
 }
+
+/*!
+  \internal
+*/
+QtPrivate::QRegularExpressionMatchIteratorRangeBasedForIterator begin(const QRegularExpressionMatchIterator &iterator)
+{
+    return QtPrivate::QRegularExpressionMatchIteratorRangeBasedForIterator(iterator);
+}
+
+/*!
+  \fn QtPrivate::QRegularExpressionMatchIteratorRangeBasedForIteratorSentinel end(const QRegularExpressionMatchIterator &)
+  \internal
+*/
 
 #ifndef QT_NO_DATASTREAM
 /*!

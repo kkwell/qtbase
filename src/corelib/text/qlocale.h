@@ -74,7 +74,7 @@ class Q_CORE_EXPORT QLocale
 public:
 // see qlocale_data_p.h for more info on generated data
 // GENERATED PART STARTS HERE
-    enum Language {
+    enum Language : ushort {
         AnyLanguage = 0,
         C = 1,
         Abkhazian = 2,
@@ -92,7 +92,6 @@ public:
         Basque = 14,
         Bengali = 15,
         Dzongkha = 16,
-        Bihari = 17,
         Bislama = 18,
         Breton = 19,
         Bulgarian = 20,
@@ -325,7 +324,6 @@ public:
         Nuer = 247,
         Sakha = 248,
         Sangu = 249,
-        CongoSwahili = 250,
         Tasawaq = 251,
         Vai = 252,
         Walser = 253,
@@ -345,47 +343,21 @@ public:
         Bamun = 267,
         BatakToba = 268,
         Buginese = 269,
-        Buhid = 270,
-        Carian = 271,
         Chakma = 272,
-        ClassicalMandaic = 273,
         Coptic = 274,
         Dogri = 275,
-        EasternCham = 276,
-        EasternKayah = 277,
-        Etruscan = 278,
         Gothic = 279,
-        Hanunoo = 280,
         Ingush = 281,
-        LargeFloweryMiao = 282,
-        Lepcha = 283,
-        Limbu = 284,
-        Lisu = 285,
-        Lu = 286,
-        Lycian = 287,
-        Lydian = 288,
         Mandingo = 289,
         Manipuri = 290,
-        Meroitic = 291,
-        NorthernThai = 292,
         OldIrish = 293,
         OldNorse = 294,
         OldPersian = 295,
-        OldTurkish = 296,
         Pahlavi = 297,
-        Parthian = 298,
         Phoenician = 299,
-        PrakritLanguage = 300,
-        Rejang = 301,
-        Sabaean = 302,
-        Samaritan = 303,
         Santali = 304,
         Saurashtra = 305,
-        Sora = 306,
-        Sylheti = 307,
-        Tagbanwa = 308,
         TaiDam = 309,
-        TaiNua = 310,
         Ugaritic = 311,
         Akoose = 312,
         Lakota = 313,
@@ -404,37 +376,22 @@ public:
         InariSami = 326,
         SkoltSami = 327,
         Warlpiri = 328,
-        ManichaeanMiddlePersian = 329,
         Mende = 330,
-        AncientNorthArabian = 331,
-        LinearA = 332,
-        HmongNjua = 333,
-        Ho = 334,
         Lezghian = 335,
-        Bassa = 336,
-        Mono = 337,
-        TedimChin = 338,
         Maithili = 339,
-        Ahom = 340,
         AmericanSignLanguage = 341,
-        ArdhamagadhiPrakrit = 342,
         Bhojpuri = 343,
-        HieroglyphicLuwian = 344,
         LiteraryChinese = 345,
         Mazanderani = 346,
-        Mru = 347,
         Newari = 348,
         NorthernLuri = 349,
         Palauan = 350,
         Papiamento = 351,
-        Saraiki = 352,
         TokelauLanguage = 353,
         TokPisin = 354,
         TuvaluLanguage = 355,
-        UncodedLanguages = 356,
         Cantonese = 357,
         Osage = 358,
-        Tangut = 359,
         Ido = 360,
         Lojban = 361,
         Sicilian = 362,
@@ -445,6 +402,7 @@ public:
         Chickasaw = 367,
         Muscogee = 368,
         Silesian = 369,
+        NigerianPidgin = 370,
 
         Afan = Oromo,
         Bhutani = Dzongkha,
@@ -453,18 +411,13 @@ public:
         Chewa = Nyanja,
         Frisian = WesternFrisian,
         Kurundi = Rundi,
-        Moldavian = Romanian,
-        Norwegian = NorwegianBokmal,
         RhaetoRomance = Romansh,
-        SerboCroatian = Serbian,
-        Tagalog = Filipino,
-        Twi = Akan,
         Uigur = Uighur,
 
-        LastLanguage = Silesian
+        LastLanguage = NigerianPidgin
     };
 
-    enum Script {
+    enum Script : ushort {
         AnyScript = 0,
         ArabicScript = 1,
         CyrillicScript = 2,
@@ -614,7 +567,7 @@ public:
         LastScript = JamoScript
     };
 
-    enum Country {
+    enum Country : ushort {
         AnyCountry = 0,
         Afghanistan = 1,
         Albania = 2,
@@ -885,8 +838,6 @@ public:
         RepublicOfKorea = SouthKorea,
         RussianFederation = Russia,
         SyrianArabRepublic = Syria,
-        Tokelau = TokelauCountry,
-        Tuvalu = TuvaluCountry,
 
         LastCountry = Europe
     };
@@ -944,7 +895,7 @@ public:
     QLocale(Language language, Country country = AnyCountry);
     QLocale(Language language, Script script, Country country);
     QLocale(const QLocale &other);
-    QLocale &operator=(QLocale &&other) noexcept { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QLocale)
     QLocale &operator=(const QLocale &other);
     ~QLocale();
 
@@ -985,14 +936,15 @@ public:
 
     QString toString(qlonglong i) const;
     QString toString(qulonglong i) const;
-    inline QString toString(long i) const;
-    inline QString toString(ulong i) const;
-    inline QString toString(short i) const;
-    inline QString toString(ushort i) const;
-    inline QString toString(int i) const;
-    inline QString toString(uint i) const;
+    QString toString(long i) const { return toString(qlonglong(i)); }
+    QString toString(ulong i) const { return toString(qulonglong(i)); }
+    QString toString(short i) const { return toString(qlonglong(i)); }
+    QString toString(ushort i) const { return toString(qulonglong(i)); }
+    QString toString(int i) const { return toString(qlonglong(i)); }
+    QString toString(uint i) const { return toString(qulonglong(i)); }
     QString toString(double i, char f = 'g', int prec = 6) const;
-    inline QString toString(float i, char f = 'g', int prec = 6) const;
+    QString toString(float i, char f = 'g', int prec = 6) const
+    { return toString(double(i), f, prec); }
 
 #if QT_STRINGVIEW_LEVEL < 2
     QString toString(QDate date, const QString &formatStr) const;
@@ -1060,12 +1012,16 @@ public:
     QString currencySymbol(CurrencySymbolFormat = CurrencySymbol) const;
     QString toCurrencyString(qlonglong, const QString &symbol = QString()) const;
     QString toCurrencyString(qulonglong, const QString &symbol = QString()) const;
-    inline QString toCurrencyString(short, const QString &symbol = QString()) const;
-    inline QString toCurrencyString(ushort, const QString &symbol = QString()) const;
-    inline QString toCurrencyString(int, const QString &symbol = QString()) const;
-    inline QString toCurrencyString(uint, const QString &symbol = QString()) const;
+    QString toCurrencyString(short i, const QString &symbol = QString()) const
+    { return toCurrencyString(qlonglong(i), symbol); }
+    QString toCurrencyString(ushort i, const QString &symbol = QString()) const
+    { return toCurrencyString(qulonglong(i), symbol); }
+    QString toCurrencyString(int i, const QString &symbol = QString()) const
+    { return toCurrencyString(qlonglong(i), symbol); }
+    QString toCurrencyString(uint i, const QString &symbol = QString()) const
+    { return toCurrencyString(qulonglong(i), symbol); }
     QString toCurrencyString(double, const QString &symbol = QString(), int precision = -1) const;
-    inline QString toCurrencyString(float i, const QString &symbol = QString(), int precision = -1) const
+    QString toCurrencyString(float i, const QString &symbol = QString(), int precision = -1) const
     { return toCurrencyString(double(i), symbol, precision); }
 
     QString formattedDataSize(qint64 bytes, int precision = 2, DataSizeFormats format = DataSizeIecFormat) const;
@@ -1108,30 +1064,6 @@ private:
 };
 Q_DECLARE_SHARED(QLocale)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QLocale::NumberOptions)
-
-inline QString QLocale::toString(long i) const
-    { return toString(qlonglong(i)); }
-inline QString QLocale::toString(ulong i) const
-    { return toString(qulonglong(i)); }
-inline QString QLocale::toString(short i) const
-    { return toString(qlonglong(i)); }
-inline QString QLocale::toString(ushort i) const
-    { return toString(qulonglong(i)); }
-inline QString QLocale::toString(int i) const
-    { return toString(qlonglong(i)); }
-inline QString QLocale::toString(uint i) const
-    { return toString(qulonglong(i)); }
-inline QString QLocale::toString(float i, char f, int prec) const
-    { return toString(double(i), f, prec); }
-
-inline QString QLocale::toCurrencyString(short i, const QString &symbol) const
-    { return toCurrencyString(qlonglong(i), symbol); }
-inline QString QLocale::toCurrencyString(ushort i, const QString &symbol) const
-    { return toCurrencyString(qulonglong(i), symbol); }
-inline QString QLocale::toCurrencyString(int i, const QString &symbol) const
-{ return toCurrencyString(qlonglong(i), symbol); }
-inline QString QLocale::toCurrencyString(uint i, const QString &symbol) const
-{ return toCurrencyString(qulonglong(i), symbol); }
 
 #ifndef QT_NO_DATASTREAM
 Q_CORE_EXPORT QDataStream &operator<<(QDataStream &, const QLocale &);

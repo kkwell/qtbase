@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2016 Intel Corporation.
 ** Copyright (C) 2012 Giuseppe D'Angelo <dangelog@gmail.com>.
 ** Contact: https://www.qt.io/licensing/
@@ -387,10 +387,22 @@ static uint siphash(const uint8_t *in, uint inlen, const uint seed)
 }
 #endif
 
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)  // GCC
+#  define QHASH_AES_SANITIZER_BUILD
+#elif QT_HAS_FEATURE(address_sanitizer) || QT_HAS_FEATURE(thread_sanitizer)  // Clang
+#  define QHASH_AES_SANITIZER_BUILD
+#endif
 
+// When built with a sanitizer, aeshash() is rightfully reported to have a
+// heap-buffer-overflow issue. However, we consider it to be safe in this
+// specific case and overcome the problem by correctly discarding the
+// out-of-range bits. To allow building the code with sanitizer,
+// QHASH_AES_SANITIZER_BUILD is used to disable aeshash() usage.
 #if QT_COMPILER_SUPPORTS_HERE(AES) && QT_COMPILER_SUPPORTS_HERE(SSE4_2) && \
-    !(defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__))
+    !defined(QHASH_AES_SANITIZER_BUILD)
 #  define AESHASH
+
+#undef QHASH_AES_SANITIZER_BUILD
 
 QT_FUNCTION_TARGET(AES)
 static size_t aeshash(const uchar *p, size_t len, size_t seed) noexcept
@@ -549,12 +561,12 @@ size_t qHash(QStringView key, size_t seed) noexcept
 
 size_t qHash(const QBitArray &bitArray, size_t seed) noexcept
 {
-    int m = bitArray.d.size() - 1;
+    qsizetype m = bitArray.d.size() - 1;
     size_t result = qHashBits(reinterpret_cast<const uchar *>(bitArray.d.constData()), size_t(qMax(0, m)), seed);
 
     // deal with the last 0 to 7 bits manually, because we can't trust that
     // the padding is initialized to 0 in bitArray.d
-    int n = bitArray.size();
+    qsizetype n = bitArray.size();
     if (n & 0x7)
         result = ((result << 4) + bitArray.d.at(m)) & ((1 << n) - 1);
     return result;
@@ -702,16 +714,6 @@ uint qt_hash(QStringView key, uint chained) noexcept
 }
 
 /*!
-    \fn template <typename T1, typename T2> size_t qHash(const QPair<T1, T2> &key, size_t seed = 0)
-    \since 5.0
-    \relates QHash
-
-    Returns the hash value for the \a key, using \a seed to seed the calculation.
-
-    Types \c T1 and \c T2 must be supported by qHash().
-*/
-
-/*!
     \fn template <typename T1, typename T2> size_t qHash(const std::pair<T1, T2> &key, size_t seed = 0)
     \since 5.7
     \relates QHash
@@ -719,11 +721,6 @@ uint qt_hash(QStringView key, uint chained) noexcept
     Returns the hash value for the \a key, using \a seed to seed the calculation.
 
     Types \c T1 and \c T2 must be supported by qHash().
-
-    \note The return type of this function is \e{not} the same as that of
-    \snippet code/src_corelib_tools_qhash.cpp 29
-    The two functions use different hashing algorithms; due to binary compatibility
-    constraints, we cannot change the QPair algorithm to match the std::pair one before Qt 6.
 */
 
 /*!
@@ -1422,7 +1419,7 @@ size_t qHash(long double key, size_t seed) noexcept
 */
 
 
-/*! \fn template <class Key, class T> void QHash<Key, T>::reserve(int size)
+/*! \fn template <class Key, class T> void QHash<Key, T>::reserve(qsizetype size)
 
     Ensures that the QHash's internal hash table has space to store at
     least \a size items without having to grow the hash table.
@@ -1769,10 +1766,6 @@ size_t qHash(long double key, size_t seed) noexcept
     \sa remove(), take(), find()
 */
 
-/*! \fn template <class Key, class T> QHash<Key, T>::iterator QHash<Key, T>::erase(iterator pos)
-    \overload
-*/
-
 /*! \fn template <class Key, class T> QHash<Key, T>::iterator QHash<Key, T>::find(const Key &key)
 
     Returns an iterator pointing to the item with the \a key in the
@@ -1818,8 +1811,8 @@ size_t qHash(long double key, size_t seed) noexcept
 */
 
 /*!
-    \fn template <typename T> template <typename ...Args> QHash<Key, T>::iterator QHash<Key, T>::emplace(const Key &key, Args&&... args)
-    \fn template <typename T> template <typename ...Args> QHash<Key, T>::iterator QHash<Key, T>::emplace(Key &&key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QHash<Key, T>::iterator QHash<Key, T>::emplace(const Key &key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QHash<Key, T>::iterator QHash<Key, T>::emplace(Key &&key, Args&&... args)
 
     Inserts a new element into the container. This new element
     is constructed in-place using \a args as the arguments for its
@@ -2240,8 +2233,6 @@ size_t qHash(long double key, size_t seed) noexcept
     item.
 
     Calling this function on QHash::end() leads to undefined results.
-
-    \sa operator--()
 */
 
 /*! \fn template <class Key, class T> QHash<Key, T>::const_iterator QHash<Key, T>::const_iterator::operator++(int)
@@ -2325,7 +2316,6 @@ size_t qHash(long double key, size_t seed) noexcept
 
     Calling this function on QHash::keyEnd() leads to undefined results.
 
-    \sa operator--()
 */
 
 /*! \fn template <class Key, class T> QHash<Key, T>::key_iterator QHash<Key, T>::key_iterator::operator++(int)
@@ -2466,8 +2456,6 @@ size_t qHash(long double key, size_t seed) noexcept
 
     Constructs a copy of \a other (which can be a QHash or a
     QMultiHash).
-
-    \sa operator=()
 */
 
 /*! \fn template <class Key, class T> template <class InputIterator> QMultiHash<Key, T>::QMultiHash(InputIterator begin, InputIterator end)
@@ -2507,8 +2495,8 @@ size_t qHash(long double key, size_t seed) noexcept
 */
 
 /*!
-    \fn template <typename T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplace(const Key &key, Args&&... args)
-    \fn template <typename T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplace(Key &&key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplace(const Key &key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplace(Key &&key, Args&&... args)
 
     Inserts a new element into the container. This new element
     is constructed in-place using \a args as the arguments for its
@@ -2525,8 +2513,8 @@ size_t qHash(long double key, size_t seed) noexcept
 */
 
 /*!
-    \fn template <typename T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplaceReplace(const Key &key, Args&&... args)
-    \fn template <typename T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplaceReplace(Key &&key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplaceReplace(const Key &key, Args&&... args)
+    \fn template <class Key, class T> template <typename ...Args> QMultiHash<Key, T>::iterator QMultiHash<Key, T>::emplaceReplace(Key &&key, Args&&... args)
 
     Inserts a new element into the container. This new element
     is constructed in-place using \a args as the arguments for its
@@ -3084,7 +3072,7 @@ size_t qHash(long double key, size_t seed) noexcept
     while iterators are active on that container. For more information,
     read \l{Implicit sharing iterator problem}.
 
-    \sa QMultiHash::iterator, QMultiHashIterator
+    \sa QMultiHash::iterator
 */
 
 /*! \fn template <class Key, class T> QMultiHash<Key, T>::const_iterator::const_iterator()
@@ -3157,8 +3145,6 @@ size_t qHash(long double key, size_t seed) noexcept
     item.
 
     Calling this function on QMultiHash::end() leads to undefined results.
-
-    \sa operator--()
 */
 
 /*! \fn template <class Key, class T> QMultiHash<Key, T>::const_iterator QMultiHash<Key, T>::const_iterator::operator++(int)
@@ -3241,8 +3227,6 @@ size_t qHash(long double key, size_t seed) noexcept
     item.
 
     Calling this function on QMultiHash::keyEnd() leads to undefined results.
-
-    \sa operator--()
 */
 
 /*! \fn template <class Key, class T> QMultiHash<Key, T>::key_iterator QMultiHash<Key, T>::key_iterator::operator++(int)

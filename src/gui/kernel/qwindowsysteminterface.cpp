@@ -222,7 +222,7 @@ QT_DEFINE_QPA_EVENT_HANDLER(void, handleEnterEvent, QWindow *window, const QPoin
 {
     if (window) {
         QWindowSystemInterfacePrivate::EnterEvent *e
-                = new QWindowSystemInterfacePrivate::EnterEvent(window, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativePixels(global, window));
+                = new QWindowSystemInterfacePrivate::EnterEvent(window, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativeGlobalPosition(global, window));
         QWindowSystemInterfacePrivate::handleWindowSystemEvent<Delivery>(e);
     }
 }
@@ -300,18 +300,14 @@ QWindowSystemInterfacePrivate::GeometryChangeEvent::GeometryChangeEvent(QWindow 
 {
     if (const QPlatformWindow *pw = window->handle()) {
         const auto nativeGeometry = pw->QPlatformWindow::geometry();
-        requestedGeometry = window->isTopLevel()
-            ? QHighDpi::fromNativePixels(nativeGeometry, window)
-            : QHighDpi::fromNativeLocalPosition(nativeGeometry, window);
+        requestedGeometry = QHighDpi::fromNativeWindowGeometry(nativeGeometry, window);
     }
 }
 
 QT_DEFINE_QPA_EVENT_HANDLER(void, handleGeometryChange, QWindow *window, const QRect &newRect)
 {
     Q_ASSERT(window);
-    const auto newRectDi = window->isTopLevel()
-        ? QHighDpi::fromNativePixels(newRect, window)
-        : QHighDpi::fromNativeLocalPosition(newRect, window);
+    const auto newRectDi = QHighDpi::fromNativeWindowGeometry(newRect, window);
     auto e = new QWindowSystemInterfacePrivate::GeometryChangeEvent(window, newRectDi);
     if (window->handle()) {
         // Persist the new geometry so that QWindow::geometry() can be queried in the resize event
@@ -403,7 +399,7 @@ QT_DEFINE_QPA_EVENT_HANDLER(bool, handleMouseEvent, QWindow *window, ulong times
                "QWindowSystemInterface::handleMouseEvent",
                "QTBUG-71263: Native double clicks are not implemented.");
     auto localPos = QHighDpi::fromNativeLocalPosition(local, window);
-    auto globalPos = QHighDpi::fromNativePixels(global, window);
+    auto globalPos = QHighDpi::fromNativeGlobalPosition(global, window);
 
     QWindowSystemInterfacePrivate::MouseEvent *e =
         new QWindowSystemInterfacePrivate::MouseEvent(window, timestamp, localPos, globalPos,
@@ -441,7 +437,7 @@ bool QWindowSystemInterface::handleFrameStrutMouseEvent(QWindow *window, ulong t
                                                         Qt::MouseEventSource source)
 {
     auto localPos = QHighDpi::fromNativeLocalPosition(local, window);
-    auto globalPos = QHighDpi::fromNativePixels(global, window);
+    auto globalPos = QHighDpi::fromNativeGlobalPosition(global, window);
 
     QWindowSystemInterfacePrivate::MouseEvent *e =
             new QWindowSystemInterfacePrivate::MouseEvent(window, timestamp, localPos, globalPos,
@@ -578,16 +574,15 @@ bool QWindowSystemInterface::handleWheelEvent(QWindow *window, ulong timestamp, 
 
     // Simple case: vertical deltas only:
     if (angleDelta.y() != 0 && angleDelta.x() == 0) {
-        e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativePixels(global, window), pixelDelta, angleDelta, angleDelta.y(), Qt::Vertical,
-                                                          mods, phase, source, invertedScrolling, device);
-
+        e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativeGlobalPosition(global, window),
+                                                          pixelDelta, angleDelta, angleDelta.y(), Qt::Vertical, mods, phase, source, invertedScrolling, device);
         return QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
     }
 
     // Simple case: horizontal deltas only:
     if (angleDelta.y() == 0 && angleDelta.x() != 0) {
-        e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativePixels(global, window), pixelDelta, angleDelta, angleDelta.x(), Qt::Horizontal,
-                                                          mods, phase, source, invertedScrolling, device);
+        e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativeGlobalPosition(global, window),
+                                                          pixelDelta, angleDelta, angleDelta.x(), Qt::Horizontal, mods, phase, source, invertedScrolling, device);
         return QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
     }
 
@@ -596,14 +591,14 @@ bool QWindowSystemInterface::handleWheelEvent(QWindow *window, ulong timestamp, 
     // Both horizontal and vertical deltas: Send two wheel events.
     // The first event contains the Qt 5 pixel and angle delta as points,
     // and in addition the Qt 4 compatibility vertical angle delta.
-    e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativePixels(global, window), pixelDelta, angleDelta, angleDelta.y(), Qt::Vertical,
-                                                      mods, phase, source, invertedScrolling, device);
+    e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativeGlobalPosition(global, window),
+                                                      pixelDelta, angleDelta, angleDelta.y(), Qt::Vertical, mods, phase, source, invertedScrolling, device);
     acceptVert = QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
 
     // The second event contains null pixel and angle points and the
     // Qt 4 compatibility horizontal angle delta.
-    e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativePixels(global, window), QPoint(), QPoint(), angleDelta.x(), Qt::Horizontal,
-                                                      mods, phase, source, invertedScrolling, device);
+    e = new QWindowSystemInterfacePrivate::WheelEvent(window, timestamp, QHighDpi::fromNativeLocalPosition(local, window), QHighDpi::fromNativeGlobalPosition(global, window),
+                                                      QPoint(), QPoint(), angleDelta.x(), Qt::Horizontal, mods, phase, source, invertedScrolling, device);
     acceptHorz = QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
     return acceptVert || acceptHorz;
 }
@@ -630,6 +625,33 @@ void QWindowSystemInterface::registerInputDevice(const QInputDevice *device)
     QInputDevicePrivate::registerDevice(device);
 }
 
+/*!
+    \internal
+    Convert a list of \l QWindowSystemInterface::TouchPoint \a points to a list
+    of \e temporary QEventPoint instances, scaled (but not localized)
+    for delivery to the given \a window.
+
+    This is called from QWindowSystemInterface::handleTouchEvent():
+    that is too early to update the QEventPoint instances in QPointingDevice,
+    because we want those to hold "current" state from the applcation's
+    point of view.  The QWindowSystemInterfacePrivate::TouchEvent, to which
+    the returned touchpoints will "belong", might go through the queue before
+    being processed; the application doesn't see the equivalent QTouchEvent
+    until later on.  Therefore the responsibility to update the QEventPoint
+    instances in QPointingDevice is in QGuiApplication, not here.
+
+    QGuiApplicationPrivate::processMouseEvent() also calls this function
+    when it synthesizes a touch event from a mouse event.  But that's outside
+    the normal use case.
+
+    It might be better if we change all the platform plugins to create
+    temporary instances of QEventPoint directly, and remove
+    QWindowSystemInterface::TouchPoint completely. Then we will no longer need
+    this function either. But that's only possible as long as QEventPoint
+    remains a Q_GADGET, not a QObject, so that it continues to be small and
+    suitable for temporary stack allocation.  QEventPoint is a little bigger
+    than QWindowSystemInterface::TouchPoint, though.
+*/
 QList<QEventPoint>
     QWindowSystemInterfacePrivate::fromNativeTouchPoints(const QList<QWindowSystemInterface::TouchPoint> &points,
                                                          const QWindow *window, QEvent::Type *type)
@@ -888,10 +910,22 @@ bool QWindowSystemInterface::handleTabletEvent(QWindow *window, ulong timestamp,
     QWindowSystemInterfacePrivate::TabletEvent *e =
         new QWindowSystemInterfacePrivate::TabletEvent(window, timestamp,
                                                        QHighDpi::fromNativeLocalPosition(local, window),
-                                                       QHighDpi::fromNativePixels(global, window),
+                                                       QHighDpi::fromNativeGlobalPosition(global, window),
                                                        device, buttons, pressure,
                                                        xTilt, yTilt, tangentialPressure, rotation, z, modifiers);
     return QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
+}
+
+bool QWindowSystemInterface::handleTabletEvent(QWindow *window, const QPointingDevice *device,
+                                               const QPointF &local, const QPointF &global,
+                                               Qt::MouseButtons buttons, qreal pressure, int xTilt, int yTilt,
+                                               qreal tangentialPressure, qreal rotation, int z,
+                                               Qt::KeyboardModifiers modifiers)
+{
+    const ulong time = QWindowSystemInterfacePrivate::eventTime.elapsed();
+    return handleTabletEvent(window, time, device, local, global,
+                             buttons, pressure, xTilt, yTilt, tangentialPressure,
+                             rotation, z, modifiers);
 }
 
 bool QWindowSystemInterface::handleTabletEvent(QWindow *window, ulong timestamp, const QPointF &local, const QPointF &global,
@@ -941,6 +975,19 @@ bool QWindowSystemInterface::handleTabletEnterLeaveProximityEvent(QWindow *windo
         return QWindowSystemInterfacePrivate::handleWindowSystemEvent(e);
     }
 }
+
+bool QWindowSystemInterface::handleTabletEnterLeaveProximityEvent(QWindow *window, const QPointingDevice *device,
+                                                                  bool inProximity, const QPointF &local, const QPointF &global,
+                                                                  Qt::MouseButtons buttons, int xTilt, int yTilt,
+                                                                  qreal tangentialPressure, qreal rotation, int z,
+                                                                  Qt::KeyboardModifiers modifiers)
+{
+    const ulong time = QWindowSystemInterfacePrivate::eventTime.elapsed();
+    return handleTabletEnterLeaveProximityEvent(window, time, device, inProximity,
+                                                local, global, buttons, xTilt, yTilt,
+                                                tangentialPressure, rotation, z, modifiers);
+}
+
 
 bool QWindowSystemInterface::handleTabletEnterProximityEvent(ulong timestamp, int deviceType, int pointerType, qint64 uid)
 {
@@ -1140,26 +1187,10 @@ Q_GUI_EXPORT void qt_handleMouseEvent(QWindow *window, const QPointF &local, con
                                       Qt::MouseButtons state, Qt::MouseButton button,
                                       QEvent::Type type, Qt::KeyboardModifiers mods, int timestamp)
 {
-    const qreal factor = QHighDpiScaling::factor(window);
+    QPointF nativeLocal = QHighDpi::toNativeLocalPosition(local, window);
+    QPointF nativeGlobal = QHighDpi::toNativeGlobalPosition(global, window);
     QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window,
-                timestamp, local * factor, global * factor, state, button, type, mods);
-}
-
-// Wrapper for compatibility with Qt < 5.11
-// ### Qt6: Remove
-Q_GUI_EXPORT void qt_handleMouseEvent(QWindow *window, const QPointF &local, const QPointF &global,
-                                      Qt::MouseButtons b, Qt::KeyboardModifiers mods, int timestamp)
-{
-    const qreal factor = QHighDpiScaling::factor(window);
-    QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window,
-                timestamp, local * factor, global * factor, b, Qt::NoButton, QEvent::None, mods);
-}
-
-// Wrapper for compatibility with Qt < 5.6
-// ### Qt6: Remove
-Q_GUI_EXPORT void qt_handleMouseEvent(QWindow *w, const QPointF &local, const QPointF &global, Qt::MouseButtons b, Qt::KeyboardModifiers mods = Qt::NoModifier)
-{
-    qt_handleMouseEvent(w, local, global, b, mods, QWindowSystemInterfacePrivate::eventTime.elapsed());
+                timestamp, nativeLocal, nativeGlobal, state, button, type, mods);
 }
 
 Q_GUI_EXPORT void qt_handleKeyEvent(QWindow *window, QEvent::Type t, int k, Qt::KeyboardModifiers mods, const QString & text = QString(), bool autorep = false, ushort count = 1)

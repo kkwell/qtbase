@@ -121,7 +121,8 @@
 
     \value Wildcard This provides a simple pattern matching syntax
     similar to that used by shells (command interpreters) for "file
-    globbing". See \l{QRegularExpression Wildcard matching}.
+    globbing". See \l {QRegularExpression#Wildcard matching}
+    {QRegularExpression Wildcard Matching}.
 
     \value FixedString The pattern is a fixed string. This is
     equivalent to using the RegularExpression pattern on a string in
@@ -245,25 +246,6 @@ QSslCertificate &QSslCertificate::operator=(const QSslCertificate &other)
 
     \sa clear()
 */
-
-#if QT_DEPRECATED_SINCE(5,0)
-/*!
-    \fn bool QSslCertificate::isValid() const
-    \obsolete
-
-    To verify a certificate, use verify().
-    To check if a certificate is blacklisted, use isBlacklisted().
-    To check if a certificate has expired or is not yet valid, compare
-    expiryDate() and effectiveDate() with QDateTime::currentDateTime()
-
-    This function checks that the current
-    date-time is within the date-time range during which the
-    certificate is considered valid, and checks that the
-    certificate is not in a blacklist of fraudulent certificates.
-
-    \sa isNull(), verify(), isBlacklisted(), expiryDate(), effectiveDate()
-*/
-#endif
 
 /*!
     Returns \c true if this certificate is blacklisted; otherwise

@@ -2863,6 +2863,7 @@ void QStyleSheetStyle::polish(QWidget *w)
         if ( cssClass & PseudoClass_Hover || negated & PseudoClass_Hover) {
             w->setAttribute(Qt::WA_Hover);
             embeddedWidget(w)->setAttribute(Qt::WA_Hover);
+            embeddedWidget(w)->setMouseTracking(true);
         }
     }
 
@@ -3993,7 +3994,7 @@ void QStyleSheetStyle::drawControl(ControlElement ce, const QStyleOption *opt, Q
                 qint64 minimum = qint64(pb->minimum);
                 qint64 maximum = qint64(pb->maximum);
                 qint64 progress = qint64(pb->progress);
-                bool vertical = (pb->orientation == Qt::Vertical);
+                bool vertical = !(pb->state & QStyle::State_Horizontal);
                 bool inverted = pb->invertedAppearance;
 
                 QTransform m;
@@ -5840,8 +5841,11 @@ QRect QStyleSheetStyle::subElementRect(SubElement se, const QStyleOption *opt, c
     case SE_PushButtonBevel:
     case SE_PushButtonFocusRect:
         if (const QStyleOptionButton *btn = qstyleoption_cast<const QStyleOptionButton *>(opt)) {
-            if (rule.hasBox() || !rule.hasNativeBorder())
-                return visualRect(opt->direction, opt->rect, rule.contentsRect(opt->rect));
+            if (rule.hasBox() || !rule.hasNativeBorder()) {
+                return visualRect(opt->direction, opt->rect, se == SE_PushButtonBevel
+                                                                ? rule.borderRect(opt->rect)
+                                                                : rule.contentsRect(opt->rect));
+            }
             return rule.baseStyleCanDraw() ? baseStyle()->subElementRect(se, btn, w)
                                            : QWindowsStyle::subElementRect(se, btn, w);
         }

@@ -18,9 +18,13 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/gui/analogclock")
 find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 
-add_qt_gui_executable(analogclock
+qt_add_executable(analogclock
     ../rasterwindow/rasterwindow.cpp ../rasterwindow/rasterwindow.h
     main.cpp
+)
+set_target_properties(analogclock PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_include_directories(analogclock PUBLIC
     ../rasterwindow

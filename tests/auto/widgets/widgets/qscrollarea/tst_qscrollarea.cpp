@@ -80,12 +80,12 @@ void tst_QScrollArea::getSetCheck()
 class WidgetWithMicroFocus : public QWidget
 {
 public:
-    WidgetWithMicroFocus(QWidget *parent = 0) : QWidget(parent)
+    WidgetWithMicroFocus(QWidget *parent = nullptr) : QWidget(parent)
     {
         setBackgroundRole(QPalette::Dark);
     }
 protected:
-    QVariant inputMethodQuery(Qt::InputMethodQuery query) const
+    QVariant inputMethodQuery(Qt::InputMethodQuery query) const override
     {
         if (query == Qt::ImCursorRectangle)
             return QRect(width() / 2, height() / 2, 5, 5);
@@ -120,7 +120,7 @@ class HFWWidget : public QWidget
 {
     public:
         HFWWidget();
-        int heightForWidth(int w) const;
+        int heightForWidth(int w) const override;
 };
 
 HFWWidget::HFWWidget()

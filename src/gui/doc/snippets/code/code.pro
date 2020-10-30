@@ -40,4 +40,9 @@ SOURCES = \
     src_gui_text_qtextcursor.cpp \
     src_gui_text_qtextdocument.cpp \
     src_gui_text_qtextdocumentwriter.cpp \
-    src_gui_text_qtextlayout.cpp
+    src_gui_text_qtextlayout.cpp \
+    src_gui_util_qdesktopservices.cpp \
+    src_gui_util_qvalidator.cpp \
+    src_gui_vulkan_qvulkanfunctions.cpp \
+    src_gui_vulkan_qvulkaninstance.cpp \
+    src_gui_vulkan_qvulkanwindow.cpp

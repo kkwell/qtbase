@@ -235,9 +235,9 @@ void tst_QByteArray::qChecksum()
 
     QCOMPARE(data.length(), int(len));
     if (standard == Qt::ChecksumIso3309) {
-        QCOMPARE(::qChecksum(data.constData(), len), static_cast<quint16>(checksum));
+        QCOMPARE(::qChecksum(QByteArrayView(data.constData(), len)), static_cast<quint16>(checksum));
     }
-    QCOMPARE(::qChecksum(data.constData(), len, standard), static_cast<quint16>(checksum));
+    QCOMPARE(::qChecksum(QByteArrayView(data.constData(), len), standard), static_cast<quint16>(checksum));
 }
 
 void tst_QByteArray::qCompress_data()
@@ -838,6 +838,12 @@ void tst_QByteArray::prepend()
     QCOMPARE(ba.prepend(-1, 'x'), QByteArray("321foo"));
     QCOMPARE(ba.prepend(3, 'x'), QByteArray("xxx321foo"));
     QCOMPARE(ba.prepend("\0 ", 2), QByteArray::fromRawData("\0 xxx321foo", 11));
+
+    QByteArray tenChars;
+    tenChars.reserve(10);
+    QByteArray twoChars("ab");
+    tenChars.prepend(twoChars);
+    QCOMPARE(tenChars.capacity(), 10);
 }
 
 void tst_QByteArray::prependExtended_data()
@@ -882,6 +888,12 @@ void tst_QByteArray::append()
     QCOMPARE(ba.append("\0"), QByteArray("foo123xxx"));
     QCOMPARE(ba.append("\0", 1), QByteArray::fromRawData("foo123xxx\0", 10));
     QCOMPARE(ba.size(), 10);
+
+    QByteArray tenChars;
+    tenChars.reserve(10);
+    QByteArray twoChars("ab");
+    tenChars.append(twoChars);
+    QCOMPARE(tenChars.capacity(), 10);
 }
 
 void tst_QByteArray::appendExtended_data()

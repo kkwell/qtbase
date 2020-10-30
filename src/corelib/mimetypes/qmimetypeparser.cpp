@@ -63,6 +63,7 @@ static const char genericIconTagC[] = "generic-icon";
 static const char iconTagC[] = "icon";
 static const char nameAttributeC[] = "name";
 static const char globTagC[] = "glob";
+static const char globDeleteAllTagC[] = "glob-deleteall";
 static const char aliasTagC[] = "alias";
 static const char patternAttributeC[] = "pattern";
 static const char weightAttributeC[] = "weight";
@@ -123,13 +124,14 @@ QMimeTypeParserBase::ParseState QMimeTypeParserBase::nextState(ParseState curren
     case ParseGenericIcon:
     case ParseIcon:
     case ParseGlobPattern:
+    case ParseGlobDeleteAll:
     case ParseSubClass:
     case ParseAlias:
     case ParseOtherMimeTypeSubTag:
     case ParseMagicMatchRule:
         if (startElement == QLatin1String(mimeTypeTagC)) // Sequence of <mime-type>
             return ParseMimeType;
-        if (startElement == QLatin1String(commentTagC ))
+        if (startElement == QLatin1String(commentTagC))
             return ParseComment;
         if (startElement == QLatin1String(genericIconTagC))
             return ParseGenericIcon;
@@ -137,6 +139,8 @@ QMimeTypeParserBase::ParseState QMimeTypeParserBase::nextState(ParseState curren
             return ParseIcon;
         if (startElement == QLatin1String(globTagC))
             return ParseGlobPattern;
+        if (startElement == QLatin1String(globDeleteAllTagC))
+            return ParseGlobDeleteAll;
         if (startElement == QLatin1String(subClassTagC))
             return ParseSubClass;
         if (startElement == QLatin1String(aliasTagC))
@@ -170,7 +174,8 @@ bool QMimeTypeParserBase::parseNumber(QStringView n, int *target, QString *error
 }
 
 #ifndef QT_NO_XMLSTREAMREADER
-struct CreateMagicMatchRuleResult {
+struct CreateMagicMatchRuleResult
+{
     QString errorMessage; // must be first
     QMimeMagicRule rule;
 
@@ -241,6 +246,9 @@ bool QMimeTypeParserBase::parse(QIODevice *dev, const QString &fileName, QString
                     return false;
                 data.addGlobPattern(pattern); // just for QMimeType::globPatterns()
             }
+                break;
+            case ParseGlobDeleteAll:
+                data.globPatterns.clear();
                 break;
             case ParseSubClass: {
                 const QString inheritsFrom = atts.value(QLatin1String(mimeTypeAttributeC)).toString();

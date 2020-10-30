@@ -1,6 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2020 The Qt Company Ltd.
+** Copyright (C) 2020 Klaralvdalens Datakonsult AB, a KDAB Group company, info@kdab.com, author Giuseppe D'Angelo <giuseppe.dangelo@kdab.com>
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -358,7 +359,6 @@ namespace Qt {
 
         WA_ShowModal = 70, // ## deprecated since since 4.5.1 but still in use :-(
         WA_MouseNoMask = 71,
-        WA_GroupLeader = 72, // ## deprecated since since 4.5.1 but still in use :-(
         WA_NoMousePropagation = 73, // for now, might go away.
         WA_Hover = 74,
         WA_InputMethodTransparent = 75, // Don't reset IM when user clicks on this (for virtual keyboards on embedded)
@@ -401,7 +401,7 @@ namespace Qt {
         WA_NativeWindow = 100,
         WA_DontCreateNativeAncestors = 101,
 
-        WA_MacVariableSize = 102,    // Mac only
+        // Formerly WA_MacVariableSize = 102,    // Mac only
 
         WA_DontShowOnScreen = 103,
 
@@ -429,7 +429,7 @@ namespace Qt {
         WA_TouchPadAcceptSingleTouchEvents = 123,
 
         WA_X11DoNotAcceptFocus = 126,
-        WA_MacNoShadow = 127,
+        // Formerly, 127 was WA_MacNoShadow
 
         WA_AlwaysStackOnTop = 128,
 
@@ -458,7 +458,11 @@ namespace Qt {
         // AA_X11InitThreads = 10,
         AA_SynthesizeTouchForUnhandledMouseEvents = 11,
         AA_SynthesizeMouseForUnhandledTouchEvents = 12,
-        AA_UseHighDpiPixmaps = 13,
+#if QT_DEPRECATED_SINCE(6, 0)
+        AA_UseHighDpiPixmaps Q_DECL_ENUMERATOR_DEPRECATED_X(
+            "High-DPI pixmaps are always enabled. " \
+            "This attribute no longer has any effect.") = 13,
+#endif
         AA_ForceRasterWidgets = 14,
         AA_UseDesktopOpenGL = 15,
         AA_UseOpenGLES = 16,
@@ -466,9 +470,13 @@ namespace Qt {
         AA_ShareOpenGLContexts = 18,
         AA_SetPalette = 19,
 #if QT_DEPRECATED_SINCE(6, 0)
-        AA_EnableHighDpiScaling Q_DECL_ENUMERATOR_DEPRECATED = 20,
+        AA_EnableHighDpiScaling Q_DECL_ENUMERATOR_DEPRECATED_X(
+            "High-DPI scaling is always enabled. " \
+            "This attribute no longer has any effect.") = 20,
+        AA_DisableHighDpiScaling Q_DECL_ENUMERATOR_DEPRECATED_X(
+            "High-DPI scaling is always enabled. " \
+            "This attribute no longer has any effect.") = 21,
 #endif
-        AA_DisableHighDpiScaling = 21,
         AA_UseStyleSheetPropagationInWidgetStyles = 22,
         AA_DontUseNativeDialogs = 23,
         AA_SynthesizeMouseForUnhandledTabletEvents = 24,
@@ -1086,6 +1094,8 @@ namespace Qt {
         ALT           = Qt::AltModifier,
         MODIFIER_MASK = KeyboardModifierMask,
     };
+    Q_DECLARE_FLAGS(Modifiers, Modifier)
+    Q_DECLARE_OPERATORS_FOR_FLAGS(Modifiers)
 
     enum ArrowType {
         NoArrow,
@@ -1293,7 +1303,8 @@ namespace Qt {
         DirectConnection,
         QueuedConnection,
         BlockingQueuedConnection,
-        UniqueConnection =  0x80
+        UniqueConnection =  0x80,
+        SingleShotConnection = 0x100,
     };
 
     enum ShortcutContext {
@@ -1594,7 +1605,7 @@ namespace Qt {
     enum class Initialization {
         Uninitialized
     };
-    static constexpr Q_DECL_UNUSED Initialization Uninitialized = Initialization::Uninitialized;
+    [[maybe_unused]] static constexpr Initialization Uninitialized = Initialization::Uninitialized;
 #else
     enum Initialization {
         Uninitialized
@@ -1776,6 +1787,9 @@ namespace Qt {
     Q_ENUM_NS(SortOrder)
     Q_ENUM_NS(CaseSensitivity)
     Q_FLAG_NS(MatchFlags)
+    Q_ENUM_NS(Modifier)
+    Q_FLAG_NS(Modifiers)
+    Q_ENUM_NS(KeyboardModifier)
     Q_FLAG_NS(KeyboardModifiers)
     Q_FLAG_NS(MouseButtons)
     Q_ENUM_NS(WindowType)
@@ -1827,7 +1841,6 @@ public:
         Pbuffer       = 0x06,    // GL pbuffer
         FramebufferObject = 0x07, // GL framebuffer object
         CustomRaster  = 0x08,
-        MacQuartz     = 0x09,
         PaintBuffer   = 0x0a,
         OpenGL        = 0x0b
     };
@@ -1853,6 +1866,156 @@ public:
     static bool unregisterCallback(Callback, qInternalCallback);
     static bool activateCallbacks(Callback, void **);
 };
+
+class QKeyCombination
+{
+    int combination;
+
+public:
+    constexpr Q_IMPLICIT QKeyCombination(Qt::Key key = Qt::Key_unknown) noexcept
+        : combination(int(key))
+    {}
+
+    constexpr explicit QKeyCombination(Qt::Modifiers modifiers, Qt::Key key = Qt::Key_unknown) noexcept
+        : combination(int(modifiers) | int(key))
+    {}
+
+    constexpr explicit QKeyCombination(Qt::KeyboardModifiers modifiers, Qt::Key key = Qt::Key_unknown) noexcept
+        : combination(int(modifiers) | int(key))
+    {}
+
+    constexpr Qt::KeyboardModifiers keyboardModifiers() const noexcept
+    {
+        return Qt::KeyboardModifiers(combination & Qt::KeyboardModifierMask);
+    }
+
+    constexpr Qt::Key key() const noexcept
+    {
+        return Qt::Key(combination & ~Qt::KeyboardModifierMask);
+    }
+
+    static constexpr QKeyCombination fromCombined(int combined)
+    {
+        QKeyCombination result;
+        result.combination = combined;
+        return result;
+    }
+
+    constexpr int toCombined() const noexcept
+    {
+        return combination;
+    }
+
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_DEPRECATED_VERSION_X(6, 0, "Use QKeyCombination instead of int")
+    constexpr Q_IMPLICIT operator int() const noexcept
+    {
+        return combination;
+    }
+#endif
+
+    friend constexpr bool operator==(QKeyCombination lhs, QKeyCombination rhs) noexcept
+    {
+        return lhs.combination == rhs.combination;
+    }
+
+    friend constexpr bool operator!=(QKeyCombination lhs, QKeyCombination rhs) noexcept
+    {
+        return lhs.combination != rhs.combination;
+    }
+};
+
+Q_DECLARE_TYPEINFO(QKeyCombination, Q_MOVABLE_TYPE);
+
+constexpr QKeyCombination operator|(Qt::Modifier modifier, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+constexpr QKeyCombination operator|(Qt::Modifiers modifiers, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+constexpr QKeyCombination operator|(Qt::KeyboardModifier modifier, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+constexpr QKeyCombination operator|(Qt::KeyboardModifiers modifiers, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+constexpr QKeyCombination operator|(Qt::Key key, Qt::Modifier modifier) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+constexpr QKeyCombination operator|(Qt::Key key, Qt::Modifiers modifiers) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+constexpr QKeyCombination operator|(Qt::Key key, Qt::KeyboardModifier modifier) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+constexpr QKeyCombination operator|(Qt::Key key, Qt::KeyboardModifiers modifiers) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+#if QT_DEPRECATED_SINCE(6, 0)
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Modifier modifier, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Modifiers modifiers, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::KeyboardModifier modifier, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::KeyboardModifiers modifiers, Qt::Key key) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Key key, Qt::Modifier modifier) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Key key, Qt::Modifiers modifiers) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Key key, Qt::KeyboardModifier modifier) noexcept
+{
+    return QKeyCombination(modifier, key);
+}
+
+QT_DEPRECATED_VERSION_X(6, 0, "Use operator| instead")
+constexpr QKeyCombination operator+(Qt::Key key, Qt::KeyboardModifiers modifiers) noexcept
+{
+    return QKeyCombination(modifiers, key);
+}
+#endif
 
 QT_END_NAMESPACE
 

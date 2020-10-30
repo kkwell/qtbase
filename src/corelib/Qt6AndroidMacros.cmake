@@ -1,4 +1,23 @@
 # Generate deployment tool json
+
+# Locate newest Android sdk build tools revision
+function(_qt_internal_android_get_sdk_build_tools_revision out_var)
+    if (NOT QT_ANDROID_SDK_BUILD_TOOLS_REVISION)
+        file(GLOB android_build_tools
+            LIST_DIRECTORIES true
+            RELATIVE "${ANDROID_SDK_ROOT}/build-tools"
+            "${ANDROID_SDK_ROOT}/build-tools/*")
+        if (NOT android_build_tools)
+            message(FATAL_ERROR "Could not locate Android SDK build tools under \"${ANDROID_SDK_ROOT}/build-tools\"")
+        endif()
+        list(SORT android_build_tools)
+        list(REVERSE android_build_tools)
+        list(GET android_build_tools 0 android_build_tools_latest)
+    endif()
+    set(${out_var} "${android_build_tools_latest}" PARENT_SCOPE)
+endfunction()
+
+# Generate the deployment settings json file for a cmake target.
 function(qt6_android_generate_deployment_settings target)
     # Information extracted from mkspecs/features/android/android_deployment_settings.prf
     if (NOT TARGET ${target})
@@ -19,7 +38,7 @@ function(qt6_android_generate_deployment_settings target)
     if (NOT target_output_name)
         set(target_output_name ${target})
     endif()
-    set(deploy_file "${target_binary_dir}/android-lib${target_output_name}.so-deployment-settings.json")
+    set(deploy_file "${target_binary_dir}/android-${target_output_name}-deployment-settings.json")
 
     set(file_contents "{\n")
     # content begin
@@ -49,21 +68,22 @@ Please recheck your build configuration.")
         set(qt_android_install_dir "${CMAKE_INSTALL_PREFIX}")
     endif()
 
-    file(TO_NATIVE_PATH "${qt_android_install_dir}" qt_android_install_dir_native)
+    file(TO_CMAKE_PATH "${qt_android_install_dir}" qt_android_install_dir_native)
     string(APPEND file_contents
         "   \"qt\": \"${qt_android_install_dir_native}\",\n")
 
     # Android SDK path
-    file(TO_NATIVE_PATH "${ANDROID_SDK_ROOT}" android_sdk_root_native)
+    file(TO_CMAKE_PATH "${ANDROID_SDK_ROOT}" android_sdk_root_native)
     string(APPEND file_contents
         "   \"sdk\": \"${android_sdk_root_native}\",\n")
 
     # Android SDK Build Tools Revision
+    _qt_internal_android_get_sdk_build_tools_revision(QT_ANDROID_SDK_BUILD_TOOLS_REVISION)
     string(APPEND file_contents
-        "   \"sdkBuildToolsRevision\": \"${QT_ANDROID_SDK_BUILD_TOOLS_VERSION}\",\n")
+        "   \"sdkBuildToolsRevision\": \"${QT_ANDROID_SDK_BUILD_TOOLS_REVISION}\",\n")
 
     # Android NDK
-    file(TO_NATIVE_PATH "${ANDROID_NDK}" android_ndk_root_native)
+    file(TO_CMAKE_PATH "${ANDROID_NDK}" android_ndk_root_native)
     string(APPEND file_contents
         "   \"ndk\": \"${android_ndk_root_native}\",\n")
 
@@ -128,7 +148,7 @@ Please recheck your build configuration.")
     get_target_property(android_package_source_dir
         ${target} QT_ANDROID_PACKAGE_SOURCE_DIR)
     if (android_package_source_dir)
-        file(TO_NATIVE_PATH "${android_package_source_dir}" android_package_source_dir_native)
+        file(TO_CMAKE_PATH "${android_package_source_dir}" android_package_source_dir_native)
         string(APPEND file_contents
             "   \"android-package-source-directory\": \"${android_package_source_dir_native}\",\n")
 endif()
@@ -139,7 +159,7 @@ endif()
 
     get_target_property(qml_import_path ${target} QT_QML_IMPORT_PATH)
     if (qml_import_path)
-        file(TO_NATIVE_PATH "${qml_import_path}" qml_import_path_native)
+        file(TO_CMAKE_PATH "${qml_import_path}" qml_import_path_native)
         string(APPEND file_contents
             "   \"qml-import-path\": \"${qml_import_path_native}\",\n")
     endif()
@@ -148,7 +168,7 @@ endif()
     if(NOT qml_root_path)
         set(qml_root_path "${target_source_dir}")
     endif()
-    file(TO_NATIVE_PATH "${qml_root_path}" qml_root_path_native)
+    file(TO_CMAKE_PATH "${qml_root_path}" qml_root_path_native)
     string(APPEND file_contents
         "   \"qml-root-path\": \"${qml_root_path_native}\",\n")
 
@@ -156,21 +176,25 @@ endif()
     string(APPEND file_contents
         "   \"application-binary\": \"${target_output_name}\",\n")
 
+    # App command-line arguments
+    string(APPEND file_contents
+        "   \"android-application-arguments\": \"${QT_ANDROID_APPLICATION_ARGUMENTS}\",\n")
+
     # Override qmlimportscanner binary path
-    set(qml_importscanner_binary_path "${QT_HOST_PATH}/${QT6_HOST_INFO_BINDIR}/qmlimportscanner")
+    set(qml_importscanner_binary_path "${QT_HOST_PATH}/bin/qmlimportscanner")
     if (WIN32)
         string(APPEND qml_importscanner_binary_path ".exe")
     endif()
-    file(TO_NATIVE_PATH "${qml_importscanner_binary_path}" qml_importscanner_binary_path_native)
+    file(TO_CMAKE_PATH "${qml_importscanner_binary_path}" qml_importscanner_binary_path_native)
     string(APPEND file_contents
         "   \"qml-importscanner-binary\" : \"${qml_importscanner_binary_path_native}\",\n")
 
     # Override rcc binary path
-    set(rcc_binary_path "${QT_HOST_PATH}/${QT6_HOST_INFO_BINDIR}/rcc")
+    set(rcc_binary_path "${QT_HOST_PATH}/bin/rcc")
     if (WIN32)
         string(APPEND rcc_binary_path ".exe")
     endif()
-    file(TO_NATIVE_PATH "${rcc_binary_path}" rcc_binary_path_native)
+    file(TO_CMAKE_PATH "${rcc_binary_path}" rcc_binary_path_native)
     string(APPEND file_contents
         "   \"rcc-binary\" : \"${rcc_binary_path_native}\",\n")
 
@@ -235,7 +259,7 @@ function(qt6_android_add_apk_target target)
         set(should_add_to_global_apk TRUE)
     endif()
 
-    set(deployment_tool "${QT_HOST_PATH}/${QT6_HOST_INFO_BINDIR}/androiddeployqt")
+    set(deployment_tool "${QT_HOST_PATH}/bin/androiddeployqt")
     set(apk_dir "$<TARGET_PROPERTY:${target},BINARY_DIR>/android-build")
     add_custom_target(${target}_prepare_apk_dir
         DEPENDS ${target}

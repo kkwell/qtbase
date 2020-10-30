@@ -20,10 +20,14 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS PrintSupport) # special case
 
-add_qt_gui_executable(scribble
+qt_add_executable(scribble
     main.cpp
     mainwindow.cpp mainwindow.h
     scribblearea.cpp scribblearea.h
+)
+set_target_properties(scribble PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(scribble PUBLIC
     Qt::Core

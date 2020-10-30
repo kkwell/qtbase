@@ -68,39 +68,26 @@ class Q_CORE_EXPORT QDebug : public QIODeviceBase
     struct Stream {
         enum { VerbosityShift = 29, VerbosityMask = 0x7 };
 
-        Stream(QIODevice *device) : ts(device), ref(1), type(QtDebugMsg),
-            space(true), message_output(false), flags(DefaultVerbosity << VerbosityShift) {}
-        Stream(QString *string) : ts(string, WriteOnly), ref(1), type(QtDebugMsg),
-            space(true), message_output(false), flags(DefaultVerbosity << VerbosityShift) {}
-        Stream(QtMsgType t) : ts(&buffer, WriteOnly), ref(1), type(t),
-            space(true), message_output(true), flags(DefaultVerbosity << VerbosityShift) {}
+        Stream(QIODevice *device)
+            : ts(device)
+        {}
+        Stream(QString *string)
+            : ts(string, WriteOnly)
+        {}
+        Stream(QtMsgType t)
+            : ts(&buffer, WriteOnly),
+              type(t),
+              message_output(true)
+        {}
         QTextStream ts;
         QString buffer;
-        int ref;
-        QtMsgType type;
-        bool space;
-        bool message_output;
+        int ref = 1;
+        QtMsgType type = QtDebugMsg;
+        bool space = true;
+        bool noQuotes = false;
+        bool message_output = false;
+        int verbosity = DefaultVerbosity;
         QMessageLogContext context;
-
-        enum FormatFlag { // Note: Bits 29..31 are reserved for the verbose level introduced in 5.6.
-            NoQuotes = 0x1
-        };
-
-        // ### Qt 6: unify with space, introduce own version member
-        bool testFlag(FormatFlag flag) const { return (context.version > 1) ? (flags & flag) : false; }
-        void setFlag(FormatFlag flag) { if (context.version > 1) { flags |= flag; } }
-        void unsetFlag(FormatFlag flag) { if (context.version > 1) { flags &= ~flag; } }
-        int verbosity() const
-        { return context.version > 1 ? (flags >> VerbosityShift) & VerbosityMask : int(DefaultVerbosity); }
-        void setVerbosity(int v)
-        {
-            if (context.version > 1) {
-                flags &= ~(uint(VerbosityMask) << VerbosityShift);
-                flags |= (v & VerbosityMask) << VerbosityShift;
-            }
-        }
-        // added in 5.4
-        int flags;
     } *stream;
 
     enum Latin1Content { ContainsBinary = 0, ContainsLatin1 };
@@ -115,8 +102,7 @@ public:
     QDebug(const QDebug &o) : stream(o.stream) { ++stream->ref; }
     QDebug(QDebug &&other) noexcept : stream{qExchange(other.stream, nullptr)} {}
     inline QDebug &operator=(const QDebug &other);
-    QDebug &operator=(QDebug &&other) noexcept
-    { QDebug{std::move(other)}.swap(*this); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QDebug)
     ~QDebug();
     inline void swap(QDebug &other) noexcept { qSwap(stream, other.stream); }
 
@@ -125,27 +111,25 @@ public:
     inline QDebug &space() { stream->space = true; stream->ts << ' '; return *this; }
     inline QDebug &nospace() { stream->space = false; return *this; }
     inline QDebug &maybeSpace() { if (stream->space) stream->ts << ' '; return *this; }
-    inline QDebug &verbosity(int verbosityLevel) { setVerbosity(verbosityLevel); return *this; }
-    int verbosity() const { return stream->verbosity(); }
-    void setVerbosity(int verbosityLevel) { stream->setVerbosity(verbosityLevel); }
+    inline QDebug &verbosity(int verbosityLevel) { stream->verbosity = verbosityLevel; return *this; }
+    int verbosity() const { return stream->verbosity; }
+    void setVerbosity(int verbosityLevel) { stream->verbosity = verbosityLevel; }
     enum VerbosityLevel { MinimumVerbosity = 0, DefaultVerbosity = 2, MaximumVerbosity = 7 };
 
     bool autoInsertSpaces() const { return stream->space; }
     void setAutoInsertSpaces(bool b) { stream->space = b; }
 
-    inline QDebug &quote() { stream->unsetFlag(Stream::NoQuotes); return *this; }
-    inline QDebug &noquote() { stream->setFlag(Stream::NoQuotes); return *this; }
-    inline QDebug &maybeQuote(char c = '"') { if (!(stream->testFlag(Stream::NoQuotes))) stream->ts << c; return *this; }
+    inline QDebug &quote() { stream->noQuotes = false; return *this; }
+    inline QDebug &noquote() { stream->noQuotes = true; return *this; }
+    inline QDebug &maybeQuote(char c = '"') { if (!stream->noQuotes) stream->ts << c; return *this; }
 
     inline QDebug &operator<<(QChar t) { putUcs4(t.unicode()); return maybeSpace(); }
     inline QDebug &operator<<(bool t) { stream->ts << (t ? "true" : "false"); return maybeSpace(); }
     inline QDebug &operator<<(char t) { stream->ts << t; return maybeSpace(); }
     inline QDebug &operator<<(signed short t) { stream->ts << t; return maybeSpace(); }
     inline QDebug &operator<<(unsigned short t) { stream->ts << t; return maybeSpace(); }
-#ifdef Q_COMPILER_UNICODE_STRINGS
     inline QDebug &operator<<(char16_t t) { return *this << QChar(ushort(t)); }
     inline QDebug &operator<<(char32_t t) { putUcs4(t); return maybeSpace(); }
-#endif
     inline QDebug &operator<<(signed int t) { stream->ts << t; return maybeSpace(); }
     inline QDebug &operator<<(unsigned int t) { stream->ts << t; return maybeSpace(); }
     inline QDebug &operator<<(signed long t) { stream->ts << t; return maybeSpace(); }
@@ -173,20 +157,11 @@ public:
     { stream->ts << m; return *this; }
 
     template <typename T>
-    static QString toString(const T &object)
+    static QString toString(T &&object)
     {
         QString buffer;
         QDebug stream(&buffer);
-        stream.nospace() << object;
-        return buffer;
-    }
-
-    template <typename T>
-    static QString toString(const T *object)
-    {
-        QString buffer;
-        QDebug stream(&buffer);
-        stream.nospace() << object;
+        stream.nospace() << std::forward<T>(object);
         return buffer;
     }
 };
@@ -444,6 +419,17 @@ inline QDebug operator<<(QDebug debug, const QFlags<T> &flags)
     // We have to use an indirection otherwise specialisation of some other overload of the
     // operator<< the compiler would try to instantiate QFlags<T> for the std::enable_if
     return qt_QMetaEnum_flagDebugOperator_helper(debug, flags);
+}
+
+inline QDebug operator<<(QDebug debug, QKeyCombination combination)
+{
+    QDebugStateSaver saver(debug);
+    debug.nospace() << "QKeyCombination("
+                    << combination.keyboardModifiers()
+                    << ", "
+                    << combination.key()
+                    << ")";
+    return debug;
 }
 
 #ifdef Q_OS_MAC

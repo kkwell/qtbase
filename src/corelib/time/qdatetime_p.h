@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2016 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
@@ -96,6 +96,7 @@ public:
         ValidDate           = 0x02,
         ValidTime           = 0x04,
         ValidDateTime       = 0x08,
+        ValidWhenMask       = ValidDate | ValidTime | ValidDateTime,
 
         TimeSpecMask        = 0x30,
 
@@ -128,9 +129,6 @@ public:
     static qint64 zoneMSecsToEpochMSecs(qint64 msecs, const QTimeZone &zone,
                                         DaylightStatus hint = UnknownDaylightTime,
                                         QDate *localDate = nullptr, QTime *localTime = nullptr);
-
-    // Inlined for its one caller in qdatetime.cpp
-    inline void setUtcOffsetByTZ(qint64 atMSecsSinceEpoch);
 #endif // timezone
 };
 

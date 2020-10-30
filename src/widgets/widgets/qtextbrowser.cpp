@@ -312,7 +312,7 @@ void QTextBrowserPrivate::setSource(const QUrl &url, QTextDocument::ResourceType
         } else if (data.userType() == QMetaType::QByteArray) {
             QByteArray ba = data.toByteArray();
             if (type == QTextDocument::HtmlResource) {
-                auto encoding = QStringConverter::encodingForHtml(ba.constData(), ba.size());
+                auto encoding = QStringConverter::encodingForHtml(ba);
                 if (!encoding)
                     // fall back to utf8
                     encoding = QStringDecoder::Utf8;
@@ -1144,7 +1144,7 @@ void QTextBrowser::paintEvent(QPaintEvent *e)
     depending on the resource type:
 
     \table
-    \header \li ResourceType  \li QVariant::Type
+    \header \li ResourceType  \li QMetaType::Type
     \row    \li QTextDocument::HtmlResource  \li QString or QByteArray
     \row    \li QTextDocument::ImageResource \li QImage, QPixmap or QByteArray
     \row    \li QTextDocument::StyleSheetResource \li QString or QByteArray

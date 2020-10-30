@@ -49,6 +49,9 @@
 #else
 #include <QtCore/qscopedpointer.h>
 #endif
+#ifndef QT_NO_DEBUGSTREAM
+#include <QtCore/qdebug.h>
+#endif
 
 #ifndef QT_NO_QOBJECT
 #if defined(Q_OS_WIN) && !defined(tagMSG)
@@ -62,7 +65,6 @@ QT_BEGIN_NAMESPACE
 class QCoreApplicationPrivate;
 class QTranslator;
 class QPostEventList;
-class QStringList;
 class QAbstractEventDispatcher;
 class QAbstractNativeEventFilter;
 
@@ -118,7 +120,7 @@ public:
     static int exec();
     static void processEvents(QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents);
     static void processEvents(QEventLoop::ProcessEventsFlags flags, int maxtime);
-    static void exit(int retcode=0);
+    static void exit(int retcode = 0);
 
     static bool sendEvent(QObject *receiver, QEvent *event);
     static void postEvent(QObject *receiver, QEvent *event, int priority = Qt::NormalEventPriority);
@@ -209,7 +211,7 @@ private:
 #ifndef QT_NO_QOBJECT
     friend class QEventDispatcherUNIXPrivate;
     friend class QCocoaEventDispatcherPrivate;
-    friend bool qt_sendSpontaneousEvent(QObject*, QEvent*);
+    friend bool qt_sendSpontaneousEvent(QObject *, QEvent *);
 #endif
     friend Q_CORE_EXPORT QString qAppName();
     friend class QClassFactory;

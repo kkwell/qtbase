@@ -112,6 +112,13 @@ QString QSqlResultPrivate::positionalToNamedBinding(const QString &query) const
 
 QString QSqlResultPrivate::namedToPositionalBinding(const QString &query)
 {
+    // In the Interbase case if it is an EXECUTE BLOCK then it is up to the
+    // caller to make sure that it is not using named bindings for the wrong
+    // parts of the query since Interbase uses them literally
+    if (sqldriver->dbmsType() == QSqlDriver::Interbase &&
+        query.trimmed().startsWith(QLatin1String("EXECUTE BLOCK"), Qt::CaseInsensitive))
+        return query;
+
     int n = query.size();
 
     QString result;
@@ -928,7 +935,7 @@ void QSqlResult::virtual_hook(int, void *)
     contain equal amount of values (rows).
 
     NULL values are passed in as typed QVariants, for example
-    \c {QVariant(QVariant::Int)} for an integer NULL value.
+    \c {QVariant(QMetaType::Int)} for an integer NULL value.
 
     Example:
 

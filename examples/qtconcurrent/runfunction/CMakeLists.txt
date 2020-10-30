@@ -20,8 +20,12 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Concurrent)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_executable(runfunction
+qt_add_executable(runfunction
     main.cpp
+)
+set_target_properties(runfunction PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
 )
 target_link_libraries(runfunction PUBLIC
     Qt::Concurrent

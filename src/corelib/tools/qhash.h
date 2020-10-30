@@ -59,11 +59,10 @@ struct QHashDummyValue
 namespace QHashPrivate {
 
 // QHash uses a power of two growth policy.
-namespace GrowthPolicy
-{
+namespace GrowthPolicy {
 inline constexpr size_t maxNumBuckets() noexcept
 {
-    return size_t(1) << (8*sizeof(size_t) - 1);
+    return size_t(1) << (8 * sizeof(size_t) - 1);
 }
 inline constexpr size_t bucketsForCapacity(size_t requestedCapacity) noexcept
 {
@@ -71,7 +70,7 @@ inline constexpr size_t bucketsForCapacity(size_t requestedCapacity) noexcept
         return 16;
     if (requestedCapacity >= maxNumBuckets())
         return maxNumBuckets();
-    return qNextPowerOfTwo(QIntegerForSize<sizeof(size_t)>::Unsigned(2*requestedCapacity - 1));
+    return qNextPowerOfTwo(QIntegerForSize<sizeof(size_t)>::Unsigned(2 * requestedCapacity - 1));
 }
 inline constexpr size_t bucketForHash(size_t nBuckets, size_t hash) noexcept
 {
@@ -185,9 +184,8 @@ struct MultiNode
 
     MultiNode(MultiNode &&other)
         : key(other.key),
-          value(other.value)
+          value(qExchange(other.value, nullptr))
     {
-        other.value = nullptr;
     }
 
     MultiNode(const MultiNode &other)
@@ -217,16 +215,13 @@ struct MultiNode
     void insertMulti(Args &&... args)
     {
         Chain *e = new Chain{ T(std::forward<Args>(args)...), nullptr };
-        e->next = value;
-        value = e;
+        e->next = qExchange(value, e);
     }
     template<typename ...Args>
     void emplaceValue(Args &&... args)
     {
         value->value = T(std::forward<Args>(args)...);
     }
-
-    // compiler generated move operators are fine
 };
 
 template<typename  Node>
@@ -286,7 +281,7 @@ struct Span {
                         entries[o].node().~Node();
                 }
             }
-            delete [] entries;
+            delete[] entries;
             entries = nullptr;
         }
     }
@@ -391,14 +386,14 @@ struct Span {
         // in here. The likelihood of having below 16 entries is very small,
         // so start with that and increment by 16 each time we need to add
         // some more space
-        const size_t increment = NEntries/8;
+        const size_t increment = NEntries / 8;
         size_t alloc = allocated + increment;
         Entry *newEntries = new Entry[alloc];
         // we only add storage if the previous storage was fully filled, so
         // simply copy the old data over
         if constexpr (isRelocatable<Node>()) {
             if (allocated)
-                memcpy(newEntries, entries, allocated*sizeof(Entry));
+                memcpy(newEntries, entries, allocated * sizeof(Entry));
         } else {
             for (size_t i = 0; i < allocated; ++i) {
                 new (&newEntries[i].node()) Node(std::move(entries[i].node()));
@@ -408,7 +403,7 @@ struct Span {
         for (size_t i = allocated; i < allocated + increment; ++i) {
             newEntries[i].nextFree() = uchar(i + 1);
         }
-        delete [] entries;
+        delete[] entries;
         entries = newEntries;
         allocated = uchar(alloc);
     }
@@ -475,10 +470,9 @@ struct Data
         return dd;
     }
 
-
     void clear()
     {
-        delete [] spans;
+        delete[] spans;
         spans = nullptr;
         size = 0;
         numBuckets = 0;
@@ -528,7 +522,7 @@ struct Data
             }
             span.freeData();
         }
-        delete [] oldSpans;
+        delete[] oldSpans;
     }
 
     size_t nextBucket(size_t bucket) const noexcept
@@ -583,7 +577,8 @@ struct Data
         return it.node();
     }
 
-    struct InsertionResult {
+    struct InsertionResult
+    {
         iterator it;
         bool initialized;
     };
@@ -750,15 +745,7 @@ public:
         : d(std::exchange(other.d, nullptr))
     {
     }
-    QHash &operator=(QHash &&other) noexcept(std::is_nothrow_destructible<Node>::value)
-    {
-        if (d != other.d) {
-            if (d && !d->ref.deref())
-                delete d;
-            d = std::exchange(other.d, nullptr);
-        }
-        return *this;
-    }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QHash)
 #ifdef Q_QDOC
     template <typename InputIterator>
     QHash(InputIterator f, InputIterator l);
@@ -1156,7 +1143,7 @@ class QMultiHash
     using Data = QHashPrivate::Data<Node>;
     using Chain = QHashPrivate::MultiNodeChain<T>;
 
-    Data  *d = nullptr;
+    Data *d = nullptr;
     qsizetype m_size = 0;
 
 public:
@@ -1220,10 +1207,10 @@ public:
         }
         return *this;
     }
-    QMultiHash(QMultiHash &&other) noexcept : d(other.d), m_size(other.m_size)
+    QMultiHash(QMultiHash &&other) noexcept
+        : d(qExchange(other.d, nullptr)),
+          m_size(qExchange(other.m_size, 0))
     {
-        other.d = nullptr;
-        other.m_size = 0;
     }
     QMultiHash &operator=(QMultiHash &&other) noexcept(std::is_nothrow_destructible<Node>::value)
     {
@@ -1241,9 +1228,14 @@ public:
     {
         if (d == other.d)
             return true;
-        if (!d || ! other.d)
+        if (m_size != other.m_size)
             return false;
-        if (m_size != other.m_size || d->size != other.d->size)
+        if (m_size == 0)
+            return true;
+        // equal size, and both non-zero size => d pointers allocated for both
+        Q_ASSERT(d);
+        Q_ASSERT(other.d);
+        if (d->size != other.d->size)
             return false;
         for (auto it = other.d->begin(); it != other.d->end(); ++it) {
             auto i = d->find(it.node()->key);
@@ -1847,140 +1839,10 @@ private:
     }
 };
 
-#if !defined(QT_NO_JAVA_STYLE_ITERATORS)
-template<class Key, class T>
-class QHashIterator
-{
-    typedef typename QHash<Key, T>::const_iterator const_iterator;
-    typedef const_iterator Item;
-    QHash<Key, T> c;
-    const_iterator i, n;
-    inline bool item_exists() const noexcept { return n != c.constEnd(); }
-
-public:
-    inline QHashIterator(const QHash<Key, T> &container) noexcept
-        : c(container), i(c.constBegin()), n(c.constEnd())
-    { }
-    inline QHashIterator &operator=(const QHash<Key, T> &container) noexcept
-    {
-        c = container;
-        i = c.constBegin();
-        n = c.constEnd();
-        return *this;
-    }
-    inline void toFront() noexcept
-    {
-        i = c.constBegin();
-        n = c.constEnd();
-    }
-    inline void toBack() noexcept
-    {
-        i = c.constEnd();
-        n = c.constEnd();
-    }
-    inline bool hasNext() const noexcept { return i != c.constEnd(); }
-    inline Item next() noexcept
-    {
-        n = i++;
-        return n;
-    }
-    inline Item peekNext() const noexcept { return i; }
-    inline const T &value() const noexcept
-    {
-        Q_ASSERT(item_exists());
-        return *n;
-    }
-    inline const Key &key() const noexcept
-    {
-        Q_ASSERT(item_exists());
-        return n.key();
-    }
-    inline bool findNext(const T &t) noexcept
-    {
-        while ((n = i) != c.constEnd())
-            if (*i++ == t)
-                return true;
-        return false;
-    }
-};
-
-template<class Key, class T>
-class QMutableHashIterator
-{
-    typedef typename QHash<Key, T>::iterator iterator;
-    typedef typename QHash<Key, T>::const_iterator const_iterator;
-    typedef iterator Item;
-    QHash<Key, T> *c;
-    iterator i, n;
-    inline bool item_exists() const noexcept { return const_iterator(n) != c->constEnd(); }
-
-public:
-    inline QMutableHashIterator(QHash<Key, T> &container)
-        : c(&container)
-    {
-        i = c->begin();
-        n = c->end();
-    }
-    inline QMutableHashIterator &operator=(QHash<Key, T> &container)
-    {
-        c = &container;
-        i = c->begin();
-        n = c->end();
-        return *this;
-    }
-    inline void toFront()
-    {
-        i = c->begin();
-        n = c->end();
-    }
-    inline void toBack() noexcept
-    {
-        i = c->end();
-        n = c->end();
-    }
-    inline bool hasNext() const noexcept { return const_iterator(i) != c->constEnd(); }
-    inline Item next() noexcept
-    {
-        n = i++;
-        return n;
-    }
-    inline Item peekNext() const noexcept { return i; }
-    inline void remove()
-    {
-        if (const_iterator(n) != c->constEnd()) {
-            i = c->erase(n);
-            n = c->end();
-        }
-    }
-    inline void setValue(const T &t)
-    {
-        if (const_iterator(n) != c->constEnd())
-            *n = t;
-    }
-    inline T &value() noexcept
-    {
-        Q_ASSERT(item_exists());
-        return *n;
-    }
-    inline const T &value() const noexcept
-    {
-        Q_ASSERT(item_exists());
-        return *n;
-    }
-    inline const Key &key() const noexcept
-    {
-        Q_ASSERT(item_exists());
-        return n.key();
-    }
-    inline bool findNext(const T &t) noexcept
-    {
-        while (const_iterator(n = i) != c->constEnd())
-            if (*i++ == t)
-                return true;
-        return false;
-    }
-};
-#endif // !QT_NO_JAVA_STYLE_ITERATORS
+Q_DECLARE_ASSOCIATIVE_FORWARD_ITERATOR(Hash)
+Q_DECLARE_MUTABLE_ASSOCIATIVE_FORWARD_ITERATOR(Hash)
+Q_DECLARE_ASSOCIATIVE_FORWARD_ITERATOR(MultiHash)
+Q_DECLARE_MUTABLE_ASSOCIATIVE_FORWARD_ITERATOR(MultiHash)
 
 template <class Key, class T>
 size_t qHash(const QHash<Key, T> &key, size_t seed = 0)

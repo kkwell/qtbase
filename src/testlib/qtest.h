@@ -465,8 +465,7 @@ bool compareSequence(ActualIterator actualIt, ActualIterator actualEnd,
 #if defined(TESTCASE_LOWDPI)
 void disableHighDpi()
 {
-    QCoreApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
-    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps, false);
+    qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
 }
 Q_CONSTRUCTOR_FUNCTION(disableHighDpi);
 #endif
@@ -498,13 +497,6 @@ bool qCompare(QList<T> const &t1, const T (& t2)[N],
 {
     return Internal::compareSequence(t1.cbegin(), t1.cend(), t2, t2 + N,
                                      actual, expected, file, line);
-}
-
-template <>
-inline bool qCompare(QStringList const &t1, QStringList const &t2, const char *actual, const char *expected,
-                            const char *file, int line)
-{
-    return qCompare<QString>(t1, t2, actual, expected, file, line);
 }
 
 template <typename T>
@@ -630,11 +622,6 @@ int main(int argc, char *argv[]) \
 }
 
 #include <QtTest/qtestsystem.h>
-
-// Two backwards-compatibility defines for an obsolete feature:
-#define QTEST_ADD_GPU_BLACKLIST_SUPPORT_DEFS
-#define QTEST_ADD_GPU_BLACKLIST_SUPPORT
-// ### Qt 6: fully remove these.
 
 #if defined(QT_NETWORK_LIB)
 #  include <QtTest/qtest_network.h>

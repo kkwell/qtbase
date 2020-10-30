@@ -115,9 +115,9 @@ QDpi QEglFSScreen::logicalDpi() const
     return qt_egl_device_integration()->logicalDpi();
 }
 
-qreal QEglFSScreen::pixelDensity() const
+QDpi QEglFSScreen::logicalBaseDpi() const
 {
-    return qt_egl_device_integration()->pixelDensity();
+    return qt_egl_device_integration()->logicalBaseDpi();
 }
 
 Qt::ScreenOrientation QEglFSScreen::nativeOrientation() const

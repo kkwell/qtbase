@@ -62,14 +62,13 @@ public:
     QIcon(const QPixmap &pixmap);
     QIcon(const QIcon &other);
     QIcon(QIcon &&other) noexcept
-        : d(other.d)
-    { other.d = nullptr; }
+        : d(qExchange(other.d, nullptr))
+    {}
     explicit QIcon(const QString &fileName); // file or resource name
     explicit QIcon(QIconEngine *engine);
     ~QIcon();
     QIcon &operator=(const QIcon &other);
-    inline QIcon &operator=(QIcon &&other) noexcept
-    { swap(other); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QIcon)
     inline void swap(QIcon &other) noexcept
     { qSwap(d, other.d); }
     bool operator==(const QIcon &) const = delete;
@@ -83,10 +82,16 @@ public:
     inline QPixmap pixmap(int extent, Mode mode = Normal, State state = Off) const
         { return pixmap(QSize(extent, extent), mode, state); }
     QPixmap pixmap(const QSize &size, qreal devicePixelRatio, Mode mode = Normal, State state = Off) const;
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_DEPRECATED_VERSION_X_6_0("Use pixmap(size, devicePixelRatio) instead")
     QPixmap pixmap(QWindow *window, const QSize &size, Mode mode = Normal, State state = Off) const;
+#endif
 
     QSize actualSize(const QSize &size, Mode mode = Normal, State state = Off) const;
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_DEPRECATED_VERSION_X_6_0("Use actualSize(size) instead")
     QSize actualSize(QWindow *window, const QSize &size, Mode mode = Normal, State state = Off) const;
+#endif
 
     QString name() const;
 

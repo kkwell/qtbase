@@ -21,10 +21,14 @@ find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS OpenGL)
 find_package(Qt6 COMPONENTS OpenGLWidgets)
 
-add_qt_gui_executable(threadedqopenglwidget
+qt_add_executable(threadedqopenglwidget
     glwidget.cpp glwidget.h
     main.cpp
     mainwindow.cpp mainwindow.h
+)
+set_target_properties(threadedqopenglwidget PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(threadedqopenglwidget PUBLIC
     Qt::Core

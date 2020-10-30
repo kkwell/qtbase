@@ -56,7 +56,7 @@ class QWindowsMimeConverter
 {
     Q_DISABLE_COPY_MOVE(QWindowsMimeConverter)
 public:
-    using QWindowsMime = QPlatformInterface::Private::QWindowsMime;
+    using QWindowsMime = QNativeInterface::Private::QWindowsMime;
 
     QWindowsMimeConverter();
     ~QWindowsMimeConverter();
@@ -67,7 +67,7 @@ public:
     QList<FORMATETC> allFormatsForMime(const QMimeData *mimeData) const;
 
     // Convenience.
-    QVariant convertToMime(const QStringList &mimeTypes, IDataObject *pDataObj, QVariant::Type preferredType,
+    QVariant convertToMime(const QStringList &mimeTypes, IDataObject *pDataObj, QMetaType preferredType,
                            QString *format = nullptr) const;
 
     void registerMime(QWindowsMime *mime);

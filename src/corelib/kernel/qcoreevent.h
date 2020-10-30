@@ -238,7 +238,6 @@ public:
         UngrabMouse = 187,
         GrabKeyboard = 188,
         UngrabKeyboard = 189,
-        MacGLClearDrawable = 191,               // Internal Cocoa, the window has changed, so we must clear
 
         StateMachineSignal = 192,
         StateMachineWrapped = 193,
@@ -282,7 +281,7 @@ public:
 
         PlatformSurface = 217,                  // Platform surface created or about to be destroyed
 
-        Pointer = 218,                          // QQuickPointerEvent; ### Qt 6: QPointerEvent
+        Pointer = 218,                          // Qt 5: QQuickPointerEvent; Qt 6: unused so far
 
         TabletTrackingChange = 219,             // tablet tracking state has changed
 
@@ -301,7 +300,7 @@ public:
     inline Type type() const { return static_cast<Type>(t); }
     inline bool spontaneous() const { return spont; }
 
-    inline void setAccepted(bool accepted) { m_accept = accepted; }
+    inline virtual void setAccepted(bool accepted) { m_accept = accepted; }
     inline bool isAccepted() const { return m_accept; }
 
     inline void accept() { m_accept = true; }
@@ -348,9 +347,10 @@ private:
 class Q_CORE_EXPORT QTimerEvent : public QEvent
 {
 public:
-    explicit QTimerEvent( int timerId );
+    explicit QTimerEvent(int timerId);
     ~QTimerEvent();
     int timerId() const { return id; }
+
 protected:
     int id;
 };
@@ -360,12 +360,13 @@ class QObject;
 class Q_CORE_EXPORT QChildEvent : public QEvent
 {
 public:
-    QChildEvent( Type type, QObject *child );
+    QChildEvent(Type type, QObject *child);
     ~QChildEvent();
     QObject *child() const { return c; }
     bool added() const { return type() == ChildAdded; }
     bool polished() const { return type() == ChildPolished; }
     bool removed() const { return type() == ChildRemoved; }
+
 protected:
     QObject *c;
 };
@@ -388,6 +389,7 @@ public:
     explicit QDeferredDeleteEvent();
     ~QDeferredDeleteEvent();
     int loopLevel() const { return level; }
+
 private:
     int level;
     friend class QCoreApplication;

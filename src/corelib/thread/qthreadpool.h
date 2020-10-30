@@ -51,7 +51,6 @@ QT_REQUIRE_CONFIG(thread);
 
 QT_BEGIN_NAMESPACE
 
-
 class QThreadPoolPrivate;
 class Q_CORE_EXPORT QThreadPool : public QObject
 {
@@ -95,7 +94,7 @@ public:
 
     bool contains(const QThread *thread) const;
 
-    Q_REQUIRED_RESULT bool tryTake(QRunnable *runnable);
+    [[nodiscard]] bool tryTake(QRunnable *runnable);
 };
 
 QT_END_NAMESPACE

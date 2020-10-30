@@ -67,9 +67,13 @@ if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
 endif()
 qt_add_qmake_lib_dependency(xcb_icccm xcb)
 if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
+    qt_find_package(XCB 0.3.9 COMPONENTS UTIL PROVIDED_TARGETS XCB::UTIL MODULE_NAME gui QMAKE_LIB xcb_util)
+endif()
+qt_add_qmake_lib_dependency(xcb_util xcb)
+if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
     qt_find_package(XCB 0.3.9 COMPONENTS IMAGE PROVIDED_TARGETS XCB::IMAGE MODULE_NAME gui QMAKE_LIB xcb_image)
 endif()
-qt_add_qmake_lib_dependency(xcb_image xcb_shm xcb)
+qt_add_qmake_lib_dependency(xcb_image xcb_shm xcb_util xcb)
 if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
     qt_find_package(XCB 0.3.9 COMPONENTS KEYSYMS PROVIDED_TARGETS XCB::KEYSYMS MODULE_NAME gui QMAKE_LIB xcb_keysyms)
 endif()
@@ -98,10 +102,6 @@ if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
     qt_find_package(XCB COMPONENTS XFIXES PROVIDED_TARGETS XCB::XFIXES MODULE_NAME gui QMAKE_LIB xcb_xfixes)
 endif()
 qt_add_qmake_lib_dependency(xcb_xfixes xcb)
-if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
-    qt_find_package(XCB COMPONENTS XINERAMA PROVIDED_TARGETS XCB::XINERAMA MODULE_NAME gui QMAKE_LIB xcb_xinerama)
-endif()
-qt_add_qmake_lib_dependency(xcb_xinerama xcb)
 if((LINUX) OR QT_FIND_ALL_PACKAGES_ALWAYS)
     qt_find_package(X11_XCB PROVIDED_TARGETS X11::XCB MODULE_NAME gui QMAKE_LIB xcb_xlib)
 endif()
@@ -482,6 +482,7 @@ qt_config_compile_test(xcb_syslibs
     LABEL "XCB (extensions)"
     LIBRARIES
         XCB::ICCCM
+        XCB::UTIL
         XCB::IMAGE
         XCB::KEYSYMS
         XCB::RANDR
@@ -491,13 +492,13 @@ qt_config_compile_test(xcb_syslibs
         XCB::SHM
         XCB::SYNC
         XCB::XFIXES
-        XCB::XINERAMA
         XCB::XKB
         XCB::XCB
     CODE
 "// xkb.h is using a variable called 'explicit', which is a reserved keyword in C++
 #define explicit dont_use_cxx_explicit
 #include <xcb/xcb.h>
+#include <xcb/xcb_util.h>
 #include <xcb/xcb_image.h>
 #include <xcb/xcb_keysyms.h>
 #include <xcb/randr.h>
@@ -506,7 +507,6 @@ qt_config_compile_test(xcb_syslibs
 #include <xcb/shm.h>
 #include <xcb/sync.h>
 #include <xcb/xfixes.h>
-#include <xcb/xinerama.h>
 #include <xcb/xcb_icccm.h>
 #include <xcb/xcb_renderutil.h>
 #include <xcb/xkb.h>
@@ -984,6 +984,13 @@ qt_feature("standarditemmodel" PUBLIC
     CONDITION QT_FEATURE_itemmodel
 )
 qt_feature_definition("standarditemmodel" "QT_NO_STANDARDITEMMODEL" NEGATE VALUE "1")
+qt_feature("filesystemmodel" PUBLIC
+    SECTION "File I/O"
+    LABEL "QFileSystemModel"
+    PURPOSE "Provides a data model for the local filesystem."
+    CONDITION QT_FEATURE_itemmodel
+)
+qt_feature_definition("filesystemmodel" "QT_NO_FILESYSTEMMODEL" NEGATE VALUE "1")
 qt_feature("imageformatplugin" PUBLIC
     SECTION "Images"
     LABEL "QImageIOPlugin"

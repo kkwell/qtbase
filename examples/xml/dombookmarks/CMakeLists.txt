@@ -20,10 +20,14 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Xml)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(dombookmarks
+qt_add_executable(dombookmarks
     main.cpp
     mainwindow.cpp mainwindow.h
     xbeltree.cpp xbeltree.h
+)
+set_target_properties(dombookmarks PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(dombookmarks PUBLIC
     Qt::Core

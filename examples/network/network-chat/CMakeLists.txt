@@ -20,13 +20,17 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(network-chat
+qt_add_executable(network-chat
     chatdialog.cpp chatdialog.h chatdialog.ui
     client.cpp client.h
     connection.cpp connection.h
     main.cpp
     peermanager.cpp peermanager.h
     server.cpp server.h
+)
+set_target_properties(network-chat PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(network-chat PUBLIC
     Qt::Core

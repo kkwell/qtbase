@@ -235,6 +235,7 @@ private slots:
     void operatorEq();
     void typesWithInaccessibleDTors();
     void voidIsNotUnknown();
+    void typeNameNormalization();
 };
 
 struct BaseGenericType
@@ -367,7 +368,7 @@ class CustomQObject : public QObject
 {
     Q_OBJECT
 public:
-    CustomQObject(QObject *parent = 0)
+    CustomQObject(QObject *parent = nullptr)
       : QObject(parent)
     {
     }
@@ -398,7 +399,7 @@ void tst_QMetaType::registerGadget(const char *name, const QList<GadgetPropertyT
 {
     QMetaObjectBuilder gadgetBuilder;
     gadgetBuilder.setClassName(name);
-    QMetaObjectBuilder::MetaObjectFlags metaObjectflags = QMetaObjectBuilder::DynamicMetaObject | QMetaObjectBuilder::PropertyAccessInStaticMetaCall;
+    MetaObjectFlags metaObjectflags = DynamicMetaObject | PropertyAccessInStaticMetaCall;
     gadgetBuilder.setFlags(metaObjectflags);
     auto dynamicGadgetProperties = std::make_shared<GenericGadgetType>();
     for (const auto &prop : gadgetProperties) {
@@ -477,7 +478,7 @@ class MetaTypeTorturer: public QThread
 {
     Q_OBJECT
 protected:
-    void run()
+    void run() override
     {
         Bar space[1];
         space[0].~Bar();
@@ -1000,6 +1001,11 @@ void tst_QMetaType::alignOf()
 }
 
 struct CustomMovable { CustomMovable() {} };
+
+// needed for QSet<CustomMovable>. We actually check that it makes sense.
+bool operator==(const CustomMovable &, const CustomMovable &) { return true; }
+qsizetype qHash(const CustomMovable &, qsizetype seed = 0) { return seed; }
+
 #if !defined(Q_CC_CLANG) && defined(Q_CC_GNU) && Q_CC_GNU < 501
 QT_BEGIN_NAMESPACE
 Q_DECLARE_TYPEINFO(CustomMovable, Q_MOVABLE_TYPE);
@@ -1012,7 +1018,7 @@ class CustomObject : public QObject
 {
     Q_OBJECT
 public:
-    CustomObject(QObject *parent = 0)
+    CustomObject(QObject *parent = nullptr)
       : QObject(parent)
     {
 
@@ -1026,7 +1032,7 @@ class CustomMultiInheritanceObject : public QObject, SecondBase
 {
     Q_OBJECT
 public:
-    CustomMultiInheritanceObject(QObject *parent = 0)
+    CustomMultiInheritanceObject(QObject *parent = nullptr)
       : QObject(parent)
     {
 
@@ -1119,7 +1125,7 @@ void tst_QMetaType::flags()
 
     QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::NeedsConstruction), isComplex);
     QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::NeedsDestruction), isComplex);
-    QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::MovableType), isMovable);
+    QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::RelocatableType), isMovable);
     QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::PointerToQObject), isPointerToQObject);
     QCOMPARE(bool(QMetaType::typeFlags(type) & QMetaType::IsEnumeration), isEnum);
 }
@@ -1138,7 +1144,7 @@ void tst_QMetaType::flagsStaticLess()
     int flags = QMetaType(type).flags();
     QCOMPARE(bool(flags & QMetaType::NeedsConstruction), isComplex);
     QCOMPARE(bool(flags & QMetaType::NeedsDestruction), isComplex);
-    QCOMPARE(bool(flags & QMetaType::MovableType), isMovable);
+    QCOMPARE(bool(flags & QMetaType::RelocatableType), isMovable);
 }
 
 void tst_QMetaType::flagsBinaryCompatibility6_0_data()
@@ -1600,7 +1606,7 @@ class AutoMetaTypeObject : public QObject
     Q_PROPERTY(IntIntHash someHash READ someHash CONSTANT)
     Q_PROPERTY(NaturalNumber someInt READ someInt CONSTANT)
 public:
-    AutoMetaTypeObject(QObject *parent = 0)
+    AutoMetaTypeObject(QObject *parent = nullptr)
       : QObject(parent), m_int(42)
     {
         m_hash.insert(4, 2);
@@ -1625,7 +1631,7 @@ class MyObject : public QObject
 {
   Q_OBJECT
 public:
-  MyObject(QObject *parent = 0)
+  MyObject(QObject *parent = nullptr)
     : QObject(parent)
   {
   }
@@ -1776,7 +1782,7 @@ void tst_QMetaType::automaticTemplateRegistration()
   {
     typedef std::map<int, CustomObject*> StdMapIntCustomObject ;
     StdMapIntCustomObject intComparableMap;
-    CustomObject *o = 0;
+    CustomObject *o = nullptr;
     intComparableMap[4] = o;
     QCOMPARE(QVariant::fromValue(intComparableMap).value<StdMapIntCustomObject >()[4], o);
   }
@@ -1817,7 +1823,7 @@ void tst_QMetaType::automaticTemplateRegistration()
   }
   {
     typedef std::pair<int, CustomQObject*> StdIntComparablePair;
-    CustomQObject* o = 0;
+    CustomQObject *o = nullptr;
     StdIntComparablePair intComparablePair = std::make_pair(4, o);
     QCOMPARE(QVariant::fromValue(intComparablePair).value<StdIntComparablePair>().first, 4);
     QCOMPARE(QVariant::fromValue(intComparablePair).value<StdIntComparablePair>().second, o);
@@ -1937,13 +1943,6 @@ void tst_QMetaType::automaticTemplateRegistration()
         SMARTPOINTER < QObject > extractedPtr = FROMVARIANTFUNCTION<QObject>(v); \
         QCOMPARE(extractedPtr.data()->objectName(), sp.data()->objectName()); \
     }
-
-#if QT_DEPRECATED_SINCE(5, 0)
-    TEST_NONOWNING_SMARTPOINTER(QWeakPointer, QObject, WeakPointerToQObject, qWeakPointerFromVariant)
-    TEST_NONOWNING_SMARTPOINTER(QWeakPointer, QFile, WeakPointerToQObject, qWeakPointerFromVariant)
-    TEST_NONOWNING_SMARTPOINTER(QWeakPointer, QTemporaryFile, WeakPointerToQObject, qWeakPointerFromVariant)
-    TEST_NONOWNING_SMARTPOINTER(QWeakPointer, MyObject, WeakPointerToQObject, qWeakPointerFromVariant)
-#endif
 
     TEST_NONOWNING_SMARTPOINTER(QPointer, QObject, TrackingPointerToQObject, qPointerFromVariant)
     TEST_NONOWNING_SMARTPOINTER(QPointer, QFile, TrackingPointerToQObject, qPointerFromVariant)
@@ -2101,7 +2100,7 @@ class MyQObjectFromGadget : public QObject, public MyGadget
 {
     Q_OBJECT
 public:
-    MyQObjectFromGadget(QObject *parent = 0)
+    MyQObjectFromGadget(QObject *parent = nullptr)
         : QObject(parent)
     {}
 };
@@ -2715,6 +2714,43 @@ void tst_QMetaType::voidIsNotUnknown()
     QMetaType voidType2 = QMetaType(QMetaType::Void);
     QCOMPARE(voidType, voidType2);
     QVERIFY(voidType != QMetaType(QMetaType::UnknownType));
+}
+
+void tst_QMetaType::typeNameNormalization()
+{
+    // check the we normalize types the right way
+
+#define CHECK_TYPE_NORMALIZATION(Normalized, ...) \
+    do { \
+        /*QCOMPARE(QtPrivate::typenameHelper<Type>(), Normalized);*/ \
+        QByteArray typeName = QMetaObject::normalizedType(#__VA_ARGS__); \
+        QCOMPARE(typeName, Normalized); \
+        typeName = QMetaType::fromType<__VA_ARGS__>().name(); \
+        QCOMPARE(typeName, Normalized); \
+    } while (0)
+
+    CHECK_TYPE_NORMALIZATION("QList<QString*const>", QList<QString * const>);
+    CHECK_TYPE_NORMALIZATION("QList<const QString*>", QList<const QString * >);
+    CHECK_TYPE_NORMALIZATION("QList<const QString*const>", QList<const QString * const>);
+    CHECK_TYPE_NORMALIZATION("QList<const QString*>", QList<QString const *>);
+    CHECK_TYPE_NORMALIZATION("QList<signed char>", QList<signed char>);
+    CHECK_TYPE_NORMALIZATION("QList<uint>", QList<unsigned>);
+    CHECK_TYPE_NORMALIZATION("uint", uint);
+    CHECK_TYPE_NORMALIZATION("QList<QHash<uint,QString*>>", QList<QHash<unsigned, QString *>>);
+    CHECK_TYPE_NORMALIZATION("QList<qlonglong>", QList<qlonglong>);
+    CHECK_TYPE_NORMALIZATION("QList<qulonglong>", QList<qulonglong>);
+    CHECK_TYPE_NORMALIZATION("QList<qlonglong>", QList<long long>);
+    CHECK_TYPE_NORMALIZATION("QList<qulonglong>", QList<unsigned long long>);
+    CHECK_TYPE_NORMALIZATION("QList<qulonglong*>", QList<unsigned long long *>);
+    CHECK_TYPE_NORMALIZATION("QList<ulong>", QList<long unsigned >);
+#ifdef Q_CC_MSVC
+    CHECK_TYPE_NORMALIZATION("qulonglong", __int64 unsigned);
+#endif
+    CHECK_TYPE_NORMALIZATION("std::pair<const QString&&,short>", QPair<const QString &&, signed short>);
+
+    // The string based normalization doesn't handle aliases, QMetaType::fromType() does
+//    CHECK_TYPE_NORMALIZATION("qulonglong", quint64);
+    QCOMPARE(QMetaType::fromType<quint64>().name(), "qulonglong");
 }
 
 // Compile-time test, it should be possible to register function pointer types

@@ -19,11 +19,15 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(puzzle
+qt_add_executable(puzzle
     main.cpp
     mainwindow.cpp mainwindow.h
     pieceslist.cpp pieceslist.h
     puzzlewidget.cpp puzzlewidget.h
+)
+set_target_properties(puzzle PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(puzzle PUBLIC
     Qt::Core

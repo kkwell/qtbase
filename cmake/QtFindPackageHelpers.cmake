@@ -15,7 +15,8 @@ endfunction()
 
 macro(qt_find_package)
     # Get the target names we expect to be provided by the package.
-    set(options CONFIG NO_MODULE MODULE REQUIRED)
+    set(find_package_options CONFIG NO_MODULE MODULE REQUIRED)
+    set(options ${find_package_options} MARK_OPTIONAL)
     set(oneValueArgs MODULE_NAME QMAKE_LIB)
     set(multiValueArgs PROVIDED_TARGETS COMPONENTS)
     cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -56,6 +57,7 @@ macro(qt_find_package)
         # Re-append components to forward them.
         list(APPEND arg_UNPARSED_ARGUMENTS "COMPONENTS;${arg_COMPONENTS}")
     endif()
+    # TODO: Handle REQUIRED_COMPONENTS.
 
     # Don't look for packages in PATH if requested to.
     if(QT_NO_USE_FIND_PACKAGE_SYSTEM_ENVIRONMENT_PATH)
@@ -90,12 +92,15 @@ macro(qt_find_package)
     endif()
 
     # Ensure the options are back in the original unparsed arguments
-    foreach(opt IN LISTS options)
+    foreach(opt IN LISTS find_package_options)
         if(arg_${opt})
             list(APPEND arg_UNPARSED_ARGUMENTS ${opt})
         endif()
     endforeach()
 
+    # TODO: Handle packages with components where a previous component is already found.
+    # E.g. find_package(Qt6 COMPONENTS BuildInternals) followed by
+    # qt_find_package(Qt6 COMPONENTS Core) doesn't end up calling find_package(Qt6Core).
     if (NOT ${ARGV0}_FOUND AND NOT _qt_find_package_skip_find_package)
         # Unset the NOTFOUND ${package}_DIR var that might have been set by the previous
         # find_package call, to get rid of "not found" messagees in the feature summary
@@ -129,8 +134,9 @@ macro(qt_find_package)
                     set(qt_find_package_target_name ${aliased_target})
                 endif()
 
-                set_target_properties(${qt_find_package_target_name}
-                                      PROPERTIES INTERFACE_QT_PACKAGE_NAME ${ARGV0})
+                set_target_properties(${qt_find_package_target_name} PROPERTIES
+                    INTERFACE_QT_PACKAGE_NAME ${ARGV0}
+                    INTERFACE_QT_PACKAGE_IS_OPTIONAL ${arg_MARK_OPTIONAL})
                 if(package_version)
                     set_target_properties(${qt_find_package_target_name}
                                           PROPERTIES INTERFACE_QT_PACKAGE_VERSION ${ARGV1})
@@ -165,13 +171,16 @@ macro(qt_find_package)
     endif()
 endmacro()
 
-# This function records a dependency between ${target_name} and ${dep_package_name}.
+# This function records a dependency between ${main_target_name} and ${dep_package_name}.
 # at the CMake package level.
 # E.g. The Tools package that provides the qtwaylandscanner target
 # needs to call find_package(WaylandScanner) (non-qt-package).
 # main_target_name = qtwaylandscanner
 # dep_package_name = WaylandScanner
 function(qt_record_extra_package_dependency main_target_name dep_package_name dep_package_version)
+    if(NOT TARGET "${main_target_name}")
+        qt_get_tool_target_name(main_target_name "${main_target_name}")
+    endif()
     if (TARGET "${main_target_name}")
         get_target_property(extra_packages "${main_target_name}" QT_EXTRA_PACKAGE_DEPENDENCIES)
         if(NOT extra_packages)
@@ -186,17 +195,55 @@ endfunction()
 
 # This function records a dependency between ${main_target_name} and ${dep_target_name}
 # at the CMake package level.
-# E.g. Qt6CoreConfig.cmake needs to find_package(Qt6WinMain).
+# E.g. Qt6CoreConfig.cmake needs to find_package(Qt6EntryPoint).
 # main_target_name = Core
-# dep_target_name = WinMain
+# dep_target_name = EntryPoint
 # This is just a convenience function that deals with Qt targets and their associated packages
 # instead of raw package names.
 function(qt_record_extra_qt_package_dependency main_target_name dep_target_name
                                                                 dep_package_version)
-    # WinMain -> Qt6WinMain.
+    # EntryPoint -> Qt6EntryPoint.
     qt_internal_module_info(qtfied_target_name "${dep_target_name}")
     qt_record_extra_package_dependency("${main_target_name}" "${qtfied_target_name_versioned}"
                                                              "${dep_package_version}")
+endfunction()
+
+# This function records a 'QtFooTools' package dependency for the ${main_target_name} target
+# onto the ${dep_package_name} tools package.
+# E.g. The QtWaylandCompositor package needs to call find_package(QtWaylandScannerTools).
+# main_target_name = WaylandCompositor
+# dep_package_name = Qt6WaylandScannerTools
+function(qt_record_extra_main_tools_package_dependency
+         main_target_name dep_package_name dep_package_version)
+    if(NOT TARGET "${main_target_name}")
+        qt_get_tool_target_name(main_target_name "${main_target_name}")
+    endif()
+    if (TARGET "${main_target_name}")
+        get_target_property(extra_packages "${main_target_name}"
+                            QT_EXTRA_TOOLS_PACKAGE_DEPENDENCIES)
+        if(NOT extra_packages)
+            set(extra_packages "")
+        endif()
+
+        list(APPEND extra_packages "${dep_package_name}\;${dep_package_version}")
+        set_target_properties("${main_target_name}" PROPERTIES QT_EXTRA_TOOLS_PACKAGE_DEPENDENCIES
+                                                               "${extra_packages}")
+    endif()
+endfunction()
+
+# This function records a 'QtFooTools' package dependency for the ${main_target_name} target
+# onto the ${dep_non_versioned_package_name} Tools package.
+# main_target_name = WaylandCompositor
+# dep_non_versioned_package_name = WaylandScannerTools
+# This is just a convenience function to avoid hardcoding the qtified version in the dep package
+# name.
+function(qt_record_extra_qt_main_tools_package_dependency main_target_name
+                                                          dep_non_versioned_package_name
+                                                          dep_package_version)
+    # WaylandScannerTools -> Qt6WaylandScannerTools.
+    qt_internal_module_info(qtfied_package_name "${dep_non_versioned_package_name}")
+    qt_record_extra_main_tools_package_dependency(
+        "${main_target_name}" "${qtfied_package_name_versioned}" "${dep_package_version}")
 endfunction()
 
 # This function stores the list of Qt modules a library depend on,

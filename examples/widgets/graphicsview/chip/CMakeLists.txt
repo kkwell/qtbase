@@ -21,11 +21,15 @@ find_package(Qt6 COMPONENTS Widgets)
 find_package(Qt6 COMPONENTS OpenGL) # special case
 find_package(Qt6 COMPONENTS PrintSupport) # special case
 
-add_qt_gui_executable(chip
+qt_add_executable(chip
     chip.cpp chip.h
     main.cpp
     mainwindow.cpp mainwindow.h
     view.cpp view.h
+)
+set_target_properties(chip PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(chip PUBLIC
     Qt::Core

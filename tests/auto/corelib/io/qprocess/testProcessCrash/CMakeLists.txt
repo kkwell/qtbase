@@ -4,10 +4,10 @@
 ## testProcessCrash Binary:
 #####################################################################
 
-qt_add_executable(testProcessCrash
+qt_internal_add_executable(testProcessCrash
     OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/"
     SOURCES
         main.cpp
-    PUBLIC_LIBRARIES
-        Qt::Gui
+    #PUBLIC_LIBRARIES # special case remove
+        #Qt::Gui # special case remove
 )

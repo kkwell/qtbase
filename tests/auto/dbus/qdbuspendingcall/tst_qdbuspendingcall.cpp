@@ -179,7 +179,7 @@ void tst_QDBusPendingCall::waitForFinished()
     QCOMPARE(args.count(), 1);
 
     const QVariant &arg = args.at(0);
-    QCOMPARE(arg.type(), QVariant::StringList);
+    QCOMPARE(arg.userType(), QMetaType::QStringList);
     QVERIFY(arg.toStringList().contains(conn.baseService()));
 }
 
@@ -323,7 +323,7 @@ void tst_QDBusPendingCall::watcher_waitForFinished_threaded()
     public:
         tst_QDBusPendingCall *tst;
         WorkerThread(tst_QDBusPendingCall *tst) : tst(tst) {}
-        void run()
+        void run() override
         {
             QDBusPendingCall ac = tst->sendMessage();
 //            QVERIFY(!ac.isFinished());

@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(customtypesending
+qt_add_executable(customtypesending
     main.cpp
     message.cpp message.h
     window.cpp window.h
+)
+set_target_properties(customtypesending PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(customtypesending PUBLIC
     Qt::Core

@@ -441,16 +441,20 @@ public:
         // only use memcmp for fundamental types or pointers.
         // Other types could have padding in the data structure or custom comparison
         // operators that would break the comparison using memcmp
-        if (QArrayDataPointer<T>::pass_parameter_by_value)
+        if constexpr (QArrayDataPointer<T>::pass_parameter_by_value) {
             return ::memcmp(begin1, begin2, n * sizeof(T)) == 0;
-        const T *end1 = begin1 + n;
-        while (begin1 != end1) {
-            if (*begin1 == *begin2)
-                ++begin1, ++begin2;
-            else
-                return false;
+        } else {
+            const T *end1 = begin1 + n;
+            while (begin1 != end1) {
+                if (*begin1 == *begin2) {
+                    ++begin1;
+                    ++begin2;
+                } else {
+                    return false;
+                }
+            }
+            return true;
         }
-        return true;
     }
 
     void reallocate(qsizetype alloc, typename Data::ArrayOptions options)
@@ -587,12 +591,14 @@ public:
 
         // Copy assign over existing elements
         while (readIter != where) {
-            --readIter, --writeIter;
+            --readIter;
+            --writeIter;
             *writeIter = *readIter;
         }
 
         while (writeIter != where) {
-            --e, --writeIter;
+            --e;
+            --writeIter;
             *writeIter = *e;
         }
     }
@@ -619,12 +625,14 @@ public:
         // Construct new elements in array
         while (writeIter != step1End) {
             new (writeIter) T(*readIter);
-            ++readIter, ++writeIter;
+            ++readIter;
+            ++writeIter;
         }
 
         while (writeIter != begin) {
             new (writeIter) T(*b);
-            ++b, ++writeIter;
+            ++b;
+            ++writeIter;
         }
 
         destroyer.commit();
@@ -634,12 +642,14 @@ public:
         // Copy assign over existing elements
         while (readIter != where) {
             *writeIter = *readIter;
-            ++readIter, ++writeIter;
+            ++readIter;
+            ++writeIter;
         }
 
         while (writeIter != where) {
             *writeIter = *b;
-            ++b, ++writeIter;
+            ++b;
+            ++writeIter;
         }
     }
 
@@ -683,12 +693,14 @@ public:
 
         // Copy assign over existing elements
         while (readIter != where) {
-            --readIter, --writeIter;
+            --readIter;
+            --writeIter;
             *writeIter = *readIter;
         }
 
         while (writeIter != where) {
-            --n, --writeIter;
+            --n;
+            --writeIter;
             *writeIter = t;
         }
     }
@@ -712,7 +724,8 @@ public:
         // Construct new elements in array
         while (writeIter != step1End) {
             new (writeIter) T(*readIter);
-            ++readIter, ++writeIter;
+            ++readIter;
+            ++writeIter;
         }
 
         while (writeIter != begin) {
@@ -727,7 +740,8 @@ public:
         // Copy assign over existing elements
         while (readIter != where) {
             *writeIter = *readIter;
-            ++readIter, ++writeIter;
+            ++readIter;
+            ++writeIter;
         }
 
         while (writeIter != where) {
@@ -784,7 +798,8 @@ public:
         // onto b to the new end
         while (e != end) {
             *b = *e;
-            ++b, ++e;
+            ++b;
+            ++e;
         }
 
         // destroy the final elements at the end
@@ -808,7 +823,8 @@ public:
         // move (by assignment) the elements from begin to b
         // onto the new begin to e
         while (b != begin) {
-            --b, --e;
+            --b;
+            --e;
             *e = *b;
         }
 
@@ -835,10 +851,12 @@ public:
     {
         const T *end1 = begin1 + n;
         while (begin1 != end1) {
-            if (*begin1 == *begin2)
-                ++begin1, ++begin2;
-            else
+            if (*begin1 == *begin2) {
+                ++begin1;
+                ++begin2;
+            } else {
                 return false;
+            }
         }
         return true;
     }
@@ -1021,7 +1039,7 @@ struct QCommonArrayOps : QArrayOpsSelector<T>::Type
     using iterator = typename Base::iterator;
     using const_iterator = typename Base::const_iterator;
 
-private:
+protected:
     using Self = QCommonArrayOps<T>;
 
     // Tag dispatched helper functions
@@ -1098,25 +1116,28 @@ private:
                 --start;
             }
 
-            // step 2. move assign over existing elements in the overlapping
-            //         region (if there's an overlap)
-            while (e != begin) {
-                --start, --e;
-                *start = std::move_if_noexcept(*e);
-            }
-
             // re-created the range. now there is an initialized memory region
             // somewhere in the allocated area. if something goes wrong, we must
             // clean it up, so "freeze" the position for now (cannot commit yet)
             destroyer.freeze();
 
+            // step 2. move assign over existing elements in the overlapping
+            //         region (if there's an overlap)
+            while (e != begin) {
+                --start;
+                --e;
+                *start = std::move_if_noexcept(*e);
+            }
+
             // step 3. destroy elements in the old range
             const qsizetype originalSize = this_->size;
-            start = oldRangeEnd;  // mind the possible gap, have to re-assign
-            while (start != begin) {
+            start = begin; // delete elements in reverse order to prevent any gaps
+            while (start != oldRangeEnd) {
                 // Exceptions or not, dtor called once per instance
+                if constexpr (std::is_same_v<std::decay_t<GrowthTag>, GrowsForwardTag>)
+                    ++this_->ptr;
                 --this_->size;
-                (--start)->~T();
+                (start++)->~T();
             }
 
             destroyer.commit();
@@ -1165,7 +1186,7 @@ private:
     {
         Q_ASSERT(this->isMutable() || required == 0);
         Q_ASSERT(!this->isShared() || required == 0);
-        Q_ASSERT(required <= this->constAllocatedCapacity() - this->size);
+        Q_ASSERT(required <= size_t(this->constAllocatedCapacity() - this->size));
 
         using MoveOps = std::conditional_t<QTypeInfo<T>::isRelocatable,
                                            RelocatableMoveOps,
@@ -1205,8 +1226,9 @@ private:
                 || std::is_same_v<RemovedConstVolatileIt, const volatile T *>;
             if constexpr (selfIterator) {
                 return (first >= this->begin() && last <= this->end());
+            } else {
+                return false;
             }
-            return false;
         };
 
         const bool inRange = iteratorsInRange(b, e);
@@ -1255,9 +1277,9 @@ private:
 
     // Tells how much of the given size to insert at the beginning of the
     // container. This is insert-specific helper function
-    qsizetype sizeToInsertAtBegin(const T *const where, qsizetype size)
+    qsizetype sizeToInsertAtBegin(const T *const where, qsizetype maxSize)
     {
-        Q_ASSERT(size_t(size) <= this->allocatedCapacity() - this->size);
+        Q_ASSERT(maxSize <= this->allocatedCapacity() - this->size);
         Q_ASSERT(where >= this->begin() && where <= this->end());  // in range
 
         const auto freeAtBegin = this->freeSpaceAtBegin();
@@ -1266,18 +1288,18 @@ private:
         // Idea: * if enough space on both sides, try to affect less elements
         //       * if enough space on one of the sides, use only that side
         //       * otherwise, split between front and back (worst case)
-        if (freeAtBegin >= size && freeAtEnd >= size) {
+        if (freeAtBegin >= maxSize && freeAtEnd >= maxSize) {
             if (where - this->begin() < this->end() - where) {
-                return size;
+                return maxSize;
             } else {
                 return 0;
             }
-        } else if (freeAtBegin >= size) {
-            return size;
-        } else if (freeAtEnd >= size) {
+        } else if (freeAtBegin >= maxSize) {
+            return maxSize;
+        } else if (freeAtEnd >= maxSize) {
             return 0;
         } else {
-            return size - freeAtEnd;
+            return maxSize - freeAtEnd;
         }
     }
 
@@ -1300,7 +1322,7 @@ public:
         const qsizetype freeAtEnd = this->freeSpaceAtEnd();
         const qsizetype capacity = this->constAllocatedCapacity();
 
-        if (where == this->begin()) {  // prepend
+        if (this->size > 0 && where == this->begin()) {  // prepend
             // Qt5 QList in prepend: not enough space at begin && 33% full
             // Now (below):
             return freeAtBegin < n && (this->size >= (capacity / 3));
@@ -1327,7 +1349,7 @@ public:
         Q_ASSERT(this->isMutable());
         Q_ASSERT(!this->isShared());
         Q_ASSERT(newSize > size_t(this->size));
-        Q_ASSERT(newSize <= this->allocatedCapacity());
+        Q_ASSERT(newSize <= size_t(this->allocatedCapacity()));
 
         // Since this is mostly an initialization function, do not follow append
         // logic of space arrangement. Instead, only prepare as much free space
@@ -1344,7 +1366,9 @@ public:
         Q_ASSERT(this->isMutable() || b == e);
         Q_ASSERT(!this->isShared() || b == e);
         Q_ASSERT(b <= e);
-        Q_ASSERT(size_t(e - b) <= this->allocatedCapacity() - this->size);
+        Q_ASSERT((e - b) <= this->allocatedCapacity() - this->size);
+        if (b == e) // short-cut and handling the case b and e == nullptr
+            return;
 
         prepareSpaceForAppend(b, e, e - b);  // ### perf. loss
         Base::insert(GrowsForwardTag{}, this->end(), b, e);
@@ -1358,7 +1382,7 @@ public:
         Q_ASSERT(this->isMutable() || b == e);
         Q_ASSERT(!this->isShared() || b == e);
         const qsizetype distance = std::distance(b, e);
-        Q_ASSERT(distance >= 0 && size_t(distance) <= this->allocatedCapacity() - this->size);
+        Q_ASSERT(distance >= 0 && distance <= this->allocatedCapacity() - this->size);
 
         prepareSpaceForAppend(b, e, distance);  // ### perf. loss
 
@@ -1374,7 +1398,9 @@ public:
         Q_ASSERT(this->isMutable() || b == e);
         Q_ASSERT(!this->isShared() || b == e);
         Q_ASSERT(b <= e);
-        Q_ASSERT(size_t(e - b) <= this->allocatedCapacity() - this->size);
+        Q_ASSERT((e - b) <= this->allocatedCapacity() - this->size);
+        if (b == e) // short-cut and handling the case b and e == nullptr
+            return;
 
         prepareSpaceForAppend(b, e, e - b);  // ### perf. loss
         Base::moveAppend(b, e);
@@ -1383,7 +1409,7 @@ public:
     void copyAppend(size_t n, parameter_type t)
     {
         Q_ASSERT(!this->isShared() || n == 0);
-        Q_ASSERT(this->allocatedCapacity() - size_t(this->size) >= n);
+        Q_ASSERT(size_t(this->allocatedCapacity() - this->size) >= n);
 
         // Preserve the value, because it might be a reference to some part of the moved chunk
         T tmp(t);
@@ -1398,9 +1424,11 @@ public:
         Q_ASSERT(where >= this->begin() && where <= this->end());
         Q_ASSERT(b <= e);
         Q_ASSERT(e <= where || b > this->end() || where == this->end()); // No overlap or append
-        Q_ASSERT(size_t(e - b) <= this->allocatedCapacity() - this->size);
+        Q_ASSERT((e - b) <= this->allocatedCapacity() - this->size);
+        if (b == e) // short-cut and handling the case b and e == nullptr
+            return;
 
-        if (where == this->begin()) {  // prepend case - special space arrangement
+        if (this->size > 0 && where == this->begin()) {  // prepend case - special space arrangement
             prepareSpaceForPrepend(b, e, e - b);  // ### perf. loss
             Base::insert(GrowsBackwardsTag{}, this->begin(), b, e);
             return;
@@ -1423,9 +1451,9 @@ public:
     {
         Q_ASSERT(!this->isShared() || (n == 0 && where == this->end()));
         Q_ASSERT(where >= this->begin() && where <= this->end());
-        Q_ASSERT(this->allocatedCapacity() - size_t(this->size) >= n);
+        Q_ASSERT(size_t(this->allocatedCapacity() - this->size) >= n);
 
-        if (where == this->begin()) {  // prepend case - special space arrangement
+        if (this->size > 0 && where == this->begin()) {  // prepend case - special space arrangement
             // Preserve the value, because it might be a reference to some part of the moved chunk
             T tmp(t);
             prepareSpaceForPrepend(n);  // ### perf. loss
@@ -1477,11 +1505,11 @@ public:
         Q_ASSERT(b >= this->begin() && b < this->end());
         Q_ASSERT(e > this->begin() && e <= this->end());
 
-        // Qt5 QList in erase: try to move less data around
-        // Now:
-        const T *begin = this->begin();
-        const T *end = this->end();
-        if (b - begin < end - e) {
+        // Comply with std::vector::erase(): erased elements and all after them
+        // are invalidated. However, erasing from the beginning effectively
+        // means that all iterators are invalidated. We can use this freedom to
+        // erase by moving towards the end.
+        if (b == this->begin()) {
             Base::erase(GrowsBackwardsTag{}, b, e);
         } else {
             Base::erase(GrowsForwardTag{}, b, e);

@@ -1,11 +1,25 @@
 # Generated from eglfs.pro.
-qt_find_package(EGL) # special case
+# special case begin
+qt_find_package(EGL)
+
+if(QT_FEATURE_eglfs_gbm)
+    set(_device_integration "eglfs_kms")
+elseif(QT_FEATURE_eglfs_egldevice)
+    set(_device_integration "eglfs_kms_egldevice")
+elseif(QT_FEATURE_eglfs_viv)
+    set(_device_integration "eglfs_viv")
+elseif(QT_FEATURE_eglfs_brcm)
+    set(_device_integration "eglfs_brcm")
+endif()
+
+set(QT_QPA_DEFAULT_EGLFS_INTEGRATION "${_device_integration}" CACHE STRING "Default EGLFS device integration plugin")
+# special case end
 
 #####################################################################
 ## EglFSDeviceIntegration Module:
 #####################################################################
 
-qt_add_module(EglFSDeviceIntegration
+qt_internal_add_module(EglFSDeviceIntegration
     INTERNAL_MODULE
     SOURCES
         api/qeglfsdeviceintegration.cpp api/qeglfsdeviceintegration_p.h
@@ -18,6 +32,7 @@ qt_add_module(EglFSDeviceIntegration
     DEFINES
         QT_BUILD_EGL_DEVICE_LIB
         QT_EGL_NO_X11
+        EGLFS_PREFERRED_PLUGIN=${QT_QPA_DEFAULT_EGLFS_INTEGRATION} # special case
     INCLUDE_DIRECTORIES
         api
     PUBLIC_LIBRARIES
@@ -34,12 +49,12 @@ qt_add_module(EglFSDeviceIntegration
 ## Scopes:
 #####################################################################
 
-qt_extend_target(EglFSDeviceIntegration CONDITION TARGET Qt::InputSupportPrivate
+qt_internal_extend_target(EglFSDeviceIntegration CONDITION TARGET Qt::InputSupportPrivate
     PUBLIC_LIBRARIES
         Qt::InputSupportPrivate
 )
 
-qt_extend_target(EglFSDeviceIntegration CONDITION QT_FEATURE_opengl
+qt_internal_extend_target(EglFSDeviceIntegration CONDITION QT_FEATURE_opengl
     SOURCES
         api/qeglfscontext.cpp api/qeglfscontext_p.h
         api/qeglfscursor.cpp api/qeglfscursor_p.h
@@ -49,12 +64,12 @@ qt_extend_target(EglFSDeviceIntegration CONDITION QT_FEATURE_opengl
 
 # special case begin
 # comment out
-#qt_extend_target(EglFSDeviceIntegration CONDITION NOT EGLFS_PLATFORM_HOOKS_SOURCES_ISEMPTY
+#qt_internal_extend_target(EglFSDeviceIntegration CONDITION NOT EGLFS_PLATFORM_HOOKS_SOURCES_ISEMPTY
     #DEFINES
         #EGLFS_PLATFORM_HOOKS
 #)
 
-#qt_extend_target(EglFSDeviceIntegration CONDITION NOT EGLFS_DEVICE_INTEGRATION_ISEMPTY
+#qt_internal_extend_target(EglFSDeviceIntegration CONDITION NOT EGLFS_DEVICE_INTEGRATION_ISEMPTY
     #DEFINES
         #EGLFS_PREFERRED_PLUGIN=
 #)
@@ -67,7 +82,7 @@ if(QT_FEATURE_cursor)
         "cursor.json"
     )
 
-    qt_add_resource(EglFSDeviceIntegration "cursor"
+    qt_internal_add_resource(EglFSDeviceIntegration "cursor"
         PREFIX
             "/"
         FILES
@@ -75,7 +90,7 @@ if(QT_FEATURE_cursor)
     )
 endif()
 
-qt_extend_target(EglFSDeviceIntegration CONDITION QT_FEATURE_vulkan
+qt_internal_extend_target(EglFSDeviceIntegration CONDITION QT_FEATURE_vulkan
     SOURCES
         api/vulkan/qeglfsvulkaninstance.cpp api/vulkan/qeglfsvulkaninstance_p.h
         api/vulkan/qeglfsvulkanwindow.cpp api/vulkan/qeglfsvulkanwindow_p.h

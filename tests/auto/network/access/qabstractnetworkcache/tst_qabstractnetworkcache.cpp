@@ -77,7 +77,7 @@ class NetworkDiskCache : public QNetworkDiskCache
 {
     Q_OBJECT
 public:
-    NetworkDiskCache(QObject *parent = 0)
+    NetworkDiskCache(QObject *parent = nullptr)
         : QNetworkDiskCache(parent)
         , tempDir(QDir::tempPath() + QLatin1String("/tst_qabstractnetworkcache.XXXXXX"))
         , gotData(false)
@@ -86,7 +86,7 @@ public:
         clear();
     }
 
-    QIODevice *data(const QUrl &url)
+    QIODevice *data(const QUrl &url) override
     {
         gotData = true;
         return QNetworkDiskCache::data(url);

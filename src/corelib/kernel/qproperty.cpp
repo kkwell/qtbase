@@ -41,12 +41,13 @@
 #include "qproperty_p.h"
 
 #include <qscopedvaluerollback.h>
+#include <QScopeGuard>
 
 QT_BEGIN_NAMESPACE
 
 using namespace QtPrivate;
 
-void QPropertyBasePointer::addObserver(QPropertyObserver *observer)
+void QPropertyBindingDataPointer::addObserver(QPropertyObserver *observer)
 {
     if (auto *binding = bindingPtr()) {
         observer->prev = &binding->firstObserver.ptr;
@@ -55,7 +56,7 @@ void QPropertyBasePointer::addObserver(QPropertyObserver *observer)
             observer->next->prev = &observer->next;
         binding->firstObserver.ptr = observer;
     } else {
-        auto firstObserver = reinterpret_cast<QPropertyObserver*>(ptr->d_ptr & ~QPropertyBase::FlagMask);
+        auto firstObserver = reinterpret_cast<QPropertyObserver*>(ptr->d_ptr & ~QPropertyBindingData::FlagMask);
         observer->prev = reinterpret_cast<QPropertyObserver**>(&ptr->d_ptr);
         observer->next = firstObserver;
         if (observer->next)
@@ -68,8 +69,6 @@ QPropertyBindingPrivate::~QPropertyBindingPrivate()
 {
     if (firstObserver)
         firstObserver.unlink();
-    if (!hasStaticObserver)
-        inlineDependencyObservers.~ObserverArray(); // Explicit because of union.
 }
 
 void QPropertyBindingPrivate::unlinkAndDeref()
@@ -84,20 +83,24 @@ void QPropertyBindingPrivate::markDirtyAndNotifyObservers()
     if (dirty)
         return;
     dirty = true;
+    if (eagerlyUpdating) {
+        error = QPropertyBindingError(QPropertyBindingError::BindingLoop);
+        return;
+    }
+
+    eagerlyUpdating = true;
+    QScopeGuard guard([&](){eagerlyUpdating = false;});
+    if (requiresEagerEvaluation()) {
+        // these are compat properties that we will need to evaluate eagerly
+        evaluateIfDirtyAndReturnTrueIfValueChanged(propertyDataPtr);
+    }
     if (firstObserver)
         firstObserver.notify(this, propertyDataPtr);
-    if (hasStaticObserver) {
-        if (isBool) {
-            auto propertyPtr = reinterpret_cast<QPropertyBase *>(propertyDataPtr);
-            bool oldValue = propertyPtr->extraBit();
-            staticObserverCallback(staticObserver, &oldValue);
-        } else {
-            staticObserverCallback(staticObserver, propertyDataPtr);
-        }
-    }
+    if (hasStaticObserver)
+        staticObserverCallback(propertyDataPtr);
 }
 
-bool QPropertyBindingPrivate::evaluateIfDirtyAndReturnTrueIfValueChanged()
+bool QPropertyBindingPrivate::evaluateIfDirtyAndReturnTrueIfValueChanged(const QUntypedPropertyData *data)
 {
     if (!dirty)
         return false;
@@ -122,26 +125,13 @@ bool QPropertyBindingPrivate::evaluateIfDirtyAndReturnTrueIfValueChanged()
 
     bool changed = false;
 
-    if (hasStaticObserver && staticGuardCallback) {
-        if (isBool) {
-            auto propertyPtr = reinterpret_cast<QPropertyBase *>(propertyDataPtr);
-            bool newValue = propertyPtr->extraBit();
-            changed = staticGuardCallback(metaType, &newValue, evaluationFunction, staticObserver);
-            if (changed && !error.hasError())
-                propertyPtr->setExtraBit(newValue);
-        } else {
-            changed = staticGuardCallback(metaType, propertyDataPtr, evaluationFunction, staticObserver);
-        }
+    Q_ASSERT(propertyDataPtr == data);
+    QUntypedPropertyData *mutable_data = const_cast<QUntypedPropertyData *>(data);
+
+    if (hasBindingWrapper) {
+        changed = staticBindingWrapper(metaType, mutable_data, evaluationFunction);
     } else {
-        if (isBool) {
-            auto propertyPtr = reinterpret_cast<QPropertyBase *>(propertyDataPtr);
-            bool newValue = propertyPtr->extraBit();
-            changed = evaluationFunction(metaType, &newValue);
-            if (changed && !error.hasError())
-                propertyPtr->setExtraBit(newValue);
-        } else {
-            changed = evaluationFunction(metaType, propertyDataPtr);
-        }
+        changed = evaluationFunction(metaType, mutable_data);
     }
 
     dirty = false;
@@ -152,8 +142,8 @@ QUntypedPropertyBinding::QUntypedPropertyBinding() = default;
 
 QUntypedPropertyBinding::QUntypedPropertyBinding(QMetaType metaType, QUntypedPropertyBinding::BindingEvaluationFunction function,
                                                  const QPropertyBindingSourceLocation &location)
+    : d(new QPropertyBindingPrivate(metaType, std::move(function), std::move(location)))
 {
-    d = new QPropertyBindingPrivate(metaType, std::move(function), std::move(location));
 }
 
 QUntypedPropertyBinding::QUntypedPropertyBinding(QUntypedPropertyBinding &&other)
@@ -206,42 +196,9 @@ QMetaType QUntypedPropertyBinding::valueMetaType() const
     return d->valueMetaType();
 }
 
-QPropertyBase::QPropertyBase(QPropertyBase &&other, void *propertyDataPtr)
+QPropertyBindingData::~QPropertyBindingData()
 {
-    std::swap(d_ptr, other.d_ptr);
-    QPropertyBasePointer d{this};
-    d.setFirstObserver(nullptr);
-    if (auto binding = d.bindingPtr())
-        binding->setProperty(propertyDataPtr);
-}
-
-void QPropertyBase::moveAssign(QPropertyBase &&other, void *propertyDataPtr)
-{
-    if (&other == this)
-        return;
-
-    QPropertyBasePointer d{this};
-    auto observer = d.firstObserver();
-    d.setFirstObserver(nullptr);
-
-    if (auto binding = d.bindingPtr()) {
-        binding->unlinkAndDeref();
-        d_ptr &= FlagMask;
-    }
-
-    std::swap(d_ptr, other.d_ptr);
-
-    if (auto binding = d.bindingPtr())
-        binding->setProperty(propertyDataPtr);
-
-    d.setFirstObserver(observer.ptr);
-
-    // The caller will have to notify observers.
-}
-
-QPropertyBase::~QPropertyBase()
-{
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
     for (auto observer = d.firstObserver(); observer;) {
         auto next = observer.nextObserver();
         observer.unlink();
@@ -251,16 +208,15 @@ QPropertyBase::~QPropertyBase()
         binding->unlinkAndDeref();
 }
 
-QUntypedPropertyBinding QPropertyBase::setBinding(const QUntypedPropertyBinding &binding,
-                                                  void *propertyDataPtr,
-                                                  void *staticObserver,
+QUntypedPropertyBinding QPropertyBindingData::setBinding(const QUntypedPropertyBinding &binding,
+                                                  QUntypedPropertyData *propertyDataPtr,
                                                   QPropertyObserverCallback staticObserverCallback,
-                                                  QtPrivate::QPropertyGuardFunction guardCallback)
+                                                  QtPrivate::QPropertyBindingWrapper guardCallback)
 {
     QPropertyBindingPrivatePtr oldBinding;
     QPropertyBindingPrivatePtr newBinding = binding.d;
 
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
     QPropertyObserverPointer observer;
 
     if (auto *existingBinding = d.bindingPtr()) {
@@ -282,59 +238,79 @@ QUntypedPropertyBinding QPropertyBase::setBinding(const QUntypedPropertyBinding 
         newBinding->setProperty(propertyDataPtr);
         if (observer)
             newBinding->prependObserver(observer);
-        newBinding->setStaticObserver(staticObserver, staticObserverCallback, guardCallback);
+        newBinding->setStaticObserver(staticObserverCallback, guardCallback);
+        if (newBinding->requiresEagerEvaluation()) {
+            auto changed = newBinding->evaluateIfDirtyAndReturnTrueIfValueChanged(propertyDataPtr);
+            if (changed)
+                observer.notify(newBinding.data(), propertyDataPtr, /*alreadyKnownToHaveChanged=*/true);
+        }
     } else if (observer) {
         d.setObservers(observer.ptr);
     } else {
-        d_ptr &= ~QPropertyBase::BindingBit;
+        d_ptr &= ~QPropertyBindingData::BindingBit;
     }
+
+    if (oldBinding)
+        oldBinding->detachFromProperty();
 
     return QUntypedPropertyBinding(oldBinding.data());
 }
 
-QPropertyBindingPrivate *QPropertyBase::binding() const
+QPropertyBindingData::QPropertyBindingData(QPropertyBindingData &&other) : d_ptr(std::exchange(other.d_ptr, 0))
 {
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
+    d.fixupFirstObserverAfterMove();
+}
+
+QPropertyBindingPrivate *QPropertyBindingData::binding() const
+{
+    QPropertyBindingDataPointer d{this};
     if (auto binding = d.bindingPtr())
         return binding;
     return nullptr;
 }
 
-static thread_local BindingEvaluationState *currentBindingEvaluationState = nullptr;
+static thread_local QBindingStatus bindingStatus;
 
 BindingEvaluationState::BindingEvaluationState(QPropertyBindingPrivate *binding)
     : binding(binding)
 {
     // store a pointer to the currentBindingEvaluationState to avoid a TLS lookup in
     // the destructor (as these come with a non zero cost)
-    currentState = &currentBindingEvaluationState;
+    currentState = &bindingStatus.currentlyEvaluatingBinding;
     previousState = *currentState;
     *currentState = this;
     binding->clearDependencyObservers();
 }
 
-BindingEvaluationState::~BindingEvaluationState()
+CurrentCompatProperty::CurrentCompatProperty(QBindingStatus *status, QUntypedPropertyData *property)
+    : property(property)
 {
-    *currentState = previousState;
+    // store a pointer to the currentBindingEvaluationState to avoid a TLS lookup in
+    // the destructor (as these come with a non zero cost)
+    currentState = &status->currentCompatProperty;
+    previousState = *currentState;
+    *currentState = this;
 }
 
 QPropertyBindingPrivate *QPropertyBindingPrivate::currentlyEvaluatingBinding()
 {
-    return currentBindingEvaluationState ? currentBindingEvaluationState->binding : nullptr;
+    auto currentState = bindingStatus.currentlyEvaluatingBinding ;
+    return currentState ? currentState->binding : nullptr;
 }
 
-void QPropertyBase::evaluateIfDirty() const
+void QPropertyBindingData::evaluateIfDirty(const QUntypedPropertyData *property) const
 {
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
     QPropertyBindingPrivate *binding = d.bindingPtr();
     if (!binding)
         return;
-    binding->evaluateIfDirtyAndReturnTrueIfValueChanged();
+    binding->evaluateIfDirtyAndReturnTrueIfValueChanged(property);
 }
 
-void QPropertyBase::removeBinding()
+void QPropertyBindingData::removeBinding()
 {
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
 
     if (auto *existingBinding = d.bindingPtr()) {
         auto observer = existingBinding->takeObservers();
@@ -345,27 +321,27 @@ void QPropertyBase::removeBinding()
     }
 }
 
-void QPropertyBase::registerWithCurrentlyEvaluatingBinding() const
+void QPropertyBindingData::registerWithCurrentlyEvaluatingBinding() const
 {
-    auto currentState = currentBindingEvaluationState;
+    auto currentState = bindingStatus.currentlyEvaluatingBinding;
     if (!currentState)
         return;
 
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
 
     QPropertyObserverPointer dependencyObserver = currentState->binding->allocateDependencyObserver();
     dependencyObserver.setBindingToMarkDirty(currentState->binding);
     dependencyObserver.observeProperty(d);
 }
 
-void QPropertyBase::notifyObservers(void *propertyDataPtr) const
+void QPropertyBindingData::notifyObservers(QUntypedPropertyData *propertyDataPtr) const
 {
-    QPropertyBasePointer d{this};
+    QPropertyBindingDataPointer d{this};
     if (QPropertyObserverPointer observer = d.firstObserver())
         observer.notify(d.bindingPtr(), propertyDataPtr);
 }
 
-int QPropertyBasePointer::observerCount() const
+int QPropertyBindingDataPointer::observerCount() const
 {
     int count = 0;
     for (auto observer = firstObserver(); observer; observer = observer.nextObserver())
@@ -373,44 +349,51 @@ int QPropertyBasePointer::observerCount() const
     return count;
 }
 
-QPropertyObserver::QPropertyObserver(void (*callback)(QPropertyObserver *, void *))
+QPropertyObserver::QPropertyObserver(ChangeHandler changeHandler)
 {
     QPropertyObserverPointer d{this};
-    d.setChangeHandler(callback);
+    d.setChangeHandler(changeHandler);
 }
 
-QPropertyObserver::QPropertyObserver(void *aliasedPropertyPtr)
+QPropertyObserver::QPropertyObserver(QUntypedPropertyData *aliasedPropertyPtr)
 {
     QPropertyObserverPointer d{this};
     d.setAliasedProperty(aliasedPropertyPtr);
 }
 
-void QPropertyObserver::setSource(const QPropertyBase &property)
+/*! \internal
+ */
+void QPropertyObserver::setSource(const QPropertyBindingData &property)
 {
     QPropertyObserverPointer d{this};
-    QPropertyBasePointer propPrivate{&property};
+    QPropertyBindingDataPointer propPrivate{&property};
     d.observeProperty(propPrivate);
 }
 
-
 QPropertyObserver::~QPropertyObserver()
 {
+    if (next.tag() == ActivelyExecuting) {
+        if (nodeState)
+            *nodeState = nullptr;
+    }
     QPropertyObserverPointer d{this};
     d.unlink();
 }
 
-QPropertyObserver::QPropertyObserver(QPropertyObserver &&other)
+QPropertyObserver::QPropertyObserver(QPropertyObserver &&other) noexcept
 {
-    std::swap(bindingToMarkDirty, other.bindingToMarkDirty);
-    std::swap(next, other.next);
-    std::swap(prev, other.prev);
+    bindingToMarkDirty = std::exchange(other.bindingToMarkDirty, {});
+    next = std::exchange(other.next, {});
+    prev = std::exchange(other.prev, {});
     if (next)
         next->prev = &next;
     if (prev)
         prev.setPointer(this);
+    if (next.tag() == ActivelyExecuting)
+        *nodeState = this;
 }
 
-QPropertyObserver &QPropertyObserver::operator=(QPropertyObserver &&other)
+QPropertyObserver &QPropertyObserver::operator=(QPropertyObserver &&other) noexcept
 {
     if (this == &other)
         return *this;
@@ -419,21 +402,23 @@ QPropertyObserver &QPropertyObserver::operator=(QPropertyObserver &&other)
     d.unlink();
     bindingToMarkDirty = nullptr;
 
-    std::swap(bindingToMarkDirty, other.bindingToMarkDirty);
-    std::swap(next, other.next);
-    std::swap(prev, other.prev);
+    bindingToMarkDirty = std::exchange(other.bindingToMarkDirty, {});
+    next = std::exchange(other.next, {});
+    prev = std::exchange(other.prev, {});
     if (next)
         next->prev = &next;
     if (prev)
         prev.setPointer(this);
+    if (next.tag() == ActivelyExecuting)
+        *nodeState = this;
 
     return *this;
 }
 
 void QPropertyObserverPointer::unlink()
 {
-    if (ptr->next.tag() & QPropertyObserver::ObserverNotifiesAlias)
-        ptr->aliasedPropertyPtr = 0;
+    if (ptr->next.tag() == QPropertyObserver::ObserverNotifiesAlias)
+        ptr->aliasedPropertyData = nullptr;
     if (ptr->next)
         ptr->next->prev = ptr->prev;
     if (ptr->prev)
@@ -442,59 +427,160 @@ void QPropertyObserverPointer::unlink()
     ptr->prev.clear();
 }
 
-void QPropertyObserverPointer::setChangeHandler(void (*changeHandler)(QPropertyObserver *, void *))
+void QPropertyObserverPointer::setChangeHandler(QPropertyObserver::ChangeHandler changeHandler)
 {
+    Q_ASSERT(ptr->next.tag() != QPropertyObserver::ActivelyExecuting);
     ptr->changeHandler = changeHandler;
     ptr->next.setTag(QPropertyObserver::ObserverNotifiesChangeHandler);
 }
 
-void QPropertyObserverPointer::setAliasedProperty(void *propertyPtr)
+void QPropertyObserverPointer::setAliasedProperty(QUntypedPropertyData *property)
 {
-    ptr->aliasedPropertyPtr = quintptr(propertyPtr);
+    Q_ASSERT(ptr->next.tag() != QPropertyObserver::ActivelyExecuting);
+    ptr->aliasedPropertyData = property;
     ptr->next.setTag(QPropertyObserver::ObserverNotifiesAlias);
 }
 
 void QPropertyObserverPointer::setBindingToMarkDirty(QPropertyBindingPrivate *binding)
 {
+    Q_ASSERT(ptr->next.tag() != QPropertyObserver::ActivelyExecuting);
     ptr->bindingToMarkDirty = binding;
     ptr->next.setTag(QPropertyObserver::ObserverNotifiesBinding);
 }
 
-void QPropertyObserverPointer::notify(QPropertyBindingPrivate *triggeringBinding, void *propertyDataPtr)
+/*!
+ \internal
+ QPropertyObserverNodeProtector is a RAII wrapper which takes care of the internal switching logic
+ for QPropertyObserverPointer::notify (described ibidem)
+*/
+template <QPropertyObserver::ObserverTag tag>
+struct [[nodiscard]] QPropertyObserverNodeProtector {
+    QPropertyObserver m_placeHolder;
+    QPropertyObserver *&m_observer;
+    union {
+        QPropertyBindingPrivate *m_binding;
+        QPropertyObserver::ChangeHandler m_changeHandler;
+    };
+    QPropertyObserverNodeProtector(QPropertyObserver *&observer)
+        : m_observer(observer)
+    {
+        static_assert(tag == QPropertyObserver::ObserverNotifiesBinding ||
+                 tag == QPropertyObserver::ObserverNotifiesChangeHandler);
+        if constexpr (tag == QPropertyObserver::ObserverNotifiesBinding)
+            m_binding = m_observer->bindingToMarkDirty;
+        else
+            m_changeHandler = m_observer->changeHandler;
+        switchNodes(m_placeHolder, m_observer);
+        m_observer->nodeState = &m_observer;
+        m_observer->next.setTag(QPropertyObserver::ActivelyExecuting);
+        m_placeHolder.next.setTag(QPropertyObserver::ActivelyExecuting);
+    }
+
+    ~QPropertyObserverNodeProtector() {
+        if (m_observer) {
+            if constexpr (tag == QPropertyObserver::ObserverNotifiesBinding)
+                m_observer->bindingToMarkDirty = m_binding;
+            else
+                m_observer->changeHandler = m_changeHandler;
+            switchNodes(*m_observer, &m_placeHolder);
+            m_observer->next.setTag(tag);
+        }
+        // set tag to a safer value where we don't execute anything in the dtor
+        m_placeHolder.next.setTag(QPropertyObserver::ObserverNotifiesChangeHandler);
+    }
+
+    /*!
+      \internal
+      replaces a node \a observer in the list with another node \a placeholder which must not be in the list
+     */
+    static void switchNodes(QPropertyObserver &placeHolder, QPropertyObserver *observer)  {
+        placeHolder.next = std::exchange(observer->next, {});
+        placeHolder.prev = std::exchange(observer->prev, {});
+        if (placeHolder.next) {
+            placeHolder.next->prev = &placeHolder.next;
+        }
+        if (placeHolder.prev)
+            placeHolder.prev.setPointer(&placeHolder);
+    };
+};
+
+/*! \internal
+  \a propertyDataPtr is a pointer to the observed property's property data
+  In case that property has a binding, \a triggeringBinding points to the binding's QPropertyBindingPrivate
+  \a alreadyKnownToHaveChanged is an optional parameter, which is needed in the case
+  of eager evaluation:
+  There, we have already evaluated the binding, and thus the change detection for the
+  ObserverNotifiesChangeHandler case would not work. Thus we instead pass the knowledge of
+  whether the value has changed we obtained when evaluating the binding eagerly along
+ */
+void QPropertyObserverPointer::notify(QPropertyBindingPrivate *triggeringBinding, QUntypedPropertyData *propertyDataPtr,bool alreadyKnownToHaveChanged)
 {
-    bool knownIfPropertyChanged = false;
+    bool knownIfPropertyChanged = alreadyKnownToHaveChanged;
     bool propertyChanged = true;
 
     auto observer = const_cast<QPropertyObserver*>(ptr);
+    /*
+     * The basic idea of the loop is as follows: We iterate over all observers in the linked list,
+     * and execute the functionality corresponding to their tag.
+     * However, complication arise due to the fact that the triggered operations might modify the list,
+     * which includes deletion and move of the current and next nodes.
+     * Therefore, we take a few safety precautions:
+     * 1. Before executing any action which might modify the list, we replace the actual node in the list with
+     *    a placeholder node. As that one is stack allocated and owned by us, we can rest assured that it is
+     *    still there after the action has executed, and placeHolder->next points to the actual next node in the list.
+     *    Note that taking next at the beginning of the loop does not work, as the execuated action might either move
+     *    or delete that node.
+     * 2. To properly handle deletion or moves of the real current node, we store a pointer to a pointer to itself in
+     *    its nodeState. Whenever the node is reallocated and moved, we update that pointer to point to its new
+     *    location. If the node is actually deleted, we set it to nullptr.
+     * 3. After the triggered action has finished, we can use that information to restore the list to contain the actual
+     *    node again. We either switch the nodes with the real nodes current location, or, if the real node has been
+     *    deleted, we simply unlink the temporary node.
+     */
     while (observer) {
-        auto * const next = observer->next.data();
+        QPropertyObserver *next = nullptr;
+        char preventBug[1] = {'\0'}; // QTBUG-87245
+        Q_UNUSED(preventBug);
         switch (observer->next.tag()) {
         case QPropertyObserver::ObserverNotifiesChangeHandler:
-            if (!knownIfPropertyChanged && triggeringBinding) {
-                knownIfPropertyChanged = true;
-
-                propertyChanged = triggeringBinding->evaluateIfDirtyAndReturnTrueIfValueChanged();
-            }
-            if (!propertyChanged)
-                return;
-
-            if (auto handlerToCall = std::exchange(observer->changeHandler, nullptr)) {
+            if (auto handlerToCall = observer->changeHandler) {
+                // both evaluateIfDirtyAndReturnTrueIfValueChanged and handlerToCall might modify the list
+                QPropertyObserverNodeProtector<QPropertyObserver::ObserverNotifiesChangeHandler> protector(observer);
+                if (!knownIfPropertyChanged && triggeringBinding) {
+                    knownIfPropertyChanged = true;
+                    propertyChanged = triggeringBinding->evaluateIfDirtyAndReturnTrueIfValueChanged(propertyDataPtr);
+                }
+                if (!propertyChanged)
+                    return;
                 handlerToCall(observer, propertyDataPtr);
-                observer->changeHandler = handlerToCall;
+                next = protector.m_placeHolder.next.data();
+            } else {
+                next = observer->next.data();
             }
             break;
         case QPropertyObserver::ObserverNotifiesBinding:
-            if (observer->bindingToMarkDirty)
-                observer->bindingToMarkDirty->markDirtyAndNotifyObservers();
+            if (auto bindingToMarkDirty =  observer->bindingToMarkDirty) {
+                QPropertyObserverNodeProtector<QPropertyObserver::ObserverNotifiesBinding> protector(observer);
+                bindingToMarkDirty->markDirtyAndNotifyObservers();
+                next = protector.m_placeHolder.next.data();
+            } else {
+                next = observer->next.data();
+            }
             break;
         case QPropertyObserver::ObserverNotifiesAlias:
+            next = observer->next.data();
             break;
+        case QPropertyObserver::ActivelyExecuting:
+            // recursion is already properly handled somewhere else
+            return;
+        default:
+            Q_UNREACHABLE();
         }
         observer = next;
     }
 }
 
-void QPropertyObserverPointer::observeProperty(QPropertyBasePointer property)
+void QPropertyObserverPointer::observeProperty(QPropertyBindingDataPointer property)
 {
     if (ptr->prev)
         unlink();
@@ -555,9 +641,54 @@ QString QPropertyBindingError::description() const
 }
 
 /*!
+  \class QPropertyData
+  \inmodule QtCore
+  \brief The QPropertyData class is a helper class for properties with automatic property bindings.
+  \since 6.0
+
+  \ingroup tools
+
+  QPropertyData\<T\> is a common base class for classes that can hold properties with automatic
+  data bindings. It mainly wraps the stored data, and offers low level access to that data.
+
+  The low level access to the data provided by this class bypasses the binding mechanism, and should be
+  used with care, as updates to the values will not get propagated to any bindings that depend on this
+  property.
+
+  You should usually call value() and setValue() on QProperty<T> or QObjectBindableProperty<T>, not use
+  the low level mechanisms provided in this class.
+*/
+
+/*! \fn template <typename T> QPropertyData<T>::parameter_type QPropertyData<T>::valueBypassingBindings() const
+
+    Returns the data stored in this property.
+
+    \note As this will bypass any binding evaluation it might return an outdated value if a
+    binding is set on this property. Using this method will also not register the property
+    access with any currently executing binding.
+*/
+
+/*! \fn template <typename T> void QPropertyData<T>::setValueBypassingBindings(parameter_type v)
+
+    Sets the data value stored in this property to \a v.
+
+    \note Using this method will bypass any potential binding registered for this property.
+*/
+
+/*! \fn template <typename T> void QPropertyData<T>::setValueBypassingBindings(rvalue_ref v)
+    \overload
+
+    Sets the data value stored in this property to \a v.
+
+    \note Using this method will bypass any potential binding registered for this property.
+*/
+
+
+/*!
   \class QProperty
   \inmodule QtCore
   \brief The QProperty class is a template class that enables automatic property bindings.
+  \since 6.0
 
   \ingroup tools
 
@@ -647,12 +778,6 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T> QProperty<T> &QProperty<T>::operator=(QProperty &&other)
-
-  Move-assigns \a other to this QProperty instance.
-*/
-
-/*!
   \fn template <typename T> QProperty<T>::QProperty(const QPropertyBinding<T> &binding)
 
   Constructs a property that is tied to the provided \a binding expression. The
@@ -684,36 +809,16 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T> QProperty<T>::operator T() const
-
-  Returns the value of the property. This may evaluate a binding expression that
-  is tied to this property, before returning the value.
-*/
-
-/*!
-  \fn template <typename T> void QProperty<T>::setValue(const T &newValue)
+  \fn template <typename T> void QProperty<T>::setValue(rvalue_ref newValue)
+  \fn template <typename T> void QProperty<T>::setValue(parameter_type newValue)
 
   Assigns \a newValue to this property and removes the property's associated
   binding, if present.
 */
 
 /*!
-  \fn template <typename T> void QProperty<T>::setValue(T &&newValue)
-  \overload
-
-  Assigns \a newValue to this property and removes the property's associated
-  binding, if present.
-*/
-
-/*!
-  \fn template <typename T> QProperty<T> &QProperty<T>::operator=(const T &newValue)
-
-  Assigns \a newValue to this property and returns a reference to this QProperty.
-*/
-
-/*!
-  \fn template <typename T> QProperty<T> &QProperty<T>::operator=(T &&newValue)
-  \overload
+  \fn template <typename T> QProperty<T> &QProperty<T>::operator=(rvalue_ref newValue)
+  \fn template <typename T> QProperty<T> &QProperty<T>::operator=(parameter_type newValue)
 
   Assigns \a newValue to this property and returns a reference to this QProperty.
 */
@@ -747,17 +852,6 @@ QString QPropertyBindingError::description() const
   is read, the binding is evaluated by invoking the call operator () of \a f.
   Whenever a dependency of the binding changes, the binding will be re-evaluated
   the next time the value of this property is read.
-*/
-
-/*!
-  \fn template <typename T> QPropertyBinding<T> QProperty<T>::setBinding(QPropertyBinding<T> &&newBinding)
-  \overload
-
-  Associates the value of this property with the provided \a newBinding
-  expression and returns the previously associated binding. The first time the
-  property value is read, the binding is evaluated. Whenever a dependency of the
-  binding changes, the binding will be re-evaluated the next time the value of
-  this property is read.
 */
 
 /*!
@@ -818,63 +912,75 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \class QNotifiedProperty
+  \fn template <typename T> QtPrivate::QPropertyBindingData &QProperty<T>::bindingData() const
+  \internal
+*/
+
+/*!
+  \class QObjectBindableProperty
   \inmodule QtCore
-  \brief The QNotifiedProperty class is a template class that enables automatic property bindings
-         and invokes a callback function on the surrounding class when the value changes.
+  \brief The QObjectBindableProperty class is a template class that enables automatic property bindings
+         for property data stored in QObject derived classes.
+  \since 6.0
 
   \ingroup tools
 
-  QNotifiedProperty\<T, Callback\> is a generic container that holds an
+  QObjectBindableProperty is a generic container that holds an
   instance of T and behaves mostly like \l QProperty. The extra template
-  parameter is used to identify the surrounding class and a member function of
+  parameters are used to identify the surrounding class and a member function of
   that class. The member function will be called whenever the value held by the
   property changes.
 
-  You can use QNotifiedProperty to port code that uses Q_PROPERTY. The getter
-  and setter are trivial to adapt for accessing a \l QProperty rather than the
-  plain value. In order to invoke the change signal on property changes, use
-  QNotifiedProperty and pass the change signal as callback.
+  You can use QObjectBindableProperty to add binding support to code that uses Q_PROPERTY.
+  The getter and setter methods are easy to adapt for accessing a \l QObjectBindableProperty
+  rather than the plain value. In order to invoke the change signal on property changes, use
+  QObjectBindableProperty and pass the change signal as a callback.
+
+  QObjectBindableProperty is usually not used directly, instead an instance of it is created by
+  using the Q_BINDABLE_PROPERTY_DATA macro.
+
+  Use the Q_BINDABLE_PROPERTY macro in the class declaration to declare the property as bindable.
 
   \code
     class MyClass : public QObject
     {
         \Q_OBJECT
-        // Replacing: Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged)
+        Q_PROPERTY(int x READ x WRITE setX NOTIFY xChanged BINDABLE bindableX)
     public:
         int x() const { return xProp; }
         void setX(int x) { xProp = x; }
+        Bindable<int> bindableX() { return QBindable<int>(&xProp); }
 
     signals:
         void xChanged();
 
     private:
-        // Now you can set bindings on xProp and use it in other bindings.
-        QNotifiedProperty<int, &MyClass::xChanged> xProp;
+        // Declare the instance of the bindable property data.
+        Q_OBJECT_BINDABLE_PROPERTY(MyClass, int, xProp, &MyClass::xChanged)
     };
   \endcode
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QNotifiedProperty<T, Callback>::QNotifiedProperty()
+  \fn template <typename Class, typename T, auto offset, auto Callback> QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty()
 
   Constructs a property with a default constructed instance of T.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> explicit QNotifiedProperty<T, Callback>::QNotifiedProperty(const T &initialValue)
+  \fn template <typename Class, typename T, auto offset, auto Callback> explicit QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty(const T &initialValue)
 
   Constructs a property with the provided \a initialValue.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> explicit QNotifiedProperty<T, Callback>::QNotifiedProperty(T &&initialValue)
+  \fn template <typename Class, typename T, auto offset, auto Callback> explicit QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty(T &&initialValue)
 
   Move-Constructs a property with the provided \a initialValue.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QNotifiedProperty<T, Callback>::QNotifiedProperty(Class *owner, const QPropertyBinding<T> &binding)
+  \fn template <typename Class, typename T, auto offset, auto Callback> QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty(Class *owner, const QPropertyBinding<T> &binding)
 
   Constructs a property that is tied to the provided \a binding expression. The
   first time the property value is read, the binding is evaluated. Whenever a
@@ -884,7 +990,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QNotifiedProperty<T, Callback>::QNotifiedProperty(Class *owner, QPropertyBinding<T> &&binding)
+  \fn template <typename Class, typename T, auto offset, auto Callback> QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty(Class *owner, QPropertyBinding<T> &&binding)
 
   Constructs a property that is tied to the provided \a binding expression. The
   first time the property value is read, the binding is evaluated. Whenever a
@@ -895,37 +1001,30 @@ QString QPropertyBindingError::description() const
 
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> template <typename Functor> QNotifiedProperty<T, Callback>::QNotifiedProperty(Class *owner, Functor &&f)
+  \fn template <typename Class, typename T, auto offset, auto Callback> template <typename Functor> QObjectBindableProperty<Class, T, offset, Callback>::QObjectBindableProperty(Functor &&f)
 
   Constructs a property that is tied to the provided binding expression \a f. The
   first time the property value is read, the binding is evaluated. Whenever a
   dependency of the binding changes, the binding will be re-evaluated the next
-  time the value of this property is read. When the property value changes \a
-  owner is notified via the Callback function.
+  time the value of this property is read.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QNotifiedProperty<T, Callback>::~QNotifiedProperty()
+  \fn template <typename Class, typename T, auto offset, auto Callback> QObjectBindableProperty<Class, T, offset, Callback>::~QObjectBindableProperty()
 
   Destroys the property.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> T QNotifiedProperty<T, Callback>::value() const
+  \fn template <typename Class, typename T, auto offset, auto Callback> T QObjectBindableProperty<Class, T, offset, Callback>::value() const
 
   Returns the value of the property. This may evaluate a binding expression that
   is tied to this property, before returning the value.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QNotifiedProperty<T, Callback>::operator T() const
-
-  Returns the value of the property. This may evaluate a binding expression that
-  is tied to this property, before returning the value.
-*/
-
-/*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> void QNotifiedProperty<T, Callback>::setValue(Class *owner, const T &newValue)
+  \fn template <typename Class, typename T, auto offset, auto Callback> void QObjectBindableProperty<Class, T, offset, Callback>::setValue(parameter_type newValue)
+  \fn template <typename Class, typename T, auto offset, auto Callback> void QObjectBindableProperty<Class, T, offset, Callback>::setValue(rvalue_ref newValue)
 
   Assigns \a newValue to this property and removes the property's associated
   binding, if present. If the property value changes as a result, calls the
@@ -933,16 +1032,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> void QNotifiedProperty<T, Callback>::setValue(Class *owner, T &&newValue)
-  \overload
-
-  Assigns \a newValue to this property and removes the property's associated
-  binding, if present. If the property value changes as a result, calls the
-  Callback function on \a owner.
-*/
-
-/*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QPropertyBinding<T> QNotifiedProperty<T, Callback>::setBinding(Class *owner, const QPropertyBinding<T> &newBinding)
+  \fn template <typename Class, typename T, auto offset, auto Callback> QPropertyBinding<T> QObjectBindableProperty<Class, T, offset, Callback>::setBinding(const QPropertyBinding<T> &newBinding)
 
   Associates the value of this property with the provided \a newBinding
   expression and returns the previously associated binding. The first time the
@@ -953,7 +1043,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> template <typename Functor> QPropertyBinding<T> QNotifiedProperty<T, Callback>::setBinding(Class *owner, Functor f)
+  \fn template <typename Class, typename T, auto offset, auto Callback> template <typename Functor> QPropertyBinding<T> QObjectBindableProperty<Class, T, offset, Callback>::setBinding(Functor f)
   \overload
 
   Associates the value of this property with the provided functor \a f and
@@ -965,40 +1055,27 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QPropertyBinding<T> QNotifiedProperty<T, Callback>::setBinding(Class *owner, QPropertyBinding<T> &&newBinding)
-  \overload
-
-  Associates the value of this property with the provided \a newBinding
-  expression and returns the previously associated binding. The first time the
-  property value is read, the binding is evaluated. Whenever a dependency of the
-  binding changes, the binding will be re-evaluated the next time the value of
-  this property is read. When the property value changes \a owner is notified
-  via the Callback function.
-*/
-
-/*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QPropertyBinding<T> bool QNotifiedProperty<T, Callback>::setBinding(Class *owner, const QUntypedPropertyBinding &newBinding)
+  \fn template <typename Class, typename T, auto offset, auto Callback> QPropertyBinding<T> bool QObjectBindableProperty<Class, T, offset, Callback>::setBinding(const QUntypedPropertyBinding &newBinding)
   \overload
 
   Associates the value of this property with the provided \a newBinding
   expression. The first time the property value is read, the binding is evaluated.
   Whenever a dependency of the binding changes, the binding will be re-evaluated
-  the next time the value of this property is read. When the property value
-  changes \a owner is notified via the Callback function.
+  the next time the value of this property is read.
 
-  Returns true if the type of this property is the same as the type the binding
-  function returns; false otherwise.
+  Returns \c true if the type of this property is the same as the type the binding
+  function returns; \c false otherwise.
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> bool QNotifiedProperty<T, Callback>::hasBinding() const
+  \fn template <typename Class, typename T, auto offset, auto Callback> bool QObjectBindableProperty<Class, T, offset, Callback>::hasBinding() const
 
   Returns true if the property is associated with a binding; false otherwise.
 */
 
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QPropertyBinding<T> QNotifiedProperty<T, Callback>::binding() const
+  \fn template <typename Class, typename T, auto offset, auto Callback> QPropertyBinding<T> QObjectBindableProperty<Class, T, offset, Callback>::binding() const
 
   Returns the binding expression that is associated with this property. A
   default constructed QPropertyBinding<T> will be returned if no such
@@ -1006,7 +1083,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> QPropertyBinding<T> QNotifiedProperty<T, Callback>::takeBinding()
+  \fn template <typename Class, typename T, auto offset, auto Callback> QPropertyBinding<T> QObjectBindableProperty<Class, T, offset, Callback>::takeBinding()
 
   Disassociates the binding expression from this property and returns it. After
   calling this function, the value of the property will only change if you
@@ -1014,7 +1091,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> template <typename Functor> QPropertyChangeHandler<T, Functor> QNotifiedProperty<T, Callback>::onValueChanged(Functor f)
+  \fn template <typename Class, typename T, auto offset, auto Callback> template <typename Functor> QPropertyChangeHandler<T, Functor> QObjectBindableProperty<Class, T, offset, Callback>::onValueChanged(Functor f)
 
   Registers the given functor \a f as a callback that shall be called whenever
   the value of the property changes.
@@ -1028,7 +1105,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T, typename Class, void(Class::*Callback)()> template <typename Functor> QPropertyChangeHandler<T, Functor> QNotifiedProperty<T, Callback>::subscribe(Functor f)
+  \fn template <typename Class, typename T, auto offset, auto Callback> template <typename Functor> QPropertyChangeHandler<T, Functor> QObjectBindableProperty<Class, T, offset, Callback>::subscribe(Functor f)
 
   Subscribes the given functor \a f as a callback that is called immediately and whenever
   the value of the property changes in the future.
@@ -1039,6 +1116,11 @@ QString QPropertyBindingError::description() const
 
   The returned property change handler object keeps track of the subscription. When it
   goes out of scope, the callback is unsubscribed.
+*/
+
+/*!
+  \fn template <typename T> QtPrivate::QPropertyBase &QObjectBindableProperty<Class, T, offset, Callback>::propertyBase() const
+  \internal
 */
 
 /*!
@@ -1129,14 +1211,6 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T> void QPropertyAlias<T>::setValue(T &&newValue)
-  \overload
-
-  Assigns \a newValue to the aliased property and removes the property's
-  associated binding, if present.
-*/
-
-/*!
   \fn template <typename T> QPropertyAlias<T> &QPropertyAlias<T>::operator=(const T &newValue)
 
   Assigns \a newValue to the aliased property and returns a reference to this
@@ -1177,21 +1251,6 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T> QPropertyBinding<T> QPropertyAlias<T>::setBinding(QPropertyBinding<T> &&newBinding)
-  \overload
-
-  Associates the value of the aliased property with the provided \a newBinding
-  expression and returns any previous binding the associated with the aliased
-  property. The first time the property value is read, either from the property
-  itself or from any alias, the binding is evaluated. Whenever a dependency of
-  the binding changes, the binding will be re-evaluated the next time the value
-  of this property is read.
-
-  Returns any previous binding associated with the property, or a
-  default-constructed QPropertyBinding<T>.
-*/
-
-/*!
   \fn template <typename T> QPropertyBinding<T> bool QPropertyAlias<T>::setBinding(const QUntypedPropertyBinding &newBinding)
   \overload
 
@@ -1206,7 +1265,7 @@ QString QPropertyBindingError::description() const
 */
 
 /*!
-  \fn template <typename T> template <typename Functor> QPropertyBinding<T> setBinding(Functor f)
+  \fn template <typename T> template <typename Functor> QPropertyBinding<T> QPropertyAlias<T>::setBinding(Functor f)
   \overload
 
   Associates the value of the aliased property with the provided functor \a f
@@ -1277,5 +1336,166 @@ QString QPropertyBindingError::description() const
 
   If the aliased property doesn't exist, all other method calls are ignored.
 */
+
+struct QBindingStorageData
+{
+    size_t size = 0;
+    size_t used = 0;
+    // Pair[] pairs;
+};
+
+struct QBindingStoragePrivate
+{
+    // This class basically implements a simple and fast hash map to store bindings for a QObject
+    // The reason that we're not using QHash is that QPropertyBindingData can not be copied, only
+    // moved. That doesn't work well together with an implicitly shared class.
+    struct Pair
+    {
+        QUntypedPropertyData *data;
+        QPropertyBindingData bindingData;
+    };
+    static_assert(alignof(Pair) == alignof(void *));
+    static_assert(alignof(size_t) == alignof(void *));
+
+    QBindingStorageData *&d;
+
+    static inline Pair *pairs(QBindingStorageData *dd)
+    {
+        Q_ASSERT(dd);
+        return reinterpret_cast<Pair *>(dd + 1);
+    }
+    void reallocate(size_t newSize)
+    {
+        Q_ASSERT(!d || newSize > d->size);
+        size_t allocSize = sizeof(QBindingStorageData) + newSize*sizeof(Pair);
+        void *nd = malloc(allocSize);
+        memset(nd, 0, allocSize);
+        QBindingStorageData *newData = new (nd) QBindingStorageData;
+        newData->size = newSize;
+        if (!d) {
+            d = newData;
+            return;
+        }
+        newData->used = d->used;
+        Pair *p = pairs(d);
+        for (size_t i = 0; i < d->size; ++i, ++p) {
+            if (p->data) {
+                Pair *pp = pairs(newData);
+                Q_ASSERT(newData->size && (newData->size & (newData->size - 1)) == 0); // size is a power of two
+                size_t index = qHash(p->data) & (newData->size - 1);
+                while (pp[index].data) {
+                    ++index;
+                    if (index == newData->size)
+                        index = 0;
+                }
+                new (pp + index) Pair{p->data, QPropertyBindingData(std::move(p->bindingData))};
+            }
+        }
+        // data has been moved, no need to call destructors on old Pairs
+        free(d);
+        d = newData;
+    }
+
+    QBindingStoragePrivate(QBindingStorageData *&_d) : d(_d) {}
+
+    QPropertyBindingData *get(const QUntypedPropertyData *data)
+    {
+        if (!d)
+            return nullptr;
+        Q_ASSERT(d->size && (d->size & (d->size - 1)) == 0); // size is a power of two
+        size_t index = qHash(data) & (d->size - 1);
+        Pair *p = pairs(d);
+        while (p[index].data) {
+            if (p[index].data == data)
+                return &p[index].bindingData;
+            ++index;
+            if (index == d->size)
+                index = 0;
+        }
+        return nullptr;
+    }
+    QPropertyBindingData *getAndCreate(QUntypedPropertyData *data)
+    {
+        if (!d)
+            reallocate(8);
+        else if (d->used*2 >= d->size)
+            reallocate(d->size*2);
+        Q_ASSERT(d->size && (d->size & (d->size - 1)) == 0); // size is a power of two
+        size_t index = qHash(data) & (d->size - 1);
+        Pair *p = pairs(d);
+        while (p[index].data) {
+            if (p[index].data == data)
+                return &p[index].bindingData;
+            ++index;
+            if (index == d->size)
+                index = 0;
+        }
+        ++d->used;
+        new (p + index) Pair{data, QPropertyBindingData()};
+        return &p[index].bindingData;
+    }
+
+    void destroy()
+    {
+        if (!d)
+            return;
+        Pair *p = pairs(d);
+        for (size_t i = 0; i < d->size; ++i) {
+            if (p->data)
+                p->~Pair();
+            ++p;
+        }
+        free(d);
+    }
+};
+
+/*!
+    \class QBindingStorage
+    \internal
+
+    QBindingStorage acts as a storage for property binding related data in QObject.
+    Any property in a QObject can be made bindable, by using the Q_BINDABLE_PROPERTY_DATA
+    macro to declare the data storage. Then implement a setter and getter for the property
+    and declare it as a Q_PROPERTY as usual. Finally make it bindable, but using
+    the Q_BINDABLE_PROPERTY macro after the declaration of the setter and getter.
+*/
+
+QBindingStorage::QBindingStorage()
+{
+    bindingStatus = &QT_PREPEND_NAMESPACE(bindingStatus);
+    Q_ASSERT(bindingStatus);
+}
+
+QBindingStorage::~QBindingStorage()
+{
+    QBindingStoragePrivate(d).destroy();
+}
+
+void QBindingStorage::maybeUpdateBindingAndRegister(const QUntypedPropertyData *data) const
+{
+    Q_ASSERT(bindingStatus);
+    QUntypedPropertyData *dd = const_cast<QUntypedPropertyData *>(data);
+    auto storage = bindingStatus->currentlyEvaluatingBinding ?
+                QBindingStoragePrivate(d).getAndCreate(dd) :
+                QBindingStoragePrivate(d).get(dd);
+    if (!storage)
+        return;
+    if (auto *binding = storage->binding())
+        binding->evaluateIfDirtyAndReturnTrueIfValueChanged(const_cast<QUntypedPropertyData *>(data));
+    storage->registerWithCurrentlyEvaluatingBinding();
+}
+
+QPropertyBindingData *QBindingStorage::bindingData(const QUntypedPropertyData *data) const
+{
+    return QBindingStoragePrivate(d).get(data);
+}
+
+QPropertyBindingData *QBindingStorage::bindingData(QUntypedPropertyData *data, bool create)
+{
+    auto storage = create ?
+                QBindingStoragePrivate(d).getAndCreate(data) :
+                QBindingStoragePrivate(d).get(data);
+    return storage;
+}
 
 QT_END_NAMESPACE

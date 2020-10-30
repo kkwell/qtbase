@@ -59,11 +59,7 @@
 public: \
     static inline QString tr(const char *sourceText, const char *comment = nullptr) \
         { Q_UNUSED(comment); return QString::fromUtf8(sourceText); } \
-    static inline QString trUtf8(const char *sourceText, const char *comment = nullptr) \
-        { Q_UNUSED(comment); return QString::fromUtf8(sourceText); } \
     static inline QString tr(const char *sourceText, const char*, int) \
-        { return QString::fromUtf8(sourceText); } \
-    static inline QString trUtf8(const char *sourceText, const char*, int) \
         { return QString::fromUtf8(sourceText); } \
 private:
 #endif
@@ -1509,14 +1505,14 @@ uint QXmlStreamReaderPrivate::getChar_helper()
             atEnd = true;
             return StreamEOF;
         }
-        auto encoding = QStringDecoder::encodingForData(rawReadBuffer.constData(), rawReadBuffer.size(), char16_t('<'));
+        auto encoding = QStringDecoder::encodingForData(rawReadBuffer, char16_t('<'));
         if (!encoding)
             // assume utf-8
             encoding = QStringDecoder::Utf8;
         decoder = QStringDecoder(*encoding);
     }
 
-    readBuffer = decoder(rawReadBuffer.constData(), nbytesread);
+    readBuffer = decoder(QByteArrayView(rawReadBuffer).first(nbytesread));
 
     if (lockEncoding && decoder.hasError()) {
         raiseWellFormedError(QXmlStream::tr("Encountered incorrectly encoded content."));
@@ -1798,7 +1794,7 @@ void QXmlStreamReaderPrivate::startDocument()
                     if (!decoder.isValid()) {
                         err = QXmlStream::tr("Encoding %1 is unsupported").arg(value);
                     } else {
-                        readBuffer = decoder(rawReadBuffer.data(), nbytesread);
+                        readBuffer = decoder(QByteArrayView(rawReadBuffer).first(nbytesread));
                     }
                 }
             }
@@ -2533,13 +2529,6 @@ Returns the namespaceUri.
 QXmlStreamEntityDeclaration::QXmlStreamEntityDeclaration()
 {
 }
-
-/*! \fn QXmlString::swap(QXmlString &other)
-    \since 6.0
-
-    Swaps this string reference's contents with \a other.
-    This function is very fast and never fails.
-*/
 
 /*! \fn QStringView QXmlStreamEntityDeclaration::name() const
 

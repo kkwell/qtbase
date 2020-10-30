@@ -128,7 +128,7 @@ void tst_QGuiVariant::constructor_invalid()
     QFETCH(uint, typeId);
     {
         QTest::ignoreMessage(QtWarningMsg, QRegularExpression("^Trying to construct an instance of an invalid type, type id:"));
-        QVariant variant(static_cast<QVariant::Type>(typeId));
+        QVariant variant{QMetaType(typeId)};
         QVERIFY(!variant.isValid());
         QCOMPARE(variant.userType(), int(QMetaType::UnknownType));
     }
@@ -353,12 +353,12 @@ void tst_QGuiVariant::toKeySequence_data()
     QTest::addColumn<QKeySequence>("result");
 
 
-    QTest::newRow( "int" ) << QVariant( 67108929 ) << QKeySequence( Qt::CTRL + Qt::Key_A );
+    QTest::newRow( "int" ) << QVariant( 67108929 ) << QKeySequence( Qt::CTRL | Qt::Key_A );
 
 
     QTest::newRow( "qstring" )
         << QVariant( QString( "Ctrl+A" ) )
-        << QKeySequence( Qt::CTRL + Qt::Key_A );
+        << QKeySequence( Qt::CTRL | Qt::Key_A );
 }
 
 void tst_QGuiVariant::toKeySequence()
@@ -376,7 +376,7 @@ void tst_QGuiVariant::toString_data()
     QTest::addColumn<QVariant>("value");
     QTest::addColumn<QString>("result");
 
-    QTest::newRow( "qkeysequence" ) << QVariant::fromValue( QKeySequence( Qt::CTRL + Qt::Key_A ) )
+    QTest::newRow( "qkeysequence" ) << QVariant::fromValue( QKeySequence( Qt::CTRL | Qt::Key_A ) )
 #ifndef Q_OS_MAC
         << QString( "Ctrl+A" );
 #else
@@ -499,7 +499,7 @@ void tst_QGuiVariant::writeToReadFromDataStream_data()
     pixmap.fill( Qt::red );
     QTest::newRow( "pixmap_valid" ) << QVariant::fromValue( pixmap ) << false;
     QTest::newRow( "image_invalid" ) << QVariant::fromValue( QImage() ) << false;
-    QTest::newRow( "keysequence_valid" ) << QVariant::fromValue( QKeySequence( Qt::CTRL + Qt::Key_A ) ) << false;
+    QTest::newRow( "keysequence_valid" ) << QVariant::fromValue( QKeySequence( Qt::CTRL | Qt::Key_A ) ) << false;
     QTest::newRow( "palette_valid" ) << QVariant::fromValue(QPalette(QColor("turquoise"))) << false;
     QTest::newRow( "pen_valid" ) << QVariant::fromValue( QPen( Qt::red ) ) << false;
     QTest::newRow( "pointarray_invalid" ) << QVariant::fromValue( QPolygon() ) << false;
@@ -567,8 +567,8 @@ void tst_QGuiVariant::writeToReadFromDataStream()
     // Since only a few won't match since the serial numbers are different
     // I won't bother adding another bool in the data test.
     const int writeType = writeVariant.userType();
-    if ( writeType != QVariant::Invalid && writeType != QVariant::Bitmap && writeType != QVariant::Pixmap
-        && writeType != QVariant::Image) {
+    if ( writeType != QMetaType::UnknownType && writeType != QMetaType::QBitmap && writeType != QMetaType::QPixmap
+        && writeType != QMetaType::QImage) {
         switch (writeType) {
         default:
             QCOMPARE( readVariant, writeVariant );
@@ -655,7 +655,7 @@ void tst_QGuiVariant::debugStream_data()
         const char *tagName = QMetaType(id).name();
         if (!tagName)
             continue;
-        QTest::newRow(tagName) << QVariant(static_cast<QVariant::Type>(id)) << id;
+        QTest::newRow(tagName) << QVariant(QMetaType(id)) << id;
     }
 }
 

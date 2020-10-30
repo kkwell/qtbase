@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2017 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
@@ -315,16 +315,6 @@ static_assert((std::is_same<qsizetype, qptrdiff>::value));
     \since 5.15
 
     Constructs a QFlags object with no flags set.
-*/
-
-/*!
-    \fn template <typename Enum> QFlags<Enum>::QFlags(Zero)
-    \deprecated
-
-    Constructs a QFlags object with no flags set. The parameter must be a
-    literal 0 value.
-
-    Deprecated, use default constructor instead.
 */
 
 /*!
@@ -973,7 +963,7 @@ static_assert((std::is_same<qsizetype, qptrdiff>::value));
 
     Rounds \a d to the nearest integer.
 
-    Rounds half up (e.g. 0.5 -> 1, -0.5 -> 0).
+    Rounds half away from zero (e.g. 0.5 -> 1, -0.5 -> -1).
 
     Example:
 
@@ -985,7 +975,7 @@ static_assert((std::is_same<qsizetype, qptrdiff>::value));
 
     Rounds \a d to the nearest integer.
 
-    Rounds half up (e.g. 0.5f -> 1, -0.5f -> 0).
+    Rounds half away from zero (e.g. 0.5f -> 1, -0.5f -> -1).
 
     Example:
 
@@ -997,7 +987,7 @@ static_assert((std::is_same<qsizetype, qptrdiff>::value));
 
     Rounds \a d to the nearest 64-bit integer.
 
-    Rounds half up (e.g. 0.5 -> 1, -0.5 -> 0).
+    Rounds half away from zero (e.g. 0.5 -> 1, -0.5 -> -1).
 
     Example:
 
@@ -1009,7 +999,7 @@ static_assert((std::is_same<qsizetype, qptrdiff>::value));
 
     Rounds \a d to the nearest 64-bit integer.
 
-    Rounds half up (e.g. 0.5f -> 1, -0.5f -> 0).
+    Rounds half away from zero (e.g. 0.5f -> 1, -0.5f -> -1).
 
     Example:
 
@@ -1963,7 +1953,7 @@ QWindowsSockInit::QWindowsSockInit()
     WSAData wsadata;
 
     // IPv6 requires Winsock v2.0 or better.
-    if (WSAStartup(MAKEWORD(2,0), &wsadata) != 0) {
+    if (WSAStartup(MAKEWORD(2, 0), &wsadata) != 0) {
         qWarning("QTcpSocketAPI: WinSock v2.0 initialization failed.");
     } else {
         version = 0x20;
@@ -2095,7 +2085,7 @@ static bool readEtcFile(QUnixOSVersion &v, const char *filename,
     const char *end = buffer.constEnd();
     const char *eol;
     QByteArray line;
-    for ( ; ptr != end; ptr = eol + 1) {
+    for (; ptr != end; ptr = eol + 1) {
         // find the end of the line after ptr
         eol = static_cast<const char *>(memchr(ptr, '\n', end - ptr));
         if (!eol)
@@ -2481,15 +2471,11 @@ QString QSysInfo::currentCpuArchitecture()
 */
 QString QSysInfo::buildAbi()
 {
-#ifdef Q_COMPILER_UNICODE_STRINGS
     // ARCH_FULL is a concatenation of strings (incl. ARCH_PROCESSOR), which breaks
     // QStringLiteral on MSVC. Since the concatenation behavior we want is specified
     // the same C++11 paper as the Unicode strings, we'll use that macro and hope
     // that Microsoft implements the new behavior when they add support for Unicode strings.
     return QStringLiteral(ARCH_FULL);
-#else
-    return QLatin1String(ARCH_FULL);
-#endif
 }
 
 static QString unknownText()
@@ -3139,17 +3125,17 @@ void qt_assert_x(const char *where, const char *what, const char *file, int line
 Q_CORE_EXPORT Q_DECL_CONST_FUNCTION unsigned int qt_int_sqrt(unsigned int n)
 {
     // n must be in the range 0...UINT_MAX/2-1
-    if (n >= (UINT_MAX>>2)) {
+    if (n >= (UINT_MAX >> 2)) {
         unsigned int r = 2 * qt_int_sqrt(n / 4);
         unsigned int r2 = r + 1;
         return (n >= r2 * r2) ? r2 : r;
     }
-    uint h, p= 0, q= 1, r= n;
+    uint h, p = 0, q = 1, r = n;
     while (q <= n)
         q <<= 2;
     while (q != 1) {
         q >>= 2;
-        h= p + q;
+        h = p + q;
         p >>= 1;
         if (r >= h) {
             p += q;
@@ -3232,7 +3218,6 @@ QByteArray qgetenv(const char *varName)
     return QByteArray(::getenv(varName));
 #endif
 }
-
 
 /*!
     \fn QString qEnvironmentVariable(const char *varName, const QString &defaultValue)
@@ -3463,7 +3448,7 @@ bool qEnvironmentVariableIsSet(const char *varName) noexcept
 
     \sa qgetenv(), qEnvironmentVariable()
 */
-bool qputenv(const char *varName, const QByteArray& value)
+bool qputenv(const char *varName, const QByteArray &value)
 {
     const auto locker = qt_scoped_lock(environmentMutex);
 #if defined(Q_CC_MSVC)
@@ -3475,7 +3460,7 @@ bool qputenv(const char *varName, const QByteArray& value)
     QByteArray buffer(varName);
     buffer += '=';
     buffer += value;
-    char* envVar = qstrdup(buffer.constData());
+    char *envVar = qstrdup(buffer.constData());
     int result = putenv(envVar);
     if (result != 0) // error. we have to delete the string.
         delete[] envVar;
@@ -3988,10 +3973,12 @@ bool qunsetenv(const char *varName)
        data) type with no constructor or destructor, or else a type where
        every bit pattern is a valid object and memcpy() creates a valid
        independent copy of the object.
-    \li \c Q_MOVABLE_TYPE specifies that \a Type has a constructor
+    \li \c Q_RELOCATABLE_TYPE specifies that \a Type has a constructor
        and/or a destructor but can be moved in memory using \c
-       memcpy(). Note: despite the name, this has nothing to do with move
-       constructors or C++ move semantics.
+       memcpy().
+    \li \c Q_MOVABLE_TYPE is the same as \c Q_RELOCATABLE_TYPE. Prefer to use
+        \c Q_RELOCATABLE_TYPE in new code. Note: despite the name, this
+        has nothing to do with move constructors or C++ move semantics.
     \li \c Q_COMPLEX_TYPE (the default) specifies that \a Type has
        constructors and/or a destructor and that it may not be moved
        in memory.
@@ -4012,10 +3999,8 @@ bool qunsetenv(const char *varName)
 
     Qt will try to detect the class of a type using std::is_trivial or
     std::is_trivially_copyable. Use this macro to tune the behavior.
-    For instance many types would be candidates for Q_MOVABLE_TYPE despite
-    not being trivially-copyable. For binary compatibility reasons, QList
-    optimizations are only enabled if there is an explicit
-    Q_DECLARE_TYPEINFO even for trivially-copyable types.
+    For instance many types would be candidates for Q_RELOCATABLE_TYPE despite
+    not being trivially-copyable.
 */
 
 /*!
@@ -4028,7 +4013,8 @@ bool qunsetenv(const char *varName)
     with meaningful parameter names in their signatures.
 */
 
-struct QInternal_CallBackTable {
+struct QInternal_CallBackTable
+{
     QList<QList<qInternalCallback>> callbacks;
 };
 
@@ -4050,7 +4036,7 @@ bool QInternal::unregisterCallback(Callback cb, qInternalCallback callback)
     if (unsigned(cb) < unsigned(QInternal::LastCallback)) {
         if (global_callback_table.exists()) {
             QInternal_CallBackTable *cbt = global_callback_table();
-            return (bool) cbt->callbacks[cb].removeAll(callback);
+            return cbt->callbacks[cb].removeAll(callback) > 0;
         }
     }
     return false;
@@ -4067,7 +4053,7 @@ bool QInternal::activateCallbacks(Callback cb, void **parameters)
     if (cbt && cb < cbt->callbacks.size()) {
         QList<qInternalCallback> callbacks = cbt->callbacks[cb];
         bool ret = false;
-        for (int i=0; i<callbacks.size(); ++i)
+        for (int i = 0; i < callbacks.size(); ++i)
             ret |= (callbacks.at(i))(parameters);
         return ret;
     }

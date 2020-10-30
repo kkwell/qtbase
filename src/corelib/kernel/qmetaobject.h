@@ -46,6 +46,8 @@
 
 QT_BEGIN_NAMESPACE
 
+class QUntypedBindable;
+
 #define Q_METAMETHOD_INVOKE_MAX_ARGS 10
 
 class Q_CORE_EXPORT QMetaMethod
@@ -173,7 +175,7 @@ public:
     {
         typedef QtPrivate::FunctionPointer<PointerToMemberFunction> SignalType;
         static_assert(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
-                          "No Q_OBJECT in the class with the signal");
+                      "No Q_OBJECT in the class with the signal");
         return fromSignalImpl(&SignalType::Object::staticMetaObject,
                               reinterpret_cast<void **>(&signal));
     }
@@ -206,15 +208,12 @@ private:
     friend struct QMetaObject;
     friend struct QMetaObjectPrivate;
     friend class QObject;
-    friend bool operator==(const QMetaMethod &m1, const QMetaMethod &m2);
-    friend bool operator!=(const QMetaMethod &m1, const QMetaMethod &m2);
+    friend bool operator==(const QMetaMethod &m1, const QMetaMethod &m2) noexcept
+    { return m1.data == m2.data; }
+    friend bool operator!=(const QMetaMethod &m1, const QMetaMethod &m2) noexcept
+    { return !(m1 == m2); }
 };
 Q_DECLARE_TYPEINFO(QMetaMethod, Q_MOVABLE_TYPE);
-
-inline bool operator==(const QMetaMethod &m1, const QMetaMethod &m2)
-{ return m1.data == m2.data; }
-inline bool operator!=(const QMetaMethod &m1, const QMetaMethod &m2)
-{ return !(m1 == m2); }
 
 class Q_CORE_EXPORT QMetaEnum
 {
@@ -233,18 +232,20 @@ public:
     const char *scope() const;
 
     int keyToValue(const char *key, bool *ok = nullptr) const;
-    const char* valueToKey(int value) const;
-    int keysToValue(const char * keys, bool *ok = nullptr) const;
+    const char *valueToKey(int value) const;
+    int keysToValue(const char *keys, bool *ok = nullptr) const;
     QByteArray valueToKeys(int value) const;
 
     inline const QMetaObject *enclosingMetaObject() const { return mobj; }
 
     inline bool isValid() const { return name() != nullptr; }
 
-    template<typename T> static QMetaEnum fromType() {
+    template<typename T>
+    static QMetaEnum fromType()
+    {
         static_assert(QtPrivate::IsQEnumHelper<T>::Value,
-                          "QMetaEnum::fromType only works with enums declared as "
-                          "Q_ENUM, Q_ENUM_NS, Q_FLAG or Q_FLAG_NS");
+                      "QMetaEnum::fromType only works with enums declared as "
+                      "Q_ENUM, Q_ENUM_NS, Q_FLAG or Q_FLAG_NS");
         const QMetaObject *metaObject = qt_getEnumMetaObject(T());
         const char *name = qt_getEnumName(T());
         return metaObject->enumerator(metaObject->indexOfEnumerator(name));
@@ -278,8 +279,15 @@ public:
 
     const char *name() const;
     const char *typeName() const;
-    QVariant::Type type() const;
-    int userType() const;
+#if QT_DEPRECATED_SINCE(6, 0)
+    QT_WARNING_PUSH
+    QT_WARNING_DISABLE_DEPRECATED
+    QT_DEPRECATED_VERSION_6_0
+    QVariant::Type type() const
+    { int t = userType(); return t >= QMetaType::User ? QVariant::UserType : QVariant::Type(t); }
+    QT_WARNING_POP
+#endif
+    int userType() const { return metaType().id(); }
     QMetaType metaType() const;
     int propertyIndex() const;
     int relativePropertyIndex() const;
@@ -294,7 +302,7 @@ public:
     bool isConstant() const;
     bool isFinal() const;
     bool isRequired() const;
-    bool isQProperty() const;
+    bool isBindable() const;
 
     bool isFlagType() const;
     bool isEnumType() const;
@@ -309,6 +317,8 @@ public:
     QVariant read(const QObject *obj) const;
     bool write(QObject *obj, const QVariant &value) const;
     bool reset(QObject *obj) const;
+
+    QUntypedBindable bindable(QObject *object) const;
 
     QVariant readOnGadget(const void *gadget) const;
     bool writeOnGadget(void *gadget, const QVariant &value) const;
@@ -352,6 +362,7 @@ public:
     const char *name() const;
     const char *value() const;
     inline const QMetaObject *enclosingMetaObject() const { return mobj; }
+
 private:
     struct Data {
         enum { Size = 2 };

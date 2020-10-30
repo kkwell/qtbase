@@ -213,10 +213,12 @@ static QIOSScreen* qtPlatformScreenFor(UIScreen *uiScreen)
 {
     [super traitCollectionDidChange:previousTraitCollection];
 
-    if (self.screen == UIScreen.mainScreen) {
-        if (previousTraitCollection.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
-            QIOSTheme::initializeSystemPalette();
-            QWindowSystemInterface::handleThemeChange<QWindowSystemInterface::SynchronousDelivery>(nullptr);
+    if (@available(iOS 12, *)) {
+        if (self.screen == UIScreen.mainScreen) {
+            if (previousTraitCollection.userInterfaceStyle != self.traitCollection.userInterfaceStyle) {
+                QIOSTheme::initializeSystemPalette();
+                QWindowSystemInterface::handleThemeChange<QWindowSystemInterface::SynchronousDelivery>(nullptr);
+            }
         }
     }
 }
@@ -243,7 +245,7 @@ static QString deviceModelIdentifier()
     char value[size];
     sysctlbyname(key, &value, &size, NULL, 0);
 
-    return QString::fromLatin1(value);
+    return QString::fromLatin1(QByteArrayView(value, qsizetype(size)));
 #endif
 }
 

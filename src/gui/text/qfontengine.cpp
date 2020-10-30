@@ -55,7 +55,7 @@
 
 #if QT_CONFIG(harfbuzz)
 #  include "qharfbuzzng_p.h"
-#  include <harfbuzz/hb-ot.h>
+#  include <hb-ot.h>
 #endif
 
 #include <algorithm>
@@ -229,8 +229,8 @@ bool QFontEngine::supportsScript(QChar::Script script) const
 #if QT_CONFIG(harfbuzz)
     if (qt_useHarfbuzzNG()) {
         // in AAT fonts, 'gsub' table is effectively replaced by 'mort'/'morx' table
-        uint len;
-        if (getSfntTableData(MAKE_TAG('m','o','r','t'), nullptr, &len) || getSfntTableData(MAKE_TAG('m','o','r','x'), nullptr, &len))
+        uint lenMort = 0, lenMorx = 0;
+        if (getSfntTableData(MAKE_TAG('m','o','r','t'), nullptr, &lenMort) || getSfntTableData(MAKE_TAG('m','o','r','x'), nullptr, &lenMorx))
             return true;
 
         if (hb_face_t *face = hb_qt_face_get_for_engine(const_cast<QFontEngine *>(this))) {
@@ -1539,7 +1539,7 @@ QFontEngineBox::~QFontEngineBox()
 glyph_t QFontEngineBox::glyphIndex(uint ucs4) const
 {
     Q_UNUSED(ucs4);
-    return 0;
+    return 1;
 }
 
 bool QFontEngineBox::stringToCMap(const QChar *str, int len, QGlyphLayout *glyphs, int *nglyphs, QFontEngine::ShaperFlags flags) const
@@ -1554,7 +1554,7 @@ bool QFontEngineBox::stringToCMap(const QChar *str, int len, QGlyphLayout *glyph
     QStringIterator it(str, str + len);
     while (it.hasNext()) {
         it.advance();
-        glyphs->glyphs[ucs4Length++] = 0;
+        glyphs->glyphs[ucs4Length++] = 1;
     }
 
     *nglyphs = ucs4Length;
@@ -1670,12 +1670,12 @@ QImage QFontEngineBox::alphaMapForGlyph(glyph_t)
     QImage image(_size, _size, QImage::Format_Alpha8);
     image.fill(0);
 
-    // FIXME: use qpainter
+    uchar *bits = image.bits();
     for (int i=2; i <= _size-3; ++i) {
-        image.setPixel(i, 2, 255);
-        image.setPixel(i, _size-3, 255);
-        image.setPixel(2, i, 255);
-        image.setPixel(_size-3, i, 255);
+        bits[i + 2 * image.bytesPerLine()] = 255;
+        bits[i + (_size - 3) * image.bytesPerLine()] = 255;
+        bits[2 + i * image.bytesPerLine()] = 255;
+        bits[_size - 3 + i * image.bytesPerLine()] = 255;
     }
     return image;
 }
@@ -1754,7 +1754,7 @@ void QFontEngineMulti::setFallbackFamiliesList(const QStringList &fallbackFamili
 
 void QFontEngineMulti::ensureEngineAt(int at)
 {
-    if (!m_fallbackFamiliesQueried)
+    if (!m_fallbackFamiliesQueried && at > 0)
         ensureFallbackFamiliesQueried();
     Q_ASSERT(at < m_engines.size());
     if (!m_engines.at(at)) {

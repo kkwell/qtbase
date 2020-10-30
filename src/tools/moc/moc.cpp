@@ -1,7 +1,7 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
-** Copyright (C) 2016 Olivier Goffart <ogoffart@woboq.com>
+** Copyright (C) 2020 The Qt Company Ltd.
+** Copyright (C) 2019 Olivier Goffart <ogoffart@woboq.com>
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the tools applications of the Qt Toolkit.
@@ -46,8 +46,7 @@ QT_BEGIN_NAMESPACE
 // only moc needs this function
 static QByteArray normalizeType(const QByteArray &ba)
 {
-    QByteArray result = normalizeTypeInternal(ba.constBegin(), ba.constEnd());
-    return result;
+    return ba.size() ? normalizeTypeInternal(ba.constBegin(), ba.constEnd()) : ba;
 }
 
 bool Moc::parseClassHead(ClassDef *def)
@@ -576,35 +575,6 @@ bool Moc::parseMaybeFunction(const ClassDef *cdef, FunctionDef *def)
 }
 
 
-// Try to parse QProperty<MyType> propertName; members
-bool Moc::parseMaybeQProperty(ClassDef *def)
-{
-    if (!test(IDENTIFIER))
-        return false;
-
-    bool hasNotifier = false;
-    if (lexem() == "QNotifiedProperty") {
-        hasNotifier = true;
-    } else if (lexem() != "QProperty") {
-        return false;
-    }
-
-    if (!test(LANGLE))
-        return false;
-
-    until(RANGLE);
-
-    next();
-    const auto propName = lexem();
-
-    if (!test(SEMIC))
-        return false;
-
-    def->qPropertyMembersMaybeWithNotifier.insert(propName, hasNotifier);
-
-    return true;
-}
-
 void Moc::parse()
 {
     QList<NamespaceDef> namespaceList;
@@ -893,9 +863,6 @@ void Moc::parse()
                 case Q_PRIVATE_PROPERTY_TOKEN:
                     parsePrivateProperty(&def);
                     break;
-                case Q_PRIVATE_QPROPERTY_TOKEN:
-                    parsePrivateQProperty(&def);
-                    break;
                 case ENUM: {
                     EnumDef enumDef;
                     if (parseEnum(&enumDef))
@@ -953,9 +920,7 @@ void Moc::parse()
                             }
                         }
                     } else {
-                        index = rewind - 1;
-                        if (!parseMaybeQProperty(&def))
-                            index = rewind;
+                        index = rewind;
                     }
                 }
             }
@@ -1055,8 +1020,8 @@ static QByteArrayList requiredQtContainers(const QList<ClassDef> &classes)
         const QByteArray pattern = candidate + '<';
 
         for (const auto &c : classes) {
-            if (!c.privateQProperties.isEmpty())
-                needsQProperty = true;
+            for (const auto &p : c.propertyList)
+                needsQProperty |= !p.bind.isEmpty();
             if (any_type_contains(c.propertyList, pattern) ||
                     any_arg_contains(c.slotList, pattern) ||
                     any_arg_contains(c.signalList, pattern) ||
@@ -1253,23 +1218,9 @@ void Moc::createPropertyDef(PropertyDef &propDef)
 {
     propDef.location = index;
 
-    const bool isPrivateProperty = !propDef.inPrivateClass.isEmpty();
-    bool typeWrappedInQProperty = false;
-    if (isPrivateProperty) {
-        const int rewind = index;
-        if (test(IDENTIFIER) && lexem() == "QProperty" && test(LANGLE)) {
-            typeWrappedInQProperty = true;
-            propDef.isQProperty = true;
-        } else {
-            index = rewind;
-        }
-    }
-
     QByteArray type = parseType().name;
     if (type.isEmpty())
         error();
-    if (typeWrappedInQProperty)
-        next(RANGLE);
     propDef.designable = propDef.scriptable = propDef.stored = "true";
     propDef.user = "false";
     /*
@@ -1380,24 +1331,16 @@ void Moc::parsePropertyAttributes(PropertyDef &propDef)
         case 'W': if (l != "WRITE") error(2);
             propDef.write = v;
             break;
+        case 'B': if (l != "BINDABLE") error(2);
+            propDef.bind = v;
+            break;
         case 'D': if (l != "DESIGNABLE") error(2);
             propDef.designable = v + v2;
             checkIsFunction(propDef.designable, "DESIGNABLE");
             break;
         case 'N': if (l != "NOTIFY") error(2);
-            if (v == "false") {
-                if (!propDef.isQProperty)
-                    error(1);
-                propDef.isQPropertyWithNotifier = false;
-                break;
-            } else if (v == "true") {
-                if (!propDef.isQProperty)
-                    error(1);
-                break;
-            } else {
-                propDef.notify = v;
-                break;
-            }
+            propDef.notify = v;
+            break;
         case 'U': if (l != "USER") error(2);
             propDef.user = v + v2;
             checkIsFunction(propDef.user, "USER");
@@ -1415,6 +1358,12 @@ void Moc::parsePropertyAttributes(PropertyDef &propDef)
     if (propDef.constant && !propDef.notify.isNull()) {
         const QByteArray msg = "Property declaration " + propDef.name
                 + " is both NOTIFYable and CONSTANT. CONSTANT will be ignored.";
+        propDef.constant = false;
+        warning(msg.constData());
+    }
+    if (propDef.constant && !propDef.bind.isNull()) {
+        const QByteArray msg = "Property declaration " + propDef.name
+                + " is both BINDable and CONSTANT. CONSTANT will be ignored.";
         propDef.constant = false;
         warning(msg.constData());
     }
@@ -1494,19 +1443,19 @@ void Moc::parsePluginData(ClassDef *def)
 
 QByteArray Moc::parsePropertyAccessor()
 {
-    next(IDENTIFIER);
-    QByteArray accessor = lexem();
-    while (test(SCOPE)) {
-        accessor += lexem();
-        next(IDENTIFIER);
+    int nesting = 0;
+    QByteArray accessor;
+    while (1) {
+        Token t = peek();
+        if (!nesting && (t == RPAREN || t == COMMA))
+            break;
+        t = next();
+        if (t == LPAREN)
+            ++nesting;
+        if (t == RPAREN)
+            --nesting;
         accessor += lexem();
     }
-    // also allow void functions
-    if (test(LPAREN)) {
-        next(RPAREN);
-        accessor += "()";
-    }
-
     return accessor;
 }
 
@@ -1519,48 +1468,6 @@ void Moc::parsePrivateProperty(ClassDef *def)
     next(COMMA);
 
     createPropertyDef(propDef);
-
-    def->propertyList += propDef;
-}
-
-void Moc::parsePrivateQProperty(ClassDef *def)
-{
-    next(LPAREN);
-    const QByteArray accessor = parsePropertyAccessor();
-    next(COMMA);
-    const Type type = parseType();
-    next(COMMA);
-    next(IDENTIFIER);
-    const QByteArray name = lexem();
-    next(COMMA);
-    next(IDENTIFIER);
-    const QByteArray setter = lexem();
-
-    PropertyDef propDef;
-    propDef.name = name;
-    propDef.type = type.name;
-    propDef.isQProperty = true;
-    propDef.isQPropertyWithNotifier = true;
-    propDef.inPrivateClass = accessor;
-    propDef.designable = propDef.scriptable = propDef.stored = "true";
-    propDef.user = "false";
-
-    if (test(COMMA))
-        parsePropertyAttributes(propDef);
-
-    const bool stored = propDef.stored == "true";
-    propDef.qpropertyname = stored ? name : (name + "()");
-
-    def->privateQProperties += PrivateQPropertyDef {
-            type, name, setter, accessor, propDef.qpropertyname, propDef.isQPropertyWithNotifier
-    };
-
-    if (propDef.read.isEmpty())
-        propDef.read = propDef.qpropertyname + (stored ? ".value" : "->value");
-    if (propDef.write.isEmpty())
-        propDef.write = propDef.qpropertyname + (stored ? ".setValue" : "->setValue");
-
-    next(RPAREN);
 
     def->propertyList += propDef;
 }
@@ -1604,12 +1511,15 @@ void Moc::parseFlag(BaseDef *def)
     next(RPAREN);
 }
 
-void Moc::parseClassInfo(BaseDef *def)
+Moc::EncounteredQmlMacro Moc::parseClassInfo(BaseDef *def)
 {
+    bool encounteredQmlMacro = false;
     next(LPAREN);
     ClassInfoDef infoDef;
     next(STRING_LITERAL);
     infoDef.name = symbol().unquotedLexem();
+    if (infoDef.name.startsWith("QML."))
+        encounteredQmlMacro = true;
     next(COMMA);
     if (test(STRING_LITERAL)) {
         infoDef.value = symbol().unquotedLexem();
@@ -1625,6 +1535,13 @@ void Moc::parseClassInfo(BaseDef *def)
     }
     next(RPAREN);
     def->classInfoList += infoDef;
+    return encounteredQmlMacro ? EncounteredQmlMacro::Yes : EncounteredQmlMacro::No;
+}
+
+void Moc::parseClassInfo(ClassDef *def)
+{
+    if (parseClassInfo(static_cast<BaseDef *>(def)) == EncounteredQmlMacro::Yes)
+        def->requireCompleteMethodTypes = true;
 }
 
 void Moc::parseInterfaces(ClassDef *def)
@@ -1895,33 +1812,19 @@ void Moc::checkProperties(ClassDef *cdef)
             warning(msg.constData());
         }
 
-        if (p.read.isEmpty() && p.member.isEmpty()) {
-
-            auto qPropertyMemberIt = cdef->qPropertyMembersMaybeWithNotifier.constFind(p.name);
-            const bool knownQPropertyMember = qPropertyMemberIt != cdef->qPropertyMembersMaybeWithNotifier.constEnd();
-            if (!knownQPropertyMember && !p.isQProperty) {
-                const int rewind = index;
-                if (p.location >= 0)
-                    index = p.location;
-                QByteArray msg = "Property declaration " + p.name + " has neither an associated QProperty<> member"
-                                 ", nor a READ accessor function nor an associated MEMBER variable. The property will be invalid.";
-                warning(msg.constData());
-                index = rewind;
-                if (p.write.isEmpty()) {
-                    cdef->propertyList.removeAt(i);
-                    --i;
-                }
-                continue;
+        if (p.read.isEmpty() && p.member.isEmpty() && p.bind.isEmpty()) {
+            const int rewind = index;
+            if (p.location >= 0)
+                index = p.location;
+            QByteArray msg = "Property declaration " + p.name + " has neither an associated QProperty<> member"
+                             ", nor a READ accessor function nor an associated MEMBER variable. The property will be invalid.";
+            warning(msg.constData());
+            index = rewind;
+            if (p.write.isEmpty()) {
+                cdef->propertyList.removeAt(i);
+                --i;
             }
-            const bool stored = p.stored == "true";
-            p.qpropertyname = stored ? p.name : (p.name + "()");
-            p.read = p.qpropertyname + (stored ? ".value" : "->value");
-            p.write = p.qpropertyname + (stored ? ".setValue" : "->setValue");;
-            p.isQProperty = true;
-            const bool hasNotifier = knownQPropertyMember && qPropertyMemberIt.value();
-            p.isQPropertyWithNotifier = hasNotifier;
-            p.designable = p.scriptable = p.stored = "true";
-            p.user = "false";
+            continue;
         }
 
         for (int j = 0; j < cdef->publicList.count(); ++j) {
@@ -2113,6 +2016,7 @@ QJsonObject PropertyDef::toJson() const
     jsonify("member", member);
     jsonify("read", read);
     jsonify("write", write);
+    jsonify("bindable", bind);
     jsonify("reset", reset);
     jsonify("notify", notify);
     jsonify("privateClass", inPrivateClass);
@@ -2136,7 +2040,6 @@ QJsonObject PropertyDef::toJson() const
     prop[QLatin1String("constant")] = constant;
     prop[QLatin1String("final")] = final;
     prop[QLatin1String("required")] = required;
-    prop[QLatin1String("isQProperty")] = isQProperty;
 
     if (revision > 0)
         prop[QLatin1String("revision")] = revision;

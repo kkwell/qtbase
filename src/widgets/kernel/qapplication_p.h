@@ -107,14 +107,13 @@ public:
     virtual void notifyActiveWindowChange(QWindow *) override;
 
     virtual bool shouldQuit() override;
-    bool tryCloseAllWindows() override;
 
     static bool autoSipEnabled;
     static QString desktopStyleKey();
 
     void createEventDispatcher() override;
     static void dispatchEnterLeave(QWidget *enter, QWidget *leave, const QPointF &globalPosF);
-
+    static QWidget *desktop();
     void notifyWindowIconChanged() override;
 
 #ifndef QT_NO_ACTION
@@ -253,7 +252,7 @@ public:
     void activateImplicitTouchGrab(QWidget *widget, QTouchEvent *touchBeginEvent);
     static bool translateRawTouchEvent(QWidget *widget,
                                        const QPointingDevice *device,
-                                       const QList<QEventPoint> &touchPoints,
+                                       QList<QEventPoint> &touchPoints,
                                        ulong timestamp);
     static void translateTouchCancel(const QPointingDevice *device, ulong timestamp);
 

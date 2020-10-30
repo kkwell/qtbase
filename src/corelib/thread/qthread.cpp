@@ -858,7 +858,7 @@ bool QThread::wait(QDeadlineTimer deadline)
     return false;
 }
 
-bool QThread::event(QEvent* event)
+bool QThread::event(QEvent *event)
 {
     return QObject::event(event);
 }
@@ -895,7 +895,7 @@ bool QThread::isRunning() const
 }
 
 // No threads: so we can just use static variables
-static QThreadData *data = 0;
+static QThreadData *data = nullptr;
 
 QThreadData *QThreadData::current(bool createIfNecessary)
 {
@@ -989,12 +989,6 @@ void QThread::setEventDispatcher(QAbstractEventDispatcher *eventDispatcher)
     \fn bool QThread::wait(unsigned long time)
     \overload
 */
-bool QThread::wait(unsigned long time)
-{
-    if (time == std::numeric_limits<unsigned long>::max())
-        return wait(QDeadlineTimer(QDeadlineTimer::Forever));
-    return wait(QDeadlineTimer(time));
-}
 
 #if QT_CONFIG(thread)
 

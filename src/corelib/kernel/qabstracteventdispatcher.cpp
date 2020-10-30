@@ -68,11 +68,11 @@ enum {
     Offset4 = 0x00010000,
     Offset5 = 0x00100000,
 
-    Size0 = Offset1  - Offset0,
-    Size1 = Offset2  - Offset1,
-    Size2 = Offset3  - Offset2,
-    Size3 = Offset4  - Offset3,
-    Size4 = Offset5  - Offset4,
+    Size0 = Offset1 - Offset0,
+    Size1 = Offset2 - Offset1,
+    Size2 = Offset3 - Offset2,
+    Size3 = Offset4 - Offset3,
+    Size4 = Offset5 - Offset4,
     Size5 = QtTimerIdFreeListConstants::MaxIndex - Offset5
 };
 
@@ -210,8 +210,6 @@ QAbstractEventDispatcher *QAbstractEventDispatcher::instance(QThread *thread)
 
     \b{Note:} This function does not process events continuously; it
     returns after all available events are processed.
-
-    \sa hasPendingEvents()
 */
 
 /*!
@@ -221,14 +219,6 @@ QAbstractEventDispatcher *QAbstractEventDispatcher::instance(QThread *thread)
     is called. Events that are posted while the function runs will be queued
     until a later round of event processing. This only applies to posted Qt
     events. For timers and system level events, the situation is unknown.
-*/
-
-/*! \fn bool QAbstractEventDispatcher::hasPendingEvents()
-    \deprecated
-
-    Returns \c true if there is an event waiting; otherwise returns false. This
-    function is an implementation detail for
-    QCoreApplication::hasPendingEvents() and must not be called directly.
 */
 
 /*!
@@ -251,7 +241,7 @@ QAbstractEventDispatcher *QAbstractEventDispatcher::instance(QThread *thread)
     Registers a timer with the specified \a interval and \a timerType for the
     given \a object and returns the timer id.
 */
-int QAbstractEventDispatcher::registerTimer(int interval, Qt::TimerType timerType, QObject *object)
+int QAbstractEventDispatcher::registerTimer(qint64 interval, Qt::TimerType timerType, QObject *object)
 {
     int id = QAbstractEventDispatcherPrivate::allocateTimerId();
     registerTimer(id, interval, timerType, object);
@@ -259,7 +249,7 @@ int QAbstractEventDispatcher::registerTimer(int interval, Qt::TimerType timerTyp
 }
 
 /*!
-    \fn void QAbstractEventDispatcher::registerTimer(int timerId, int interval, Qt::TimerType timerType, QObject *object)
+    \fn void QAbstractEventDispatcher::registerTimer(int timerId, qint64 interval, Qt::TimerType timerType, QObject *object)
 
     Register a timer with the specified \a timerId, \a interval, and \a
     timerType for the given \a object.
@@ -324,13 +314,6 @@ int QAbstractEventDispatcher::registerTimer(int interval, Qt::TimerType timerTyp
 
     Interrupts event dispatching.  The event dispatcher will
     return from processEvents() as soon as possible.
-*/
-
-/*! \fn void QAbstractEventDispatcher::flush()
-    \deprecated
-
-    Depending from the event dispatcher implementation does nothing or
-    calls QApplication::sendPostedEvents().
 */
 
 // ### DOC: Are these called when the _application_ starts/stops or just

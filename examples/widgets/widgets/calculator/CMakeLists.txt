@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(calculator
+qt_add_executable(calculator
     button.cpp button.h
     calculator.cpp calculator.h
     main.cpp
+)
+set_target_properties(calculator PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(calculator PUBLIC
     Qt::Core

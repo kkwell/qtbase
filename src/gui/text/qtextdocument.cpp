@@ -1736,8 +1736,8 @@ QFont QTextDocument::defaultFont() const
     \fn void QTextDocument::setSuperScriptBaseline(qreal baseline)
     \since 6.0
 
-    Sets the default superscript's base line as a % of font height to use in the document layout.
-    The default value is 50% (1/2 of height)
+    Sets the default superscript's base line as a % of font height to use in the document
+    layout to \a baseline. The default value is 50% (1/2 of height).
 
     \sa superScriptBaseline(), setSubScriptBaseline(), subScriptBaseline(), setBaselineOffset(), baselineOffset()
 */
@@ -1765,8 +1765,8 @@ qreal QTextDocument::superScriptBaseline() const
     \fn void QTextDocument::setSubScriptBaseline(qreal baseline)
     \since 6.0
 
-    Sets the default subscript's base line as a % of font height to use in the document layout.
-    The default value is 16.67% (1/6 of height)
+    Sets the default subscript's base line as a % of font height to use in the document layout
+    to \a baseline. The default value is 16.67% (1/6 of height).
 
     \sa subScriptBaseline(), setSuperScriptBaseline(), superScriptBaseline(), setBaselineOffset(), baselineOffset()
 */
@@ -1794,7 +1794,8 @@ qreal QTextDocument::subScriptBaseline() const
     \fn void QTextDocument::setBaselineOffset(qreal baseline)
     \since 6.0
 
-    Sets the baseline (in % of height) to use in the document layout. The default value is 0.
+    Sets the base line as a% of font height to use in the document layout to \a baseline.
+    The default value is 0.
     A positive value moves up the text, by the corresponding %; a negative value moves it down.
 
     \sa baselineOffset(), setSubScriptBaseline(), subScriptBaseline(), setSuperScriptBaseline(), superScriptBaseline()
@@ -1918,10 +1919,13 @@ void QTextDocument::print(QPagedPaintDevice *printer) const
     QPagedPaintDevicePrivate *pd = QPagedPaintDevicePrivate::get(printer);
 
     // ### set page size to paginated size?
-    QPagedPaintDevice::Margins m = printer->margins();
-    if (!documentPaginated && m.left == 0. && m.right == 0. && m.top == 0. && m.bottom == 0.) {
-        m.left = m.right = m.top = m.bottom = 2.;
-        printer->setMargins(m);
+    QMarginsF m = printer->pageLayout().margins(QPageLayout::Millimeter);
+    if (!documentPaginated && m.left() == 0. && m.right() == 0. && m.top() == 0. && m.bottom() == 0.) {
+        m.setLeft(2);
+        m.setRight(2);
+        m.setTop(2);
+        m.setBottom(2);
+        printer->setPageMargins(m, QPageLayout::Millimeter);
     }
     // ### use the margins correctly
 
@@ -2048,10 +2052,10 @@ void QTextDocument::print(QPagedPaintDevice *printer) const
     \value UnknownResource No resource is loaded, or the resource type is not known.
     \value HtmlResource  The resource contains HTML.
     \value ImageResource The resource contains image data.
-                         Currently supported data types are QVariant::Pixmap and
-                         QVariant::Image. If the corresponding variant is of type
-                         QVariant::ByteArray then Qt attempts to load the image using
-                         QImage::loadFromData. QVariant::Icon is currently not supported.
+                         Currently supported data types are QMetaType::QPixmap and
+                         QMetaType::QImage. If the corresponding variant is of type
+                         QMetaType::QByteArray then Qt attempts to load the image using
+                         QImage::loadFromData. QMetaType::QIcon is currently not supported.
                          The icon needs to be converted to one of the supported types first,
                          for example using QIcon::pixmap.
     \value StyleSheetResource The resource contains CSS.

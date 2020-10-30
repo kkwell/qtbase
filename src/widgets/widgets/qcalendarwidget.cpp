@@ -40,7 +40,7 @@
 #include "qcalendarwidget.h"
 
 #include <qabstractitemmodel.h>
-#include <qitemdelegate.h>
+#include <qstyleditemdelegate.h>
 #include <qdatetime.h>
 #include <qtableview.h>
 #include <qlayout.h>
@@ -1583,13 +1583,12 @@ void QCalendarView::mouseReleaseEvent(QMouseEvent *event)
     }
 }
 
-// ### Qt6: QStyledItemDelegate
-class QCalendarDelegate : public QItemDelegate
+class QCalendarDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
 public:
     QCalendarDelegate(QCalendarWidgetPrivate *w, QObject *parent = nullptr)
-        : QItemDelegate(parent), calendarWidgetPrivate(w)
+        : QStyledItemDelegate(parent), calendarWidgetPrivate(w)
             { }
     virtual void paint(QPainter *painter, const QStyleOptionViewItem &option,
                 const QModelIndex &index) const override;
@@ -1706,7 +1705,7 @@ void QCalendarDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opt
         QRect rect = option.rect;
         calendarWidgetPrivate->paintCell(painter, rect, date);
     } else {
-        QItemDelegate::paint(painter, option, index);
+        QStyledItemDelegate::paint(painter, option, index);
     }
 }
 
@@ -1717,7 +1716,7 @@ void QCalendarDelegate::paintCell(QPainter *painter, const QRect &rect, QDate da
     int col = -1;
     calendarWidgetPrivate->m_model->cellForDate(date, &row, &col);
     QModelIndex idx = calendarWidgetPrivate->m_model->index(row, col);
-    QItemDelegate::paint(painter, storedOption, idx);
+    QStyledItemDelegate::paint(painter, storedOption, idx);
 }
 
 QCalendarWidgetPrivate::QCalendarWidgetPrivate()
@@ -1928,7 +1927,6 @@ void QCalendarWidgetPrivate::_q_nextMonthClicked()
 void QCalendarWidgetPrivate::_q_yearEditingFinished()
 {
     Q_Q(QCalendarWidget);
-    yearButton->setText(q->locale().toString(yearEdit->value()));
     yearEdit->hide();
     q->setFocusPolicy(oldFocusPolicy);
     qApp->removeEventFilter(q);
@@ -1937,6 +1935,7 @@ void QCalendarWidgetPrivate::_q_yearEditingFinished()
     QDate currentDate = getCurrentDate();
     int newYear = q->locale().toInt(yearEdit->text());
     currentDate = currentDate.addYears(newYear - currentDate.year(m_model->m_calendar), m_model->m_calendar);
+    yearButton->setText(q->locale().toString(currentDate, u"yyyy", m_model->m_calendar));
     updateCurrentPage(currentDate);
 }
 

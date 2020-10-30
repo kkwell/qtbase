@@ -350,8 +350,7 @@ QAbstractEventDispatcher *QCoreApplicationPrivate::eventDispatcher = nullptr;
 QCoreApplication *QCoreApplication::self = nullptr;
 uint QCoreApplicationPrivate::attribs =
     (1 << Qt::AA_SynthesizeMouseForUnhandledTouchEvents) |
-    (1 << Qt::AA_SynthesizeMouseForUnhandledTabletEvents) |
-    (1 << Qt::AA_UseHighDpiPixmaps);
+    (1 << Qt::AA_SynthesizeMouseForUnhandledTabletEvents);
 
 struct QCoreApplicationData {
     QCoreApplicationData() noexcept {
@@ -388,10 +387,11 @@ static bool quitLockRefEnabled = true;
 #endif
 
 #if defined(Q_OS_WIN)
-// Check whether the command line arguments match those passed to main()
-// by comparing to the global __argv/__argc (MS extension).
-// Deep comparison is required since argv/argc is rebuilt by WinMain for
-// GUI apps or when using MinGW due to its globbing.
+// Check whether the command line arguments passed to QCoreApplication
+// match those passed into main(), to see if the user has modified them
+// before passing them on to us. We do this by comparing to the global
+// __argv/__argc (MS extension). Deep comparison is required since
+// argv/argc is rebuilt by our WinMain entrypoint.
 static inline bool isArgvModified(int argc, char **argv)
 {
     if (__argc != argc || !__argv /* wmain() */)
@@ -661,8 +661,7 @@ void QCoreApplicationPrivate::initLocale()
     Translation files can be added or removed
     using installTranslator() and removeTranslator(). Application
     strings can be translated using translate(). The QObject::tr()
-    and QObject::trUtf8() functions are implemented in terms of
-    translate().
+    function is implemented in terms of translate().
 
     \section1 Accessing Command Line Arguments
 
@@ -952,7 +951,6 @@ void QCoreApplication::setAttribute(Qt::ApplicationAttribute attribute, bool on)
     if (Q_UNLIKELY(QCoreApplicationPrivate::is_app_running)) {
 #endif
         switch (attribute) {
-            case Qt::AA_DisableHighDpiScaling:
             case Qt::AA_PluginApplication:
             case Qt::AA_UseDesktopOpenGL:
             case Qt::AA_UseOpenGLES:
@@ -1253,7 +1251,7 @@ bool QCoreApplication::closingDown()
 
     \threadsafe
 
-    \sa exec(), QTimer, QEventLoop::processEvents(), flush(), sendPostedEvents()
+    \sa exec(), QTimer, QEventLoop::processEvents(), sendPostedEvents()
 */
 void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags)
 {
@@ -1643,7 +1641,7 @@ bool QCoreApplication::compressEvent(QEvent *event, QObject *receiver, QPostEven
   \note This method must be called from the thread in which its QObject
   parameter, \a receiver, lives.
 
-  \sa flush(), postEvent()
+  \sa postEvent()
 */
 void QCoreApplication::sendPostedEvents(QObject *receiver, int event_type)
 {
@@ -1922,7 +1920,7 @@ void QCoreApplicationPrivate::removePostedEvent(QEvent * event)
 bool QCoreApplication::event(QEvent *e)
 {
     if (e->type() == QEvent::Quit) {
-        quit();
+        exit(0);
         return true;
     }
     return QObject::event(e);
@@ -1946,12 +1944,18 @@ void QCoreApplicationPrivate::maybeQuit()
 }
 
 /*!
-    Tells the application to exit with return code 0 (success).
-    Equivalent to calling QCoreApplication::exit(0).
+    Asks the application to quit.
 
-    It's common to connect the QGuiApplication::lastWindowClosed() signal
-    to quit(), and you also often connect e.g. QAbstractButton::clicked() or
-    signals in QAction, QMenu, or QMenuBar to it.
+    The request may be ignored if the application prevents the quit,
+    for example if one of its windows can't be closed. The application
+    can affect this by handling the QEvent::Quit event on the application
+    level, or QEvent::Close events for the individual windows.
+
+    If the quit is not interrupted the application will exit with return
+    code 0 (success).
+
+    To exit the application without a chance of being interrupted, call
+    exit() directly.
 
     It's good practice to always connect signals to this slot using a
     \l{Qt::}{QueuedConnection}. If a signal connected (non-queued) to this slot
@@ -1964,12 +1968,26 @@ void QCoreApplicationPrivate::maybeQuit()
 
     \snippet code/src_corelib_kernel_qcoreapplication.cpp 1
 
-    \sa exit(), aboutToQuit(), QGuiApplication::lastWindowClosed()
+    \sa exit(), aboutToQuit()
 */
-
 void QCoreApplication::quit()
 {
-    exit(0);
+    if (!self)
+        return;
+
+    self->d_func()->quit();
+}
+
+void QCoreApplicationPrivate::quit()
+{
+    Q_Q(QCoreApplication);
+
+    if (QThread::currentThread() == mainThread()) {
+        QEvent quitEvent(QEvent::Quit);
+        QCoreApplication::sendEvent(q, &quitEvent);
+    } else {
+        QCoreApplication::postEvent(q, new QEvent(QEvent::Quit));
+    }
 }
 
 /*!
@@ -2405,32 +2423,46 @@ QStringList QCoreApplication::arguments()
         qWarning("QCoreApplication::arguments: Please instantiate the QApplication object first");
         return list;
     }
-    const int ac = self->d_func()->argc;
-    char ** const av = self->d_func()->argv;
-    list.reserve(ac);
-
-#if defined(Q_OS_WIN)
-    // On Windows, it is possible to pass Unicode arguments on
-    // the command line. To restore those, we split the command line
-    // and filter out arguments that were deleted by derived application
-    // classes by index.
-    QString cmdline = QString::fromWCharArray(GetCommandLine());
 
     const QCoreApplicationPrivate *d = self->d_func();
-    if (d->origArgv) {
-        const QStringList allArguments = qWinCmdArgs(cmdline);
-        Q_ASSERT(allArguments.size() == d->origArgc);
-        for (int i = 0; i < d->origArgc; ++i) {
-            if (contains(ac, av, d->origArgv[i]))
-                list.append(allArguments.at(i));
+
+    const int argc = d->argc;
+    char ** const argv = d->argv;
+    list.reserve(argc);
+
+#if defined(Q_OS_WIN)
+    const bool argsModifiedByUser = d->origArgv == nullptr;
+    if (!argsModifiedByUser) {
+        // On Windows, it is possible to pass Unicode arguments on
+        // the command line, but we don't implement any of the wide
+        // entry-points (wmain/wWinMain), so get the arguments from
+        // the Windows API instead of using argv. Note that we only
+        // do this when argv were not modified by the user in main().
+        QString cmdline = QString::fromWCharArray(GetCommandLine());
+        QStringList commandLineArguments = qWinCmdArgs(cmdline);
+
+        // Even if the user didn't modify argv before passing them
+        // on to QCoreApplication, derived QApplications might have.
+        // If that's the case argc will differ from origArgc.
+        if (argc != d->origArgc) {
+            // Note: On MingGW the arguments from GetCommandLine are
+            // not wildcard expanded (if wildcard expansion is enabled),
+            // as opposed to the arguments in argv. This means we can't
+            // compare commandLineArguments to argv/origArgc, but
+            // must remove elements by value, based on whether they
+            // were filtered out from argc.
+            for (int i = 0; i < d->origArgc; ++i) {
+                if (!contains(argc, argv, d->origArgv[i]))
+                    commandLineArguments.removeAll(QString::fromLocal8Bit(d->origArgv[i]));
+            }
         }
-        return list;
+
+        return commandLineArguments;
     } // Fall back to rebuilding from argv/argc when a modified argv was passed.
 #endif // defined(Q_OS_WIN)
 
-    for (int a = 0; a < ac; ++a) {
-        list << QString::fromLocal8Bit(av[a]);
-    }
+    for (int a = 0; a < argc; ++a)
+        list << QString::fromLocal8Bit(argv[a]);
 
     return list;
 }
@@ -2695,7 +2727,7 @@ QStringList QCoreApplication::libraryPathsLocked()
         }
 #endif // Q_OS_DARWIN
 
-        QString installPathPlugins =  QLibraryInfo::location(QLibraryInfo::PluginsPath);
+        QString installPathPlugins =  QLibraryInfo::path(QLibraryInfo::PluginsPath);
         if (QFile::exists(installPathPlugins)) {
             // Make sure we convert from backslashes to slashes.
             installPathPlugins = QDir(installPathPlugins).canonicalPath();
@@ -3009,14 +3041,13 @@ void QCoreApplication::setEventDispatcher(QAbstractEventDispatcher *eventDispatc
     \macro Q_DECLARE_TR_FUNCTIONS(context)
     \relates QCoreApplication
 
-    The Q_DECLARE_TR_FUNCTIONS() macro declares and implements two
-    translation functions, \c tr() and \c trUtf8(), with these
-    signatures:
+    The Q_DECLARE_TR_FUNCTIONS() macro declares and implements the
+    translation function \c tr() with this signature:
 
     \snippet code/src_corelib_kernel_qcoreapplication.cpp 6
 
-    This macro is useful if you want to use QObject::tr() or
-    QObject::trUtf8() in classes that don't inherit from QObject.
+    This macro is useful if you want to use QObject::tr()  in classes
+    that don't inherit from QObject.
 
     Q_DECLARE_TR_FUNCTIONS() must appear at the very top of the
     class definition (before the first \c{public:} or \c{protected:}).
@@ -3027,7 +3058,7 @@ void QCoreApplication::setEventDispatcher(QAbstractEventDispatcher *eventDispatc
     The \a context parameter is normally the class name, but it can
     be any text.
 
-    \sa Q_OBJECT, QObject::tr(), QObject::trUtf8()
+    \sa Q_OBJECT, QObject::tr()
 */
 
 QT_END_NAMESPACE

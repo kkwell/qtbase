@@ -64,9 +64,9 @@ src_tools_qvkgen.target = sub-qvkgen
 force_bootstrap: src_tools_qvkgen.depends = src_tools_bootstrap
 else: src_tools_qvkgen.depends = src_corelib
 
-src_winmain.subdir = $$PWD/winmain
-src_winmain.target = sub-winmain
-src_winmain.depends = sub-corelib  # just for the module .pri file
+src_entrypoint.subdir = $$PWD/entrypoint
+src_entrypoint.target = sub-entrypoint
+src_entrypoint.depends = sub-corelib  # just for the module .pri file
 
 src_corelib.subdir = $$PWD/corelib
 src_corelib.target = sub-corelib
@@ -157,7 +157,9 @@ qtConfig(regularexpression):!qtConfig(system-pcre2):pcre2 {
 }
 TOOLS = src_tools_moc src_tools_rcc src_tools_tracegen src_tools_qlalr
 SUBDIRS += src_corelib src_tools_qlalr
-win32:SUBDIRS += src_winmain
+
+win32:SUBDIRS += src_entrypoint
+
 qtConfig(network) {
     SUBDIRS += src_network
     src_plugins.depends += src_network
@@ -239,7 +241,6 @@ qtConfig(private_tests) {
         src_network_doc_snippets.subdir = network/doc/snippets
         src_network_doc_snippets.target = sub-network-doc-snippets
         src_network_doc_snippets.depends = src_network src_gui
-        uikit: src_network_doc_snippets.depends += src_plugins
         SUBDIRS += src_network_doc_snippets
     }
 
@@ -247,7 +248,6 @@ qtConfig(private_tests) {
         src_sql_doc_snippets.subdir = sql/doc/snippets
         src_sql_doc_snippets.target = sub-sql-doc-snippets
         src_sql_doc_snippets.depends = src_sql
-        uikit: src_network_doc_snippets.depends += src_plugins
         SUBDIRS += src_sql_doc_snippets
     }
 
@@ -255,7 +255,6 @@ qtConfig(private_tests) {
         src_testlib_doc_snippets.subdir = testlib/doc/snippets
         src_testlib_doc_snippets.target = sub-testlib-doc-snippets
         src_testlib_doc_snippets.depends = src_testlib src_widgets src_sql
-        uikit: src_network_doc_snippets.depends += src_plugins
         SUBDIRS += src_testlib_doc_snippets
     }
 
@@ -263,7 +262,6 @@ qtConfig(private_tests) {
         src_widgets_doc_snippets.subdir = widgets/doc/snippets
         src_widgets_doc_snippets.target = sub-widgets-doc-snippets
         src_widgets_doc_snippets.depends = src_widgets src_printsupport src_opengl
-        uikit: src_network_doc_snippets.depends += src_plugins
         SUBDIRS += src_widgets_doc_snippets
     }
 }

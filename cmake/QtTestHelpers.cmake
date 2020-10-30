@@ -1,12 +1,12 @@
-# Simple wrapper around qt_add_executable for benchmarks which insure that
+# Simple wrapper around qt_internal_add_executable for benchmarks which insure that
 # the binary is built under ${CMAKE_CURRENT_BINARY_DIR} and never installed.
-# See qt_add_executable() for more details.
-function(qt_add_benchmark target)
+# See qt_internal_add_executable() for more details.
+function(qt_internal_add_benchmark target)
 
     qt_parse_all_arguments(arg "qt_add_benchmark"
-        "${__qt_add_executable_optional_args}"
-        "${__qt_add_executable_single_args}"
-        "${__qt_add_executable_multi_args}"
+        "${__qt_internal_add_executable_optional_args}"
+        "${__qt_internal_add_executable_single_args}"
+        "${__qt_internal_add_executable_multi_args}"
         ${ARGN}
     )
 
@@ -16,9 +16,9 @@ function(qt_add_benchmark target)
             OUTPUT_DIRECTORY
             INSTALL_DIRECTORY
         ALL_ARGS
-            "${__qt_add_executable_optional_args}"
-            "${__qt_add_executable_single_args}"
-            "${__qt_add_executable_multi_args}"
+            "${__qt_internal_add_executable_optional_args}"
+            "${__qt_internal_add_executable_single_args}"
+            "${__qt_internal_add_executable_multi_args}"
         ARGS
             ${ARGV}
     )
@@ -27,7 +27,7 @@ function(qt_add_benchmark target)
         set(arg_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
     endif()
 
-    qt_add_executable(${target}
+    qt_internal_add_executable(${target}
         NO_INSTALL # we don't install benchmarks
         OUTPUT_DIRECTORY "${arg_OUTPUT_DIRECTORY}" # avoid polluting bin directory
         ${exec_args}
@@ -35,15 +35,15 @@ function(qt_add_benchmark target)
 
 endfunction()
 
-# Simple wrapper around qt_add_executable for manual tests which insure that
+# Simple wrapper around qt_internal_add_executable for manual tests which insure that
 # the binary is built under ${CMAKE_CURRENT_BINARY_DIR} and never installed.
-# See qt_add_executable() for more details.
-function(qt_add_manual_test target)
+# See qt_internal_add_executable() for more details.
+function(qt_internal_add_manual_test target)
 
     qt_parse_all_arguments(arg "qt_add_manual_test"
-        "${__qt_add_executable_optional_args}"
-        "${__qt_add_executable_single_args}"
-        "${__qt_add_executable_multi_args}"
+        "${__qt_internal_add_executable_optional_args}"
+        "${__qt_internal_add_executable_single_args}"
+        "${__qt_internal_add_executable_multi_args}"
         ${ARGN}
     )
 
@@ -53,9 +53,9 @@ function(qt_add_manual_test target)
             OUTPUT_DIRECTORY
             INSTALL_DIRECTORY
         ALL_ARGS
-            "${__qt_add_executable_optional_args}"
-            "${__qt_add_executable_single_args}"
-            "${__qt_add_executable_multi_args}"
+            "${__qt_internal_add_executable_optional_args}"
+            "${__qt_internal_add_executable_single_args}"
+            "${__qt_internal_add_executable_multi_args}"
         ARGS
             ${ARGV}
     )
@@ -64,7 +64,7 @@ function(qt_add_manual_test target)
         set(arg_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
     endif()
 
-    qt_add_executable(${target}
+    qt_internal_add_executable(${target}
         NO_INSTALL # we don't install benchmarks
         OUTPUT_DIRECTORY "${arg_OUTPUT_DIRECTORY}" # avoid polluting bin directory
         ${exec_args}
@@ -72,13 +72,80 @@ function(qt_add_manual_test target)
 
 endfunction()
 
+# This function will configure the fixture for the network tests that require docker network services
+# qmake counterpart: qtbase/mkspecs/features/unsupported/testserver.prf
+function(qt_internal_setup_docker_test_fixture name)
+    # Only Linux is provisioned with docker at this time
+    if (NOT CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+      return()
+    endif()
+
+    set(QT_TEST_SERVER_LIST ${ARGN})
+    set(DNSDOMAIN test-net.qt.local)
+
+    find_program(QT_DOCKER_COMPOSE docker-compose)
+    if (NOT QT_DOCKER_COMPOSE)
+        message(WARNING "docker-compose was not found. Docker network tests will not be run.")
+        return()
+    endif()
+    if (NOT DEFINED QT_DOCKER_COMPOSE_VERSION)
+      execute_process(COMMAND "${QT_DOCKER_COMPOSE}" --version OUTPUT_VARIABLE QT_DOCKER_COMPOSE_VERSION)
+      string(REPLACE "\n" "" QT_DOCKER_COMPOSE_VERSION "${QT_DOCKER_COMPOSE_VERSION}")
+      set(QT_DOCKER_COMPOSE_VERSION "${QT_DOCKER_COMPOSE_VERSION}" CACHE STRING "docker compose version")
+    endif()
+
+    find_program(QT_DOCKER docker)
+    if (NOT QT_DOCKER)
+        message(WARNING "docker was not found. Docker network tests will not be run.")
+        return()
+    endif()
+    if (NOT DEFINED QT_DOCKER_TEST_SERVER)
+        execute_process(COMMAND "${QT_DOCKER}" images -aq "qt-test-server-*" OUTPUT_VARIABLE QT_DOCKER_TEST_SERVER)
+        if (NOT QT_DOCKER_TEST_SERVER)
+            message(WARNING
+                "Docker image qt-test-server-* not found.\n"
+                "Run the provisioning script (coin/provisioning/.../testserver/docker_testserver.sh) in advance\n"
+                "Docker network tests will not be run.")
+            return()
+        endif()
+        set(QT_DOCKER_TEST_SERVER "ON" CACHE BOOL "docker qt-test-server-* present")
+    endif()
+
+    target_compile_definitions("${name}"
+        PRIVATE
+            QT_TEST_SERVER QT_TEST_SERVER_NAME QT_TEST_SERVER_DOMAIN=\"${DNSDOMAIN}\"
+    )
+
+    set(TESTSERVER_COMPOSE_FILE "${QT_SOURCE_TREE}/tests/testserver/docker-compose-bridge-network.yml")
+
+    # Bring up test servers and make sure the services are ready.
+    add_test(NAME ${name}-setup COMMAND
+        "${QT_DOCKER_COMPOSE}" -f ${TESTSERVER_COMPOSE_FILE} up --build -d --force-recreate --timeout 1 ${QT_TEST_SERVER_LIST}
+    )
+    # Stop and remove test servers after testing.
+    add_test(NAME ${name}-cleanup COMMAND
+        "${QT_DOCKER_COMPOSE}" -f ${TESTSERVER_COMPOSE_FILE} down --timeout 1
+    )
+
+    set_tests_properties(${name}-setup PROPERTIES FIXTURES_SETUP ${name}-docker)
+    set_tests_properties(${name}-cleanup PROPERTIES FIXTURES_CLEANUP ${name}-docker)
+    set_tests_properties(${name} PROPERTIES FIXTURES_REQUIRED ${name}-docker)
+
+    foreach(test_name ${name} ${name}-setup ${name}-cleanup)
+        set_property(TEST "${test_name}" APPEND PROPERTY ENVIRONMENT "testserver=${QT_DOCKER_COMPOSE_VERSION}")
+        set_property(TEST "${test_name}" APPEND PROPERTY ENVIRONMENT TEST_DOMAIN=${DNSDOMAIN})
+        set_property(TEST "${test_name}" APPEND PROPERTY ENVIRONMENT "SHARED_DATA=${QT_SOURCE_TREE}/mkspecs/features/data/testserver")
+        set_property(TEST "${test_name}" APPEND PROPERTY ENVIRONMENT SHARED_SERVICE=bridge-network)
+    endforeach()
+
+endfunction()
 
 # This function creates a CMake test target with the specified name for use with CTest.
-function(qt_add_test name)
+function(qt_internal_add_test name)
     qt_parse_all_arguments(arg "qt_add_test"
         "RUN_SERIAL;EXCEPTIONS;GUI;QMLTEST;CATCH;LOWDPI"
         "OUTPUT_DIRECTORY;WORKING_DIRECTORY;TIMEOUT;VERSION"
-        "QML_IMPORTPATH;TESTDATA;${__default_private_args};${__default_public_args}" ${ARGN}
+        "QML_IMPORTPATH;TESTDATA;QT_TEST_SERVER_LIST;${__default_private_args};${__default_public_args}" ${ARGN}
     )
 
     if (NOT arg_OUTPUT_DIRECTORY)
@@ -106,7 +173,7 @@ function(qt_add_test name)
              ${arg_INCLUDE_DIRECTORIES}
         )
 
-        qt_add_executable("${name}"
+        qt_internal_add_executable("${name}"
             ${exceptions_text}
             ${gui_text}
             ${version_arg}
@@ -138,16 +205,16 @@ function(qt_add_test name)
 
         # QMLTest specifics
 
-        qt_extend_target("${name}" CONDITION arg_QMLTEST
+        qt_internal_extend_target("${name}" CONDITION arg_QMLTEST
             PUBLIC_LIBRARIES ${QT_CMAKE_EXPORT_NAMESPACE}::QuickTest
         )
 
-        qt_extend_target("${name}" CONDITION arg_QMLTEST AND NOT ANDROID
+        qt_internal_extend_target("${name}" CONDITION arg_QMLTEST AND NOT ANDROID
             DEFINES
                 QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
         )
 
-        qt_extend_target("${name}" CONDITION arg_QMLTEST AND ANDROID
+        qt_internal_extend_target("${name}" CONDITION arg_QMLTEST AND ANDROID
             DEFINES
                 QUICK_TEST_SOURCE_DIR=":/"
         )
@@ -170,7 +237,7 @@ function(qt_add_test name)
     endif()
 
     if (ANDROID)
-        qt_android_add_test("${name}")
+        qt_internal_android_add_test("${name}")
     else()
         if(arg_QMLTEST AND NOT arg_SOURCES)
             set(test_working_dir "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -191,6 +258,10 @@ function(qt_add_test name)
         endif()
 
         add_test(NAME "${name}" COMMAND ${test_executable} ${extra_test_args} ${test_outputs} WORKING_DIRECTORY "${test_working_dir}")
+
+        if (arg_QT_TEST_SERVER_LIST)
+            qt_internal_setup_docker_test_fixture(${name} ${arg_QT_TEST_SERVER_LIST})
+        endif()
     endif()
     set_tests_properties("${name}" PROPERTIES RUN_SERIAL "${arg_RUN_SERIAL}" LABELS "${label}")
     if (arg_TIMEOUT)
@@ -272,7 +343,7 @@ function(qt_add_test name)
             endforeach()
 
             if (builtin_files)
-                qt_add_resource(${name} "${name}_testdata_builtin"
+                qt_internal_add_resource(${name} "${name}_testdata_builtin"
                     PREFIX "/"
                     FILES ${builtin_files}
                     BASE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -306,16 +377,16 @@ endfunction()
 # tests launch separate programs to test certain input/output behavior.
 # Specify OVERRIDE_OUTPUT_DIRECTORY if you dont' want to place the helper in the parent directory,
 # in which case you should specify OUTPUT_DIRECTORY "/foo/bar" manually.
-function(qt_add_test_helper name)
+function(qt_internal_add_test_helper name)
 
     set(qt_add_test_helper_optional_args
         "OVERRIDE_OUTPUT_DIRECTORY"
     )
 
     qt_parse_all_arguments(arg "qt_add_test_helper"
-        "${qt_add_test_helper_optional_args};${__qt_add_executable_optional_args}"
-        "${__qt_add_executable_single_args}"
-        "${__qt_add_executable_multi_args}"
+        "${qt_add_test_helper_optional_args};${__qt_internal_add_executable_optional_args}"
+        "${__qt_internal_add_executable_single_args}"
+        "${__qt_internal_add_executable_multi_args}"
          ${ARGN})
 
     qt_remove_args(forward_args
@@ -324,9 +395,9 @@ function(qt_add_test_helper name)
             ${qt_add_test_helper_optional_args}
         ALL_ARGS
             ${qt_add_test_helper_optional_args}
-            ${__qt_add_executable_optional_args}
-            ${__qt_add_executable_single_args}
-            ${__qt_add_executable_multi_args}
+            ${__qt_internal_add_executable_optional_args}
+            ${__qt_internal_add_executable_single_args}
+            ${__qt_internal_add_executable_multi_args}
         ARGS
             ${ARGV}
     )
@@ -336,5 +407,5 @@ function(qt_add_test_helper name)
         set(extra_args_to_pass OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/..")
     endif()
 
-    qt_add_executable("${name}" NO_INSTALL ${extra_args_to_pass} ${forward_args})
+    qt_internal_add_executable("${name}" NO_INSTALL ${extra_args_to_pass} ${forward_args})
 endfunction()

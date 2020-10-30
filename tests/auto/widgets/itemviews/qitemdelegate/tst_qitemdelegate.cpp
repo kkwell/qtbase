@@ -72,12 +72,12 @@ Q_DECLARE_METATYPE(QAbstractItemDelegate::EndEditHint)
 class TestItemDelegate : public QItemDelegate
 {
 public:
-    TestItemDelegate(QObject *parent = 0) : QItemDelegate(parent) {}
+    TestItemDelegate(QObject *parent = nullptr) : QItemDelegate(parent) {}
     ~TestItemDelegate() {}
 
     void drawDisplay(QPainter *painter,
                      const QStyleOptionViewItem &option,
-                     const QRect &rect, const QString &text) const
+                     const QRect &rect, const QString &text) const override
     {
         displayText = text;
         displayFont = option.font;
@@ -86,7 +86,7 @@ public:
 
     void drawDecoration(QPainter *painter,
                         const QStyleOptionViewItem &option,
-                        const QRect &rect, const QPixmap &pixmap) const
+                        const QRect &rect, const QPixmap &pixmap) const override
     {
         decorationPixmap = pixmap;
         decorationRect = rect;
@@ -113,7 +113,7 @@ public:
         return QItemDelegate::rect(option, index, role);
     }
 
-    inline bool eventFilter(QObject *object, QEvent *event)
+    inline bool eventFilter(QObject *object, QEvent *event) override
     {
         return QItemDelegate::eventFilter(object, event);
     }
@@ -121,7 +121,7 @@ public:
     inline bool editorEvent(QEvent *event,
                             QAbstractItemModel *model,
                             const QStyleOptionViewItem &option,
-                            const QModelIndex &index)
+                            const QModelIndex &index) override
     {
         return QItemDelegate::editorEvent(event, model, option, index);
     }
@@ -149,19 +149,19 @@ public:
 
     ~TestItemModel() {}
 
-    int rowCount(const QModelIndex &parent) const
+    int rowCount(const QModelIndex &parent) const override
     {
         Q_UNUSED(parent);
         return 1;
     }
 
-    int columnCount(const QModelIndex &parent) const
+    int columnCount(const QModelIndex &parent) const override
     {
         Q_UNUSED(parent);
         return 1;
     }
 
-    QVariant data(const QModelIndex& index, int role) const
+    QVariant data(const QModelIndex& index, int role) const override
     {
         Q_UNUSED(index);
         static QPixmap pixmap(size);
@@ -812,7 +812,7 @@ void tst_QItemDelegate::dateTimeEditor()
 class ChooseEditorDelegate : public QItemDelegate
 {
 public:
-    virtual QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem &o, const QModelIndex &i) const
+    virtual QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem &o, const QModelIndex &i) const override
     {
         if (m_editor) {
             m_editor->setParent(parent);
@@ -822,14 +822,14 @@ public:
         return m_editor;
     }
 
-    virtual void destroyEditor(QWidget *editor, const QModelIndex &i) const
+    virtual void destroyEditor(QWidget *editor, const QModelIndex &i) const override
     {   // This is a reimplementation of QAbstractItemDelegate::destroyEditor just set the variable m_editor to 0
         // The only reason we do this is to avoid the not recommended direct delete of editor (destroyEditor uses deleteLater)
         QItemDelegate::destroyEditor(editor, i); // Allow destroy
         m_editor = 0;                            // but clear the variable
     }
 
-    ChooseEditorDelegate(QObject *parent = 0) : QItemDelegate(parent) { }
+    ChooseEditorDelegate(QObject *parent = nullptr) : QItemDelegate(parent) { }
     void setNextOpenEditor(QWidget *w) { m_editor = w; }
     QWidget* currentEditor() const { return m_editor; }
 private:
@@ -881,7 +881,7 @@ void tst_QItemDelegate::dateAndTimeEditorTest2()
     QCOMPARE(w.fastEdit(i1), timeEdit.data());
     timeEdit->setTime(time1);
     d->setModelData(timeEdit, &s, i1);
-    QCOMPARE(s.data(i1).type(), QVariant::Time); // ensure that we wrote a time variant.
+    QCOMPARE(s.data(i1).metaType().id(), QMetaType::QTime); // ensure that we wrote a time variant.
     QCOMPARE(s.data(i1).toTime(), time1);        // ensure that it is the correct time.
     w.doCloseEditor(timeEdit);
     QVERIFY(d->currentEditor() == 0); // should happen at doCloseEditor. We only test this once.
@@ -910,7 +910,7 @@ void tst_QItemDelegate::dateAndTimeEditorTest2()
     QCOMPARE(dateTimeEdit->dateTime(), datetime2);
     dateTimeEdit->setDateTime(datetime1);
     d->setModelData(dateTimeEdit, &s, i1);
-    QCOMPARE(s.data(i1).type(), QVariant::DateTime); // ensure that we wrote a datetime variant.
+    QCOMPARE(s.data(i1).metaType().id(), QMetaType::QDateTime); // ensure that we wrote a datetime variant.
     QCOMPARE(s.data(i1).toDateTime(), datetime1);
     w.doCloseEditor(dateTimeEdit);
 
@@ -921,7 +921,7 @@ void tst_QItemDelegate::dateAndTimeEditorTest2()
     QCOMPARE(w.fastEdit(i2), dateEdit.data());
     dateEdit->setDate(date1);
     d->setModelData(dateEdit, &s, i2);
-    QCOMPARE(s.data(i2).type(), QVariant::Date); // ensure that we wrote a time variant.
+    QCOMPARE(s.data(i2).metaType().id(), QMetaType::QDate); // ensure that we wrote a time variant.
     QCOMPARE(s.data(i2).toDate(), date1);        // ensure that it is the correct date.
     w.doCloseEditor(dateEdit);
 
@@ -1002,30 +1002,30 @@ void tst_QItemDelegate::decoration_data()
     int pm = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
 
     QTest::newRow("pixmap 30x30")
-        << (int)QVariant::Pixmap
+        << (int)QMetaType::QPixmap
         << QSize(30, 30)
         << QSize(30, 30);
 
     QTest::newRow("image 30x30")
-        << (int)QVariant::Image
+        << (int)QMetaType::QImage
         << QSize(30, 30)
         << QSize(30, 30);
 
 //The default engine scales pixmaps down if required, but never up. For WinCE we need bigger IconSize than 30
     QTest::newRow("icon 30x30")
-        << (int)QVariant::Icon
+        << (int)QMetaType::QIcon
         << QSize(60, 60)
         << QSize(pm, pm);
 
     QTest::newRow("color 30x30")
-        << (int)QVariant::Color
+        << (int)QMetaType::QColor
         << QSize(30, 30)
         << QSize(pm, pm);
 
     // This demands too much memory and potentially hangs. Feel free to uncomment
     // for your own testing.
 //    QTest::newRow("pixmap 30x30 big")
-//        << (int)QVariant::Pixmap
+//        << (int)QMetaType::QPixmap
 //        << QSize(1024, 1024)        // Over 1M
 //        << QSize(1024, 1024);
 }
@@ -1049,26 +1049,26 @@ void tst_QItemDelegate::decoration()
     QVERIFY(QTest::qWaitForWindowActive(&table));
 
     QVariant value;
-    switch ((QVariant::Type)type) {
-    case QVariant::Pixmap: {
+    switch (type) {
+    case QMetaType::QPixmap: {
         QPixmap pm(size);
         pm.fill(Qt::black);
         value = pm;
         break;
     }
-    case QVariant::Image: {
+    case QMetaType::QImage: {
         QImage img(size, QImage::Format_Mono);
         memset(img.bits(), 0, img.sizeInBytes());
         value = img;
         break;
     }
-    case QVariant::Icon: {
+    case QMetaType::QIcon: {
         QPixmap pm(size);
         pm.fill(Qt::black);
         value = QIcon(pm);
         break;
     }
-    case QVariant::Color:
+    case QMetaType::QColor:
         value = QColor(Qt::green);
         break;
     default:
@@ -1307,7 +1307,7 @@ void tst_QItemDelegate::enterKey()
     struct TestDelegate : public QItemDelegate
     {
         WidgetType widgetType;
-        virtual QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& /*option*/, const QModelIndex& /*index*/) const
+        virtual QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem& /*option*/, const QModelIndex& /*index*/) const override
         {
             QWidget *editor = 0;
             switch(widgetType) {
@@ -1456,7 +1456,7 @@ void tst_QItemDelegate::testLineEditValidation()
 
     struct TestDelegate : public QItemDelegate
     {
-        virtual QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const
+        virtual QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override
         {
             Q_UNUSED(option);
             Q_UNUSED(index);

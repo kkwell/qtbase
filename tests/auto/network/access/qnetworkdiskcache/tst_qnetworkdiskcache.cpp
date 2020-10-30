@@ -129,7 +129,7 @@ public slots:
             if (doClose) {
                 client->disconnectFromHost();
                 disconnect(client, 0, this, 0);
-                client = 0;
+                client = nullptr;
             }
         }
     }
@@ -155,7 +155,7 @@ public:
     {
         setCacheDirectory(path);
 
-        QIODevice *d = 0;
+        QIODevice *d = nullptr;
         if (metaData.isValid()) {
             d = prepare(metaData);
         } else {
@@ -668,7 +668,7 @@ public:
         , cachePath(cachePath)
     {}
 
-    void run()
+    void run() override
     {
         QByteArray longString = "Hello World, this is some long string, well not really that long";
         for (int j = 0; j < 10; ++j)

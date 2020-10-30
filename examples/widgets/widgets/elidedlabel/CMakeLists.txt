@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(elidedlabel
+qt_add_executable(elidedlabel
     elidedlabel.cpp elidedlabel.h
     main.cpp
     testwidget.cpp testwidget.h
+)
+set_target_properties(elidedlabel PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(elidedlabel PUBLIC
     Qt::Core

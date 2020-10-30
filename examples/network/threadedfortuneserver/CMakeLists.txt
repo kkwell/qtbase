@@ -20,11 +20,15 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(threadedfortuneserver
+qt_add_executable(threadedfortuneserver
     dialog.cpp dialog.h
     fortuneserver.cpp fortuneserver.h
     fortunethread.cpp fortunethread.h
     main.cpp
+)
+set_target_properties(threadedfortuneserver PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(threadedfortuneserver PUBLIC
     Qt::Core

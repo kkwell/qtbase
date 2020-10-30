@@ -84,7 +84,7 @@ class LabelLineEdit : public QLineEdit
 {
     Q_OBJECT
 public:
-    explicit LabelLineEdit(QFileDialog::DialogLabel label, QWidget *parent = 0) : QLineEdit(parent), m_label(label), m_dirty(false)
+    explicit LabelLineEdit(QFileDialog::DialogLabel label, QWidget *parent = nullptr) : QLineEdit(parent), m_label(label), m_dirty(false)
     {
         connect(this, SIGNAL(textEdited(QString)), this, SLOT(setDirty()));
     }
@@ -440,7 +440,7 @@ void FileDialogPanel::restoreDefaults()
     m_confirmOverWrite->setChecked(!d.testOption(QFileDialog::DontConfirmOverwrite));
     m_nameFilterDetailsVisible->setChecked(!d.testOption(QFileDialog::HideNameFilterDetails));
     m_resolveSymLinks->setChecked(!d.testOption(QFileDialog::DontResolveSymlinks));
-    m_readOnly->setChecked(d.isReadOnly());
+    m_readOnly->setChecked(d.testOption(QFileDialog::ReadOnly));
     m_native->setChecked(true);
     m_customDirIcons->setChecked(d.testOption(QFileDialog::DontUseCustomDirectoryIcons));
     m_directory->setText(QDir::homePath());

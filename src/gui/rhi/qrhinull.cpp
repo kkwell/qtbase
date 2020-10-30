@@ -149,6 +149,16 @@ int QRhiNull::resourceLimit(QRhi::ResourceLimit limit) const
         return 1;
     case QRhi::MaxAsyncReadbackFrames:
         return 1;
+    case QRhi::MaxThreadGroupsPerDimension:
+        return 0;
+    case QRhi::MaxThreadsPerThreadGroup:
+        return 0;
+    case QRhi::MaxThreadGroupX:
+        return 0;
+    case QRhi::MaxThreadGroupY:
+        return 0;
+    case QRhi::MaxThreadGroupZ:
+        return 0;
     default:
         Q_UNREACHABLE();
         return 0;
@@ -449,22 +459,24 @@ void QRhiNull::resourceUpdate(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *re
 {
     Q_UNUSED(cb);
     QRhiResourceUpdateBatchPrivate *ud = QRhiResourceUpdateBatchPrivate::get(resourceUpdates);
-    for (const QRhiResourceUpdateBatchPrivate::BufferOp &u : ud->bufferOps) {
+    for (int opIdx = 0; opIdx < ud->activeBufferOpCount; ++opIdx) {
+        const QRhiResourceUpdateBatchPrivate::BufferOp &u(ud->bufferOps[opIdx]);
         if (u.type == QRhiResourceUpdateBatchPrivate::BufferOp::DynamicUpdate
                 || u.type == QRhiResourceUpdateBatchPrivate::BufferOp::StaticUpload)
         {
             QNullBuffer *bufD = QRHI_RES(QNullBuffer, u.buf);
-            memcpy(bufD->data.data() + u.offset, u.data.constData(), size_t(u.data.size()));
+            memcpy(bufD->data + u.offset, u.data.constData(), size_t(u.data.size()));
         } else if (u.type == QRhiResourceUpdateBatchPrivate::BufferOp::Read) {
             QRhiBufferReadbackResult *result = u.result;
             result->data.resize(u.readSize);
             QNullBuffer *bufD = QRHI_RES(QNullBuffer, u.buf);
-            memcpy(result->data.data(), bufD->data.constData() + u.offset, size_t(u.readSize));
+            memcpy(result->data.data(), bufD->data + u.offset, size_t(u.readSize));
             if (result->completed)
                 result->completed();
         }
     }
-    for (const QRhiResourceUpdateBatchPrivate::TextureOp &u : ud->textureOps) {
+    for (int opIdx = 0; opIdx < ud->activeTextureOpCount; ++opIdx) {
+        const QRhiResourceUpdateBatchPrivate::TextureOp &u(ud->textureOps[opIdx]);
         if (u.type == QRhiResourceUpdateBatchPrivate::TextureOp::Upload) {
             if (u.dst->format() == QRhiTexture::RGBA8)
                 simulateTextureUpload(u);
@@ -510,11 +522,13 @@ void QRhiNull::beginPass(QRhiCommandBuffer *cb,
                          QRhiRenderTarget *rt,
                          const QColor &colorClearValue,
                          const QRhiDepthStencilClearValue &depthStencilClearValue,
-                         QRhiResourceUpdateBatch *resourceUpdates)
+                         QRhiResourceUpdateBatch *resourceUpdates,
+                         QRhiCommandBuffer::BeginPassFlags flags)
 {
     Q_UNUSED(rt);
     Q_UNUSED(colorClearValue);
     Q_UNUSED(depthStencilClearValue);
+    Q_UNUSED(flags);
     if (resourceUpdates)
         resourceUpdate(cb, resourceUpdates);
 }
@@ -525,8 +539,11 @@ void QRhiNull::endPass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceU
         resourceUpdate(cb, resourceUpdates);
 }
 
-void QRhiNull::beginComputePass(QRhiCommandBuffer *cb, QRhiResourceUpdateBatch *resourceUpdates)
+void QRhiNull::beginComputePass(QRhiCommandBuffer *cb,
+                                QRhiResourceUpdateBatch *resourceUpdates,
+                                QRhiCommandBuffer::BeginPassFlags flags)
 {
+    Q_UNUSED(flags);
     if (resourceUpdates)
         resourceUpdate(cb, resourceUpdates);
 }
@@ -549,7 +566,8 @@ QNullBuffer::~QNullBuffer()
 
 void QNullBuffer::destroy()
 {
-    data.clear();
+    delete[] data;
+    data = nullptr;
 
     QRHI_PROF;
     QRHI_PROF_F(releaseBuffer(this));
@@ -557,11 +575,18 @@ void QNullBuffer::destroy()
 
 bool QNullBuffer::create()
 {
-    data.fill('\0', m_size);
+    data = new char[m_size];
+    memset(data, 0, m_size);
 
     QRHI_PROF;
     QRHI_PROF_F(newBuffer(this, uint(m_size), 1, 0));
     return true;
+}
+
+char *QNullBuffer::beginFullDynamicBufferUpdateForCurrentFrame()
+{
+    Q_ASSERT(m_type == Dynamic);
+    return data;
 }
 
 QNullRenderBuffer::QNullRenderBuffer(QRhiImplementation *rhi, Type type, const QSize &pixelSize,
@@ -788,6 +813,12 @@ void QNullShaderResourceBindings::destroy()
 
 bool QNullShaderResourceBindings::create()
 {
+    QRHI_RES_RHI(QRhiNull);
+    if (!rhiD->sanityCheckShaderResourceBindings(this))
+        return false;
+
+    rhiD->updateLayoutDesc(this);
+
     return true;
 }
 

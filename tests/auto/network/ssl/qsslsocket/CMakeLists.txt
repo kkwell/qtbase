@@ -11,7 +11,7 @@ endif()
 # Collect test data
 list(APPEND test_data "certs")
 
-qt_add_test(tst_qsslsocket
+qt_internal_add_test(tst_qsslsocket
     SOURCES
         tst_qsslsocket.cpp
     DEFINES
@@ -20,6 +20,7 @@ qt_add_test(tst_qsslsocket
         Qt::CorePrivate
         Qt::NetworkPrivate
     TESTDATA ${test_data}
+    QT_TEST_SERVER_LIST "squid" "danted" "cyrus" "apache2" "echo" # special case
 )
 
 #### Keys ignored in scope 1:.:.:qsslsocket.pro:<TRUE>:

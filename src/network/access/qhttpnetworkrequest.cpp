@@ -45,7 +45,7 @@ QT_BEGIN_NAMESPACE
 QHttpNetworkRequestPrivate::QHttpNetworkRequestPrivate(QHttpNetworkRequest::Operation op,
         QHttpNetworkRequest::Priority pri, const QUrl &newUrl)
     : QHttpNetworkHeaderPrivate(newUrl), operation(op), priority(pri), uploadByteDevice(nullptr),
-      autoDecompress(false), pipeliningAllowed(false), http2Allowed(false),
+      autoDecompress(false), pipeliningAllowed(false), http2Allowed(true),
       http2Direct(false), withCredentials(true), preConnect(false), redirectCount(0),
       redirectPolicy(QNetworkRequest::ManualRedirectPolicy)
 {
@@ -64,6 +64,7 @@ QHttpNetworkRequestPrivate::QHttpNetworkRequestPrivate(const QHttpNetworkRequest
       withCredentials(other.withCredentials),
       ssl(other.ssl),
       preConnect(other.preConnect),
+      ignoreDecompressionRatio(other.ignoreDecompressionRatio),
       redirectCount(other.redirectCount),
       redirectPolicy(other.redirectPolicy),
       peerVerifyName(other.peerVerifyName)
@@ -400,6 +401,16 @@ QString QHttpNetworkRequest::peerVerifyName() const
 void QHttpNetworkRequest::setPeerVerifyName(const QString &peerName)
 {
     d->peerVerifyName = peerName;
+}
+
+bool QHttpNetworkRequest::ignoreDecompressionRatio()
+{
+    return d->ignoreDecompressionRatio;
+}
+
+void QHttpNetworkRequest::setIgnoreDecompressionRatio(bool enabled)
+{
+    d->ignoreDecompressionRatio = enabled;
 }
 
 QT_END_NAMESPACE

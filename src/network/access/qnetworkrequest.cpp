@@ -269,7 +269,7 @@ QT_BEGIN_NAMESPACE
         to different policies.
 
     \value Http2AllowedAttribute
-        Requests only, type: QMetaType::Bool (default: false)
+        Requests only, type: QMetaType::Bool (default: true)
         Indicates whether the QNetworkAccessManager code is
         allowed to use HTTP/2 with this request. This applies
         to SSL requests or 'cleartext' HTTP/2.
@@ -373,10 +373,11 @@ QT_BEGIN_NAMESPACE
     Indicates whether the Network Access API should automatically follow a
     HTTP redirect response or not.
 
-    \value ManualRedirectPolicy        Default value: not following any redirects.
+    \value ManualRedirectPolicy        Not following any redirects.
 
-    \value NoLessSafeRedirectPolicy    Only "http"->"http", "http" -> "https"
-                                       or "https" -> "https" redirects are allowed.
+    \value NoLessSafeRedirectPolicy    Default value: Only "http"->"http",
+                                       "http" -> "https" or "https" -> "https" redirects
+                                       are allowed.
 
     \value SameOriginRedirectPolicy    Require the same protocol, host and port.
                                        Note, http://example.com and http://example.com:80

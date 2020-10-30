@@ -755,8 +755,10 @@ void QNetworkReplyHttpImplPrivate::postRequest(const QNetworkRequest &newHttpReq
     if (newHttpRequest.attribute(QNetworkRequest::HttpPipeliningAllowedAttribute).toBool())
         httpRequest.setPipeliningAllowed(true);
 
-    if (request.attribute(QNetworkRequest::Http2AllowedAttribute).toBool())
-        httpRequest.setHTTP2Allowed(true);
+    if (auto allowed = request.attribute(QNetworkRequest::Http2AllowedAttribute);
+        allowed.isValid() && allowed.canConvert<bool>()) {
+        httpRequest.setHTTP2Allowed(allowed.value<bool>());
+    }
 
     if (request.attribute(QNetworkRequest::Http2DirectAttribute).toBool()) {
         // Intentionally mutually exclusive - cannot be both direct and 'allowed'
@@ -771,6 +773,14 @@ void QNetworkReplyHttpImplPrivate::postRequest(const QNetworkRequest &newHttpReq
 
     if (request.attribute(QNetworkRequest::EmitAllUploadProgressSignalsAttribute).toBool())
         emitAllUploadProgressSignals = true;
+
+    // For internal use/testing
+    auto ignoreDownloadRatio =
+            request.attribute(QNetworkRequest::Attribute(QNetworkRequest::User - 1));
+    if (!ignoreDownloadRatio.isNull() && ignoreDownloadRatio.canConvert<QByteArray>()
+        && ignoreDownloadRatio.toByteArray() == "__qdecompresshelper_ignore_download_ratio") {
+        httpRequest.setIgnoreDecompressionRatio(true);
+    }
 
     httpRequest.setPeerVerifyName(newHttpRequest.peerVerifyName());
 

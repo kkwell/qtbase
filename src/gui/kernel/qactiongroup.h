@@ -37,8 +37,8 @@
 **
 ****************************************************************************/
 
-#ifndef QGUIACTIONGROUP_H
-#define QGUIACTIONGROUP_H
+#ifndef QACTIONGROUP_H
+#define QACTIONGROUP_H
 
 #include <QtGui/qtguiglobal.h>
 #include <QtGui/qaction.h>
@@ -107,4 +107,4 @@ private:
 
 QT_END_NAMESPACE
 
-#endif // QGUIACTIONGROUP_H
+#endif // QACTIONGROUP_H

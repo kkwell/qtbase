@@ -118,7 +118,7 @@ private:
     friend Q_GUI_EXPORT QDataStream &operator<<(QDataStream &, const QTextLength &);
     friend Q_GUI_EXPORT QDataStream &operator>>(QDataStream &, QTextLength &);
 };
-Q_DECLARE_TYPEINFO(QTextLength, QT_VERSION >= QT_VERSION_CHECK(6,0,0) ? Q_PRIMITIVE_TYPE : Q_RELOCATABLE_TYPE);
+Q_DECLARE_TYPEINFO(QTextLength, Q_PRIMITIVE_TYPE);
 
 inline QTextLength::QTextLength(Type atype, qreal avalue)
     : lengthType(atype), fixedValueOrPercentage(avalue) {}
@@ -141,9 +141,6 @@ public:
         BlockFormat = 1,
         CharFormat = 2,
         ListFormat = 3,
-#if QT_DEPRECATED_SINCE(5, 3)
-        TableFormat = 4,
-#endif
         FrameFormat = 5,
 
         UserFormat = 100

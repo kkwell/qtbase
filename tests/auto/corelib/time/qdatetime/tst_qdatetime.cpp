@@ -43,8 +43,6 @@ class tst_QDateTime : public QObject
 public:
     tst_QDateTime();
 
-    static QString str( int y, int month, int d, int h, int min, int s );
-    static QDateTime dt( const QString& str );
 public Q_SLOTS:
     void initTestCase();
 private Q_SLOTS:
@@ -85,6 +83,7 @@ private Q_SLOTS:
     void toString_strformat();
 #endif
     void addDays();
+    void addInvalid();
     void addMonths();
     void addMonths_data();
     void addYears();
@@ -153,12 +152,6 @@ private Q_SLOTS:
 private:
     enum { LocalTimeIsUtc = 0, LocalTimeAheadOfUtc = 1, LocalTimeBehindUtc = -1} localTimeType;
     bool zoneIsCET;
-    QDate defDate() const { return QDate(1900, 1, 1); }
-    QTime defTime() const { return QTime(0, 0, 0); }
-    QDateTime defDateTime() const { return QDateTime(defDate(), defTime()); }
-    QDateTime invalidDateTime() const { return QDateTime(invalidDate(), invalidTime()); }
-    QDate invalidDate() const { return QDate(); }
-    QTime invalidTime() const { return QTime(-1, -1, -1); }
 
     class TimeZoneRollback
     {
@@ -204,20 +197,20 @@ tst_QDateTime::tst_QDateTime()
     const uint day = 24 * 3600; // in seconds
     zoneIsCET = (QDateTime(QDate(2038, 1, 19), QTime(4, 14, 7)).toSecsSinceEpoch() == 0x7fffffff
                  // Entries a year apart robustly differ by multiples of day.
-                 && QDateTime(QDate(2015, 7, 1), QTime()).toSecsSinceEpoch() == 1435701600
-                 && QDateTime(QDate(2015, 1, 1), QTime()).toSecsSinceEpoch() == 1420066800
-                 && QDateTime(QDate(2013, 7, 1), QTime()).toSecsSinceEpoch() == 1372629600
-                 && QDateTime(QDate(2013, 1, 1), QTime()).toSecsSinceEpoch() == 1356994800
-                 && QDateTime(QDate(2012, 7, 1), QTime()).toSecsSinceEpoch() == 1341093600
-                 && QDateTime(QDate(2012, 1, 1), QTime()).toSecsSinceEpoch() == 1325372400
-                 && QDateTime(QDate(2008, 7, 1), QTime()).toSecsSinceEpoch() == 1214863200
-                 && QDateTime(QDate(2004, 1, 1), QTime()).toSecsSinceEpoch() == 1072911600
-                 && QDateTime(QDate(2000, 1, 1), QTime()).toSecsSinceEpoch() == 946681200
-                 && QDateTime(QDate(1990, 7, 1), QTime()).toSecsSinceEpoch() == 646783200
-                 && QDateTime(QDate(1990, 1, 1), QTime()).toSecsSinceEpoch() == 631148400
-                 && QDateTime(QDate(1979, 1, 1), QTime()).toSecsSinceEpoch() == 283993200
+                 && QDate(2015, 7, 1).startOfDay().toSecsSinceEpoch() == 1435701600
+                 && QDate(2015, 1, 1).startOfDay().toSecsSinceEpoch() == 1420066800
+                 && QDate(2013, 7, 1).startOfDay().toSecsSinceEpoch() == 1372629600
+                 && QDate(2013, 1, 1).startOfDay().toSecsSinceEpoch() == 1356994800
+                 && QDate(2012, 7, 1).startOfDay().toSecsSinceEpoch() == 1341093600
+                 && QDate(2012, 1, 1).startOfDay().toSecsSinceEpoch() == 1325372400
+                 && QDate(2008, 7, 1).startOfDay().toSecsSinceEpoch() == 1214863200
+                 && QDate(2004, 1, 1).startOfDay().toSecsSinceEpoch() == 1072911600
+                 && QDate(2000, 1, 1).startOfDay().toSecsSinceEpoch() == 946681200
+                 && QDate(1990, 7, 1).startOfDay().toSecsSinceEpoch() == 646783200
+                 && QDate(1990, 1, 1).startOfDay().toSecsSinceEpoch() == 631148400
+                 && QDate(1979, 1, 1).startOfDay().toSecsSinceEpoch() == 283993200
                  // .toSecsSinceEpoch() returns -1 for everything before this:
-                 && QDateTime(QDate(1970, 1, 1), QTime(1, 0, 0)).toSecsSinceEpoch() == 0);
+                 && QDateTime(QDate(1970, 1, 1), QTime(1, 0)).toSecsSinceEpoch() == 0);
     // Use .toMSecsSinceEpoch() if you really need to test anything earlier.
 
     /*
@@ -279,20 +272,6 @@ void tst_QDateTime::initTestCase()
              << "the Central European timezone";
 }
 
-QString tst_QDateTime::str( int y, int month, int d, int h, int min, int s )
-{
-    return QDateTime( QDate(y, month, d), QTime(h, min, s) ).toString( Qt::ISODate );
-}
-
-QDateTime tst_QDateTime::dt(const QString &text)
-{
-#if QT_CONFIG(datestring)
-    if (text != "INVALID")
-        return QDateTime::fromString(text, Qt::ISODate);
-#endif
-    return QDateTime();
-}
-
 void tst_QDateTime::ctor()
 {
     QDateTime dt1(QDate(2004, 1, 2), QTime(1, 2, 3));
@@ -331,18 +310,18 @@ void tst_QDateTime::ctor()
     QCOMPARE(offset3.date(), offsetDate);
     QCOMPARE(offset3.time(), offsetTime);
 
-    QDateTime offset4(offsetDate, QTime(), Qt::OffsetFromUTC, 60 * 60);
+    QDateTime offset4(offsetDate, QTime(0, 0), Qt::OffsetFromUTC, 60 * 60);
     QCOMPARE(offset4.timeSpec(), Qt::OffsetFromUTC);
     QCOMPARE(offset4.offsetFromUtc(), 60 * 60);
     QCOMPARE(offset4.date(), offsetDate);
-    QCOMPARE(offset4.time(), QTime(0, 0, 0));
+    QCOMPARE(offset4.time(), QTime(0, 0));
 }
 
 void tst_QDateTime::operator_eq()
 {
     QVERIFY(QDateTime() != QDateTime(QDate(1970, 1, 1), QTime(0, 0))); // QTBUG-79006
     QDateTime dt1(QDate(2004, 3, 24), QTime(23, 45, 57), Qt::UTC);
-    QDateTime dt2(QDate(2005, 3, 11), QTime(), Qt::UTC);
+    QDateTime dt2(QDate(2005, 3, 11), QTime(0, 0), Qt::UTC);
     dt2 = dt1;
     QVERIFY(dt1 == dt2);
 }
@@ -541,12 +520,12 @@ void tst_QDateTime::setSecsSinceEpoch()
 {
     QDateTime dt1;
     dt1.setSecsSinceEpoch(0);
-    QCOMPARE(dt1.toUTC(), QDateTime(QDate(1970, 1, 1), QTime(), Qt::UTC));
+    QCOMPARE(dt1.toUTC(), QDate(1970, 1, 1).startOfDay(Qt::UTC));
     QCOMPARE(dt1.timeSpec(), Qt::LocalTime);
 
     dt1.setTimeSpec(Qt::UTC);
     dt1.setSecsSinceEpoch(0);
-    QCOMPARE(dt1, QDateTime(QDate(1970, 1, 1), QTime(), Qt::UTC));
+    QCOMPARE(dt1, QDate(1970, 1, 1).startOfDay(Qt::UTC));
     QCOMPARE(dt1.timeSpec(), Qt::UTC);
 
     dt1.setSecsSinceEpoch(123456);
@@ -581,11 +560,24 @@ void tst_QDateTime::setSecsSinceEpoch()
         QCOMPARE(dt2, QDateTime(QDate(2038, 1, 19), QTime(4, 14, 7), Qt::LocalTime));
     }
 
-    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::OffsetFromUTC, 60 * 60);
+    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0), Qt::OffsetFromUTC, 60 * 60);
     dt1.setSecsSinceEpoch(123456);
     QCOMPARE(dt1, QDateTime(QDate(1970, 1, 2), QTime(10, 17, 36), Qt::UTC));
     QCOMPARE(dt1.timeSpec(), Qt::OffsetFromUTC);
     QCOMPARE(dt1.offsetFromUtc(), 60 * 60);
+
+    // Only testing UTC; see fromSecsSinceEpoch() for fuller test.
+    const qint64 maxSeconds = std::numeric_limits<qint64>::max() / 1000;
+    dt1.setSecsSinceEpoch(maxSeconds);
+    QVERIFY(dt1.isValid());
+    dt1.setSecsSinceEpoch(-maxSeconds);
+    QVERIFY(dt1.isValid());
+    dt1.setSecsSinceEpoch(maxSeconds + 1);
+    QVERIFY(!dt1.isValid());
+    dt1.setSecsSinceEpoch(0);
+    QVERIFY(dt1.isValid());
+    dt1.setSecsSinceEpoch(-maxSeconds - 1);
+    QVERIFY(!dt1.isValid());
 }
 
 void tst_QDateTime::setMSecsSinceEpoch_data()
@@ -596,7 +588,7 @@ void tst_QDateTime::setMSecsSinceEpoch_data()
 
     QTest::newRow("zero")
             << Q_INT64_C(0)
-            << QDateTime(QDate(1970, 1, 1), QTime(), Qt::UTC)
+            << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::UTC)
             << QDateTime(QDate(1970, 1, 1), QTime(1, 0));
     QTest::newRow("-1")
             << Q_INT64_C(-1)
@@ -620,7 +612,7 @@ void tst_QDateTime::setMSecsSinceEpoch_data()
             << QDateTime(QDate(18772, 8, 15), QTime(3, 8, 14, 976));
     QTest::newRow("old min (Tue Nov 25 00:00:00 -4714)")
             << Q_INT64_C(-210866716800000)
-            << QDateTime(QDate::fromJulianDay(1), QTime(), Qt::UTC)
+            << QDateTime(QDate::fromJulianDay(1), QTime(0, 0), Qt::UTC)
             << QDateTime(QDate::fromJulianDay(1), QTime(1, 0));
     QTest::newRow("old max (Tue Jun 3 21:59:59 5874898)")
             << Q_INT64_C(185331720376799999)
@@ -713,7 +705,7 @@ void tst_QDateTime::setMSecsSinceEpoch()
         QCOMPARE(qint64(dt.toSecsSinceEpoch()), msecs / 1000);
     }
 
-    QDateTime reference(QDate(1970, 1, 1), QTime(), Qt::UTC);
+    QDateTime reference(QDate(1970, 1, 1), QTime(0, 0), Qt::UTC);
     QCOMPARE(dt, reference.addMSecs(msecs));
 }
 
@@ -767,7 +759,7 @@ void tst_QDateTime::fromMSecsSinceEpoch()
         QCOMPARE(qint64(dtOffset.toSecsSinceEpoch()), msecs / 1000);
     }
 
-    QDateTime reference(QDate(1970, 1, 1), QTime(), Qt::UTC);
+    QDateTime reference(QDate(1970, 1, 1), QTime(0, 0), Qt::UTC);
     if (!localOverflow)
         QCOMPARE(dtLocal, reference.addMSecs(msecs));
     QCOMPARE(dtUtc, reference.addMSecs(msecs));
@@ -776,17 +768,23 @@ void tst_QDateTime::fromMSecsSinceEpoch()
 
 void tst_QDateTime::fromSecsSinceEpoch()
 {
+    // Compare setSecsSinceEpoch()
     const qint64 maxSeconds = std::numeric_limits<qint64>::max() / 1000;
+    const QDateTime early = QDateTime::fromSecsSinceEpoch(-maxSeconds, Qt::UTC);
+    const QDateTime late = QDateTime::fromSecsSinceEpoch(maxSeconds, Qt::UTC);
 
-    QVERIFY(QDateTime::fromSecsSinceEpoch(maxSeconds).isValid());
-    QVERIFY(!QDateTime::fromSecsSinceEpoch(maxSeconds + 1).isValid());
-    QVERIFY(QDateTime::fromSecsSinceEpoch(-maxSeconds).isValid());
-    QVERIFY(!QDateTime::fromSecsSinceEpoch(-maxSeconds - 1).isValid());
-
-    QVERIFY(QDateTime::fromSecsSinceEpoch(maxSeconds, Qt::UTC).isValid());
+    QVERIFY(late.isValid());
     QVERIFY(!QDateTime::fromSecsSinceEpoch(maxSeconds + 1, Qt::UTC).isValid());
-    QVERIFY(QDateTime::fromSecsSinceEpoch(-maxSeconds, Qt::UTC).isValid());
+    QVERIFY(early.isValid());
     QVERIFY(!QDateTime::fromSecsSinceEpoch(-maxSeconds - 1, Qt::UTC).isValid());
+
+    // Local time: need to adjust for its zone offset
+    const qint64 last = maxSeconds - qMax(late.addYears(-1).toLocalTime().offsetFromUtc(), 0);
+    QVERIFY(QDateTime::fromSecsSinceEpoch(last).isValid());
+    QVERIFY(!QDateTime::fromSecsSinceEpoch(last + 1).isValid());
+    const qint64 first = -maxSeconds - qMin(early.addYears(1).toLocalTime().offsetFromUtc(), 0);
+    QVERIFY(QDateTime::fromSecsSinceEpoch(first).isValid());
+    QVERIFY(!QDateTime::fromSecsSinceEpoch(first - 1).isValid());
 
     // Use an offset for which .toUTC()'s return would flip the validity:
     QVERIFY(QDateTime::fromSecsSinceEpoch(maxSeconds, Qt::OffsetFromUTC, 7200).isValid());
@@ -797,10 +795,10 @@ void tst_QDateTime::fromSecsSinceEpoch()
 #if QT_CONFIG(timezone)
     // As for offset, use zones each side of UTC:
     const QTimeZone west("UTC-02:00"), east("UTC+02:00");
-    QVERIFY(QDateTime::fromSecsSinceEpoch(maxSeconds, east).isValid());
-    QVERIFY(!QDateTime::fromSecsSinceEpoch(maxSeconds + 1, west).isValid());
-    QVERIFY(QDateTime::fromSecsSinceEpoch(-maxSeconds, west).isValid());
-    QVERIFY(!QDateTime::fromSecsSinceEpoch(-maxSeconds - 1, east).isValid());
+    QVERIFY(QDateTime::fromSecsSinceEpoch(maxSeconds, west).isValid());
+    QVERIFY(!QDateTime::fromSecsSinceEpoch(maxSeconds + 1, east).isValid());
+    QVERIFY(QDateTime::fromSecsSinceEpoch(-maxSeconds, east).isValid());
+    QVERIFY(!QDateTime::fromSecsSinceEpoch(-maxSeconds - 1, west).isValid());
 #endif // timezone
 }
 
@@ -892,8 +890,8 @@ void tst_QDateTime::toString_textDate_data()
     QTest::addColumn<QDateTime>("datetime");
     QTest::addColumn<QString>("expected");
 
-    QString wednesdayJanuary = QLocale::system().dayName(3, QLocale::ShortFormat)
-        + ' ' + QLocale::system().monthName(1, QLocale::ShortFormat);
+    const QString wednesdayJanuary = QLocale::c().dayName(3, QLocale::ShortFormat)
+        + ' ' + QLocale::c().monthName(1, QLocale::ShortFormat);
 
     QTest::newRow("localtime")  << QDateTime(QDate(2013, 1, 2), QTime(1, 2, 3), Qt::LocalTime)
                                 << wednesdayJanuary + QString(" 2 01:02:03 2013");
@@ -1075,22 +1073,22 @@ void tst_QDateTime::addDays()
     }
 
     // Test preserves TimeSpec
-    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0), Qt::UTC);
     QDateTime dt2 = dt1.addDays(2);
     QCOMPARE(dt2.date(), QDate(2013, 1, 3));
-    QCOMPARE(dt2.time(), QTime(0, 0, 0));
+    QCOMPARE(dt2.time(), QTime(0, 0));
     QCOMPARE(dt2.timeSpec(), Qt::UTC);
 
-    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0), Qt::LocalTime);
     dt2 = dt1.addDays(2);
     QCOMPARE(dt2.date(), QDate(2013, 1, 3));
-    QCOMPARE(dt2.time(), QTime(0, 0, 0));
+    QCOMPARE(dt2.time(), QTime(0, 0));
     QCOMPARE(dt2.timeSpec(), Qt::LocalTime);
 
-    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::OffsetFromUTC, 60*60);
+    dt1 = QDateTime(QDate(2013, 1, 1), QTime(0, 0), Qt::OffsetFromUTC, 60*60);
     dt2 = dt1.addDays(2);
     QCOMPARE(dt2.date(), QDate(2013, 1, 3));
-    QCOMPARE(dt2.time(), QTime(0, 0, 0));
+    QCOMPARE(dt2.time(), QTime(0, 0));
     QCOMPARE(dt2.timeSpec(), Qt::OffsetFromUTC);
     QCOMPARE(dt2.offsetFromUtc(), 60 * 60);
 
@@ -1098,10 +1096,51 @@ void tst_QDateTime::addDays()
     dt1 = QDateTime(QDate(1970, 1, 1), QTime(23, 59, 59));
     dt2 = dt1.addDays(-1);
     QVERIFY(dt2.isValid());
-
-    // ### test invalid QDateTime()
 }
 
+void tst_QDateTime::addInvalid()
+{
+    QDateTime bad;
+    QVERIFY(!bad.isValid());
+    QVERIFY(bad.isNull());
+
+    QDateTime offset = bad.addDays(2);
+    QVERIFY(offset.isNull());
+    offset = bad.addMonths(-1);
+    QVERIFY(offset.isNull());
+    offset = bad.addYears(23);
+    QVERIFY(offset.isNull());
+    offset = bad.addSecs(73);
+    QVERIFY(offset.isNull());
+    offset = bad.addMSecs(73);
+    QVERIFY(offset.isNull());
+
+    QDateTime bound = QDateTime::fromMSecsSinceEpoch(std::numeric_limits<qint64>::min(), Qt::UTC);
+    QVERIFY(bound.isValid());
+    offset = bound.addMSecs(-1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addSecs(-1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addDays(-1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addMonths(-1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addYears(-1);
+    QVERIFY(!offset.isValid());
+
+    bound.setMSecsSinceEpoch(std::numeric_limits<qint64>::max());
+    QVERIFY(bound.isValid());
+    offset = bound.addMSecs(1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addSecs(1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addDays(1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addMonths(1);
+    QVERIFY(!offset.isValid());
+    offset = bound.addYears(1);
+    QVERIFY(!offset.isValid());
+}
 
 void tst_QDateTime::addMonths_data()
 {
@@ -1221,114 +1260,162 @@ void tst_QDateTime::addYears()
     QCOMPARE(end.offsetFromUtc(), 60 * 60);
 }
 
-void tst_QDateTime::addSecs_data()
+void tst_QDateTime::addMSecs_data()
 {
     QTest::addColumn<QDateTime>("dt");
-    QTest::addColumn<int>("nsecs");
+    QTest::addColumn<qint64>("nsecs");
     QTest::addColumn<QDateTime>("result");
 
-    QTime standardTime(12, 34, 56);
-    QTime daylightTime(13, 34, 56);
+    const QTime standardTime(12, 34, 56);
+    const QTime daylightTime(13, 34, 56);
+    const qint64 daySecs(86400);
 
-    QTest::newRow("utc0") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << 86400
-                       << QDateTime(QDate(2004, 1, 2), standardTime, Qt::UTC);
-    QTest::newRow("utc1") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << (86400 * 185)
-                       << QDateTime(QDate(2004, 7, 4), standardTime, Qt::UTC);
-    QTest::newRow("utc2") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << (86400 * 366)
-                       << QDateTime(QDate(2005, 1, 1), standardTime, Qt::UTC);
-    QTest::newRow("utc3") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << 86400
-                       << QDateTime(QDate(1760, 1, 2), standardTime, Qt::UTC);
-    QTest::newRow("utc4") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << (86400 * 185)
-                       << QDateTime(QDate(1760, 7, 4), standardTime, Qt::UTC);
-    QTest::newRow("utc5") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << (86400 * 366)
-                       << QDateTime(QDate(1761, 1, 1), standardTime, Qt::UTC);
-    QTest::newRow("utc6") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << 86400
-                       << QDateTime(QDate(4000, 1, 2), standardTime, Qt::UTC);
-    QTest::newRow("utc7") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << (86400 * 185)
-                       << QDateTime(QDate(4000, 7, 4), standardTime, Qt::UTC);
-    QTest::newRow("utc8") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << (86400 * 366)
-                       << QDateTime(QDate(4001, 1, 1), standardTime, Qt::UTC);
-    QTest::newRow("utc9") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << 0
-                       << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC);
+    QTest::newRow("utc0")
+        << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << daySecs
+        << QDateTime(QDate(2004, 1, 2), standardTime, Qt::UTC);
+    QTest::newRow("utc1")
+        << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << (daySecs * 185)
+        << QDateTime(QDate(2004, 7, 4), standardTime, Qt::UTC);
+    QTest::newRow("utc2")
+        << QDateTime(QDate(2004, 1, 1), standardTime, Qt::UTC) << (daySecs * 366)
+        << QDateTime(QDate(2005, 1, 1), standardTime, Qt::UTC);
+    QTest::newRow("utc3")
+        << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << daySecs
+        << QDateTime(QDate(1760, 1, 2), standardTime, Qt::UTC);
+    QTest::newRow("utc4")
+        << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << (daySecs * 185)
+        << QDateTime(QDate(1760, 7, 4), standardTime, Qt::UTC);
+    QTest::newRow("utc5")
+        << QDateTime(QDate(1760, 1, 1), standardTime, Qt::UTC) << (daySecs * 366)
+        << QDateTime(QDate(1761, 1, 1), standardTime, Qt::UTC);
+    QTest::newRow("utc6")
+        << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << daySecs
+        << QDateTime(QDate(4000, 1, 2), standardTime, Qt::UTC);
+    QTest::newRow("utc7")
+        << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << (daySecs * 185)
+        << QDateTime(QDate(4000, 7, 4), standardTime, Qt::UTC);
+    QTest::newRow("utc8")
+        << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << (daySecs * 366)
+        << QDateTime(QDate(4001, 1, 1), standardTime, Qt::UTC);
+    QTest::newRow("utc9")
+        << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC) << qint64(0)
+        << QDateTime(QDate(4000, 1, 1), standardTime, Qt::UTC);
 
     if (zoneIsCET) {
-        QTest::newRow("cet0") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << 86400
-                           << QDateTime(QDate(2004, 1, 2), standardTime, Qt::LocalTime);
-        QTest::newRow("cet1") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << (86400 * 185)
-                           << QDateTime(QDate(2004, 7, 4), daylightTime, Qt::LocalTime);
-        QTest::newRow("cet2") << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << (86400 * 366)
-                           << QDateTime(QDate(2005, 1, 1), standardTime, Qt::LocalTime);
-        QTest::newRow("cet3") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << 86400
-                           << QDateTime(QDate(1760, 1, 2), standardTime, Qt::LocalTime);
-        QTest::newRow("cet4") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << (86400 * 185)
-                           << QDateTime(QDate(1760, 7, 4), standardTime, Qt::LocalTime);
-        QTest::newRow("cet5") << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << (86400 * 366)
-                           << QDateTime(QDate(1761, 1, 1), standardTime, Qt::LocalTime);
-        QTest::newRow("cet6") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << 86400
-                           << QDateTime(QDate(4000, 1, 2), standardTime, Qt::LocalTime);
-        QTest::newRow("cet7") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << (86400 * 185)
-                           << QDateTime(QDate(4000, 7, 4), daylightTime, Qt::LocalTime);
-        QTest::newRow("cet8") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << (86400 * 366)
-                           << QDateTime(QDate(4001, 1, 1), standardTime, Qt::LocalTime);
-        QTest::newRow("cet9") << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << 0
-                           << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime);
+        QTest::newRow("cet0")
+            << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << daySecs
+            << QDateTime(QDate(2004, 1, 2), standardTime, Qt::LocalTime);
+        QTest::newRow("cet1")
+            << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 185)
+            << QDateTime(QDate(2004, 7, 4), daylightTime, Qt::LocalTime);
+        QTest::newRow("cet2")
+            << QDateTime(QDate(2004, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 366)
+            << QDateTime(QDate(2005, 1, 1), standardTime, Qt::LocalTime);
+        QTest::newRow("cet3")
+            << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << daySecs
+            << QDateTime(QDate(1760, 1, 2), standardTime, Qt::LocalTime);
+        QTest::newRow("cet4")
+            << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 185)
+            << QDateTime(QDate(1760, 7, 4), standardTime, Qt::LocalTime);
+        QTest::newRow("cet5")
+            << QDateTime(QDate(1760, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 366)
+            << QDateTime(QDate(1761, 1, 1), standardTime, Qt::LocalTime);
+        QTest::newRow("cet6")
+            << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << daySecs
+            << QDateTime(QDate(4000, 1, 2), standardTime, Qt::LocalTime);
+        QTest::newRow("cet7")
+            << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 185)
+            << QDateTime(QDate(4000, 7, 4), daylightTime, Qt::LocalTime);
+        QTest::newRow("cet8")
+            << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << (daySecs * 366)
+            << QDateTime(QDate(4001, 1, 1), standardTime, Qt::LocalTime);
+        QTest::newRow("cet9")
+            << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime) << qint64(0)
+            << QDateTime(QDate(4000, 1, 1), standardTime, Qt::LocalTime);
     }
 
     // Year sign change
-    QTest::newRow("toNegative") << QDateTime(QDate(1, 1, 1), QTime(0, 0, 0), Qt::UTC)
-                                << -1
-                                << QDateTime(QDate(-1, 12, 31), QTime(23, 59, 59), Qt::UTC);
-    QTest::newRow("toPositive") << QDateTime(QDate(-1, 12, 31), QTime(23, 59, 59), Qt::UTC)
-                                << 1
-                                << QDateTime(QDate(1, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QTest::newRow("toNegative")
+        << QDateTime(QDate(1, 1, 1), QTime(0, 0), Qt::UTC) << qint64(-1)
+        << QDateTime(QDate(-1, 12, 31), QTime(23, 59, 59), Qt::UTC);
+    QTest::newRow("toPositive")
+        << QDateTime(QDate(-1, 12, 31), QTime(23, 59, 59), Qt::UTC) << qint64(1)
+                                << QDateTime(QDate(1, 1, 1), QTime(0, 0), Qt::UTC);
 
-    QTest::newRow("invalid") << invalidDateTime() << 1 << invalidDateTime();
+    QTest::newRow("invalid") << QDateTime() << qint64(1) << QDateTime();
 
     // Check Offset details are preserved
-    QTest::newRow("offset0") << QDateTime(QDate(2013, 1, 1), QTime(1, 2, 3),
-                                          Qt::OffsetFromUTC, 60 * 60)
-                             << 60 * 60
-                             << QDateTime(QDate(2013, 1, 1), QTime(2, 2, 3),
-                                          Qt::OffsetFromUTC, 60 * 60);
+    QTest::newRow("offset0")
+        << QDateTime(QDate(2013, 1, 1), QTime(1, 2, 3), Qt::OffsetFromUTC, 60 * 60)
+        << qint64(60 * 60)
+        << QDateTime(QDate(2013, 1, 1), QTime(2, 2, 3), Qt::OffsetFromUTC, 60 * 60);
     // Check last second of 1969
     QTest::newRow("epoch-1s-utc")
-        << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0), Qt::UTC) << -1
+        << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::UTC) << qint64(-1)
         << QDateTime(QDate(1969, 12, 31), QTime(23, 59, 59), Qt::UTC);
     QTest::newRow("epoch-1s-local")
-        << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0)) << -1
+        << QDateTime(QDate(1970, 1, 1), QTime(0, 0)) << qint64(-1)
         << QDateTime(QDate(1969, 12, 31), QTime(23, 59, 59));
+
+    // Overflow and Underflow
+    const qint64 maxSeconds = std::numeric_limits<qint64>::max() / 1000;
+    QTest::newRow("after-last")
+        << QDateTime::fromSecsSinceEpoch(maxSeconds, Qt::UTC) << qint64(1) << QDateTime();
+    QTest::newRow("to-last")
+        << QDateTime::fromSecsSinceEpoch(maxSeconds - 1, Qt::UTC) << qint64(1)
+        << QDateTime::fromSecsSinceEpoch(maxSeconds, Qt::UTC);
+    QTest::newRow("before-first")
+        << QDateTime::fromSecsSinceEpoch(-maxSeconds, Qt::UTC) << qint64(-1) << QDateTime();
+    QTest::newRow("to-first")
+        << QDateTime::fromSecsSinceEpoch(1 - maxSeconds, Qt::UTC) << qint64(-1)
+        << QDateTime::fromSecsSinceEpoch(-maxSeconds, Qt::UTC);
+}
+
+void tst_QDateTime::addSecs_data()
+{
+    addMSecs_data();
+
+    const qint64 maxSeconds = std::numeric_limits<qint64>::max() / 1000;
+    // Results would be representable, but the step isn't
+    QTest::newRow("leap-up")
+        << QDateTime::fromSecsSinceEpoch(-1, Qt::UTC) << 1 + maxSeconds << QDateTime();
+    QTest::newRow("leap-down")
+        << QDateTime::fromSecsSinceEpoch(1, Qt::UTC) << -1 - maxSeconds << QDateTime();
 }
 
 void tst_QDateTime::addSecs()
 {
-    QFETCH(QDateTime, dt);
-    QFETCH(int, nsecs);
-    QFETCH(QDateTime, result);
+    QFETCH(const QDateTime, dt);
+    QFETCH(const qint64, nsecs);
+    QFETCH(const QDateTime, result);
     QDateTime test = dt.addSecs(nsecs);
-    QCOMPARE(test, result);
-    QCOMPARE(test.timeSpec(), dt.timeSpec());
-    if (test.timeSpec() == Qt::OffsetFromUTC)
-        QCOMPARE(test.offsetFromUtc(), dt.offsetFromUtc());
-    QCOMPARE(result.addSecs(-nsecs), dt);
-}
-
-void tst_QDateTime::addMSecs_data()
-{
-    addSecs_data();
+    if (!result.isValid()) {
+        QVERIFY(!test.isValid());
+    } else {
+        QCOMPARE(test, result);
+        QCOMPARE(test.timeSpec(), dt.timeSpec());
+        if (test.timeSpec() == Qt::OffsetFromUTC)
+            QCOMPARE(test.offsetFromUtc(), dt.offsetFromUtc());
+        QCOMPARE(result.addSecs(-nsecs), dt);
+    }
 }
 
 void tst_QDateTime::addMSecs()
 {
-    QFETCH(QDateTime, dt);
-    QFETCH(int, nsecs);
-    QFETCH(QDateTime, result);
+    QFETCH(const QDateTime, dt);
+    QFETCH(const qint64, nsecs);
+    QFETCH(const QDateTime, result);
 
     QDateTime test = dt.addMSecs(qint64(nsecs) * 1000);
-    QCOMPARE(test, result);
-    QCOMPARE(test.timeSpec(), dt.timeSpec());
-    if (test.timeSpec() == Qt::OffsetFromUTC)
-        QCOMPARE(test.offsetFromUtc(), dt.offsetFromUtc());
-    QCOMPARE(result.addMSecs(qint64(-nsecs) * 1000), dt);
+    if (!result.isValid()) {
+        QVERIFY(!test.isValid());
+    } else {
+        QCOMPARE(test, result);
+        QCOMPARE(test.timeSpec(), dt.timeSpec());
+        if (test.timeSpec() == Qt::OffsetFromUTC)
+            QCOMPARE(test.offsetFromUtc(), dt.offsetFromUtc());
+        QCOMPARE(result.addMSecs(qint64(-nsecs) * 1000), dt);
+    }
 }
 
 void tst_QDateTime::toTimeSpec_data()
@@ -1351,18 +1438,18 @@ void tst_QDateTime::toTimeSpec_data()
 
     // Test mktime boundaries (1970 - 2038) and adjustDate().
     QTest::newRow("1969/12/31 23:00 UTC")
-        << QDateTime(QDate(1969, 12, 31), QTime(23, 0, 0), Qt::UTC)
-        << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        << QDateTime(QDate(1969, 12, 31), QTime(23, 0), Qt::UTC)
+        << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("2037/12/31 23:00 UTC")
-        << QDateTime(QDate(2037, 12, 31), QTime(23, 0, 0), Qt::UTC)
-        << QDateTime(QDate(2038, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        << QDateTime(QDate(2037, 12, 31), QTime(23, 0), Qt::UTC)
+        << QDateTime(QDate(2038, 1, 1), QTime(0, 0), Qt::LocalTime);
 
     QTest::newRow("-271821/4/20 00:00 UTC (JavaScript min date, start of day)")
-        << QDateTime(QDate(-271821, 4, 20), QTime(0, 0, 0), Qt::UTC)
-        << QDateTime(QDate(-271821, 4, 20), QTime(1, 0, 0), Qt::LocalTime);
+        << QDateTime(QDate(-271821, 4, 20), QTime(0, 0), Qt::UTC)
+        << QDateTime(QDate(-271821, 4, 20), QTime(1, 0), Qt::LocalTime);
     QTest::newRow("-271821/4/20 23:00 UTC (JavaScript min date, end of day)")
-        << QDateTime(QDate(-271821, 4, 20), QTime(23, 0, 0), Qt::UTC)
-        << QDateTime(QDate(-271821, 4, 21), QTime(0, 0, 0), Qt::LocalTime);
+        << QDateTime(QDate(-271821, 4, 20), QTime(23, 0), Qt::UTC)
+        << QDateTime(QDate(-271821, 4, 21), QTime(0, 0), Qt::LocalTime);
 
     if (zoneIsCET) {
         QTest::newRow("summer1") << QDateTime(QDate(2004, 6, 30), utcTime, Qt::UTC)
@@ -1373,12 +1460,12 @@ void tst_QDateTime::toTimeSpec_data()
                                  << QDateTime(QDate(4000, 6, 30), localDaylightTime, Qt::LocalTime);
 
         QTest::newRow("275760/9/23 00:00 UTC (JavaScript max date, start of day)")
-            << QDateTime(QDate(275760, 9, 23), QTime(0, 0, 0), Qt::UTC)
-            << QDateTime(QDate(275760, 9, 23), QTime(2, 0, 0), Qt::LocalTime);
+            << QDateTime(QDate(275760, 9, 23), QTime(0, 0), Qt::UTC)
+            << QDateTime(QDate(275760, 9, 23), QTime(2, 0), Qt::LocalTime);
 
         QTest::newRow("275760/9/23 22:00 UTC (JavaScript max date, end of day)")
-            << QDateTime(QDate(275760, 9, 23), QTime(22, 0, 0), Qt::UTC)
-            << QDateTime(QDate(275760, 9, 24), QTime(0, 0, 0), Qt::LocalTime);
+            << QDateTime(QDate(275760, 9, 23), QTime(22, 0), Qt::UTC)
+            << QDateTime(QDate(275760, 9, 24), QTime(0, 0), Qt::LocalTime);
     }
 
     QTest::newRow("msec") << QDateTime(QDate(4000, 6, 30), utcTime.addMSecs(1), Qt::UTC)
@@ -1495,9 +1582,9 @@ void tst_QDateTime::toUTC()
 
 void tst_QDateTime::daysTo()
 {
-    QDateTime dt1(QDate(1760, 1, 2), QTime());
-    QDateTime dt2(QDate(1760, 2, 2), QTime());
-    QDateTime dt3(QDate(1760, 3, 2), QTime());
+    QDateTime dt1(QDate(1760, 1, 2).startOfDay());
+    QDateTime dt2(QDate(1760, 2, 2).startOfDay());
+    QDateTime dt3(QDate(1760, 3, 2).startOfDay());
 
     QCOMPARE(dt1.daysTo(dt2), (qint64) 31);
     QCOMPARE(dt1.addDays(31), dt2);
@@ -1523,21 +1610,21 @@ void tst_QDateTime::secsTo_data()
     addSecs_data();
 
     QTest::newRow("disregard milliseconds #1")
-        << QDateTime(QDate(2012, 3, 7), QTime(0, 58, 0, 0)) << 60
+        << QDateTime(QDate(2012, 3, 7), QTime(0, 58, 0, 0)) << qint64(60)
         << QDateTime(QDate(2012, 3, 7), QTime(0, 59, 0, 400));
 
     QTest::newRow("disregard milliseconds #2")
-        << QDateTime(QDate(2012, 3, 7), QTime(0, 59, 0, 0)) << 60
+        << QDateTime(QDate(2012, 3, 7), QTime(0, 59, 0, 0)) << qint64(60)
         << QDateTime(QDate(2012, 3, 7), QTime(1, 0, 0, 400));
 }
 
 void tst_QDateTime::secsTo()
 {
-    QFETCH(QDateTime, dt);
-    QFETCH(int, nsecs);
-    QFETCH(QDateTime, result);
+    QFETCH(const QDateTime, dt);
+    QFETCH(const qint64, nsecs);
+    QFETCH(const QDateTime, result);
 
-    if (dt.isValid()) {
+    if (result.isValid()) {
         QCOMPARE(dt.secsTo(result), (qint64)nsecs);
         QCOMPARE(result.secsTo(dt), (qint64)-nsecs);
         QVERIFY((dt == result) == (0 == nsecs));
@@ -1559,11 +1646,11 @@ void tst_QDateTime::msecsTo_data()
 
 void tst_QDateTime::msecsTo()
 {
-    QFETCH(QDateTime, dt);
-    QFETCH(int, nsecs);
-    QFETCH(QDateTime, result);
+    QFETCH(const QDateTime, dt);
+    QFETCH(const qint64, nsecs);
+    QFETCH(const QDateTime, result);
 
-    if (dt.isValid()) {
+    if (result.isValid()) {
         QCOMPARE(dt.msecsTo(result), qint64(nsecs) * 1000);
         QCOMPARE(result.msecsTo(dt), -qint64(nsecs) * 1000);
         QVERIFY((dt == result) == (0 == (qint64(nsecs) * 1000)));
@@ -1707,31 +1794,27 @@ void tst_QDateTime::currentDateTimeUtc2()
 
 void tst_QDateTime::toSecsSinceEpoch_data()
 {
-    QTest::addColumn<QString>("dateTimeStr");
-    QTest::addColumn<bool>("valid");
+    QTest::addColumn<QDate>("date");
 
-    QTest::newRow( "data1" ) << str( 1800, 1, 1, 12, 0, 0 ) << true;
-    QTest::newRow( "data2" ) << str( 1969, 1, 1, 12, 0, 0 ) << true;
-    QTest::newRow( "data3" ) << str( 2002, 1, 1, 12, 0, 0 ) << true;
-    QTest::newRow( "data4" ) << str( 2002, 6, 1, 12, 0, 0 ) << true;
-    QTest::newRow( "data5" ) << QString("INVALID") << false;
-    QTest::newRow( "data6" ) << str( 2038, 1, 1, 12, 0, 0 ) << true;
-    QTest::newRow( "data7" ) << str( 2063, 4, 5, 12, 0, 0 ) << true; // the day of First Contact
-    QTest::newRow( "data8" ) << str( 2107, 1, 1, 12, 0, 0 ) << true;
+    QTest::newRow("start-1800") << QDate(1800, 1, 1);
+    QTest::newRow("start-1969") << QDate(1969, 1, 1);
+    QTest::newRow("start-2002") << QDate(2002, 1, 1);
+    QTest::newRow("mid-2002") << QDate(2002, 6, 1);
+    QTest::newRow("start-2038") << QDate(2038, 1, 1);
+    QTest::newRow("star-trek-1st-contact") << QDate(2063, 4, 5);
+    QTest::newRow("start-2107") << QDate(2107, 1, 1);
 }
 
 void tst_QDateTime::toSecsSinceEpoch()
 {
-    QFETCH(const QString, dateTimeStr);
-    const QDateTime datetime = dt(dateTimeStr);
-    QFETCH(const bool, valid);
-    QCOMPARE(datetime.isValid(), valid);
+    const QTime noon(12, 0);
+    QFETCH(const QDate, date);
+    const QDateTime dateTime(date, noon);
+    QVERIFY(dateTime.isValid());
 
-    if (valid) {
-        const qint64 asSecsSinceEpoch = datetime.toSecsSinceEpoch();
-        QCOMPARE(asSecsSinceEpoch, datetime.toMSecsSinceEpoch() / 1000);
-        QCOMPARE(QDateTime::fromSecsSinceEpoch(asSecsSinceEpoch), datetime);
-    }
+    const qint64 asSecsSinceEpoch = dateTime.toSecsSinceEpoch();
+    QCOMPARE(asSecsSinceEpoch, dateTime.toMSecsSinceEpoch() / 1000);
+    QCOMPARE(QDateTime::fromSecsSinceEpoch(asSecsSinceEpoch), dateTime);
 }
 
 void tst_QDateTime::daylightSavingsTimeChange_data()
@@ -1815,28 +1898,28 @@ void tst_QDateTime::daylightSavingsTimeChange()
     QCOMPARE(dt, QDateTime(inDST, QTime(0, 5, 0)));
 
     // Now use the result of a UTC -> LocalTime conversion
-    dt = QDateTime(outDST, QTime(0, 0, 0), Qt::LocalTime).toUTC();
+    dt = QDateTime(outDST, QTime(0, 0), Qt::LocalTime).toUTC();
     dt = QDateTime(dt.date(), dt.time(), Qt::UTC).toLocalTime();
-    QCOMPARE(dt, QDateTime(outDST, QTime(0, 0, 0)));
+    QCOMPARE(dt, QDateTime(outDST, QTime(0, 0)));
 
     // using addDays:
     dt = dt.addDays(-days).addSecs(3600);
-    QCOMPARE(dt, QDateTime(inDST, QTime(1, 0, 0)));
+    QCOMPARE(dt, QDateTime(inDST, QTime(1, 0)));
     // back again
     dt = dt.addDays(days).addSecs(3600);
-    QCOMPARE(dt, QDateTime(outDST, QTime(2, 0, 0)));
+    QCOMPARE(dt, QDateTime(outDST, QTime(2, 0)));
 
     // using addMonths:
     dt = dt.addMonths(-months).addSecs(3600);
-    QCOMPARE(dt, QDateTime(inDST, QTime(3, 0, 0)));
+    QCOMPARE(dt, QDateTime(inDST, QTime(3, 0)));
     // back again:
     dt = dt.addMonths(months).addSecs(3600);
-    QCOMPARE(dt, QDateTime(outDST, QTime(4, 0, 0)));
+    QCOMPARE(dt, QDateTime(outDST, QTime(4, 0)));
 
     // using setDate:
     dt.setDate(inDST);
     dt = dt.addSecs(3600);
-    QCOMPARE(dt, QDateTime(inDST, QTime(5, 0, 0)));
+    QCOMPARE(dt, QDateTime(inDST, QTime(5, 0)));
 }
 
 void tst_QDateTime::springForward_data()
@@ -1857,8 +1940,8 @@ void tst_QDateTime::springForward_data()
       test.
      */
 
-    uint winter = QDateTime(QDate(2015, 1, 1), QTime()).toSecsSinceEpoch();
-    uint summer = QDateTime(QDate(2015, 7, 1), QTime()).toSecsSinceEpoch();
+    uint winter = QDate(2015, 1, 1).startOfDay().toSecsSinceEpoch();
+    uint summer = QDate(2015, 7, 1).startOfDay().toSecsSinceEpoch();
 
     if (winter == 1420066800 && summer == 1435701600) {
         QTest::newRow("CET from day before") << QDate(2015, 3, 29) << QTime(2, 30, 0) << 1 << 60;
@@ -1928,7 +2011,7 @@ void tst_QDateTime::operator_eqeq_data()
     QDateTime dateTime1a = dateTime1.addMSecs(1);
     QDateTime dateTime2(QDate(2012, 20, 6), QTime(14, 33, 2, 500)); // Invalid
     QDateTime dateTime2a = dateTime2.addMSecs(-1); // Still invalid
-    QDateTime dateTime3(QDate(1970, 1, 1), QTime(0, 0, 0, 0), Qt::UTC); // UTC epoch
+    QDateTime dateTime3(QDate(1970, 1, 1), QTime(0, 0), Qt::UTC); // UTC epoch
     QDateTime dateTime3a = dateTime3.addDays(1);
     QDateTime dateTime3b = dateTime3.addDays(-1);
     // Ensure that different times may be equal when considering timezone.
@@ -1956,13 +2039,27 @@ void tst_QDateTime::operator_eqeq_data()
     // ... but a zone (sometimes) ahead of or behind UTC (e.g. Europe/London)
     // might agree with UTC about the epoch, all the same.
 
-    QTest::newRow("invalid == invalid") << invalidDateTime() << invalidDateTime() << true << false;
-    QTest::newRow("invalid == valid #1") << invalidDateTime() << dateTime1 << false << false;
+    QTest::newRow("invalid == invalid") << QDateTime() << QDateTime() << true << false;
+    QTest::newRow("invalid != valid #1") << QDateTime() << dateTime1 << false << false;
 
     if (zoneIsCET) {
-        QTest::newRow("data14") << QDateTime(QDate(2004, 1, 2), QTime(2, 2, 3), Qt::LocalTime)
-             << QDateTime(QDate(2004, 1, 2), QTime(1, 2, 3), Qt::UTC) << true << true;
+        QTest::newRow("data14")
+            << QDateTime(QDate(2004, 1, 2), QTime(2, 2, 3), Qt::LocalTime)
+            << QDateTime(QDate(2004, 1, 2), QTime(1, 2, 3), Qt::UTC) << true << true;
+        QTest::newRow("local-fall-back") // Sun, 31 Oct 2004, 02:30, both ways round:
+            << QDateTime::fromMSecsSinceEpoch(Q_INT64_C(1099186200000))
+            << QDateTime::fromMSecsSinceEpoch(Q_INT64_C(1099182600000))
+            << false << false;
     }
+#if QT_CONFIG(timezone)
+    const QTimeZone CET("Europe/Oslo");
+    if (CET.isValid()) {
+        QTest::newRow("CET-fall-back") // Sun, 31 Oct 2004, 02:30, both ways round:
+            << QDateTime::fromMSecsSinceEpoch(Q_INT64_C(1099186200000), CET)
+            << QDateTime::fromMSecsSinceEpoch(Q_INT64_C(1099182600000), CET)
+            << false << false;
+    }
+#endif
 }
 
 void tst_QDateTime::operator_eqeq()
@@ -2001,43 +2098,42 @@ Q_DECLARE_METATYPE(QDataStream::Version)
 
 void tst_QDateTime::operator_insert_extract_data()
 {
-    QTest::addColumn<QDateTime>("dateTime");
-    QTest::addColumn<QString>("serialiseAs");
-    QTest::addColumn<QString>("deserialiseAs");
+    QTest::addColumn<int>("yearNumber");
+    QTest::addColumn<QByteArray>("serialiseAs");
+    QTest::addColumn<QByteArray>("deserialiseAs");
     QTest::addColumn<QDataStream::Version>("dataStreamVersion");
 
-    const QDateTime positiveYear(QDateTime(QDate(2012, 8, 14), QTime(8, 0, 0), Qt::LocalTime));
-    const QDateTime negativeYear(QDateTime(QDate(-2012, 8, 14), QTime(8, 0, 0), Qt::LocalTime));
-
-    const QString westernAustralia(QString::fromLatin1("AWST-8AWDT-9,M10.5.0,M3.5.0/03:00:00"));
-    const QString hawaii(QString::fromLatin1("HAW10"));
+    const QByteArray westernAustralia("AWST-8AWDT-9,M10.5.0,M3.5.0/03:00:00");
+    const QByteArray hawaii("HAW10");
 
     const QDataStream tmpDataStream;
     const int thisVersion = tmpDataStream.version();
     for (int version = QDataStream::Qt_1_0; version <= thisVersion; ++version) {
         const QDataStream::Version dataStreamVersion = static_cast<QDataStream::Version>(version);
         const QByteArray vN = QByteArray::number(dataStreamVersion);
-        const QByteArray pY = positiveYear.toString().toLatin1();
-        QTest::newRow(('v' + vN + " WA => HAWAII " + pY).constData())
-            << positiveYear << westernAustralia << hawaii << dataStreamVersion;
-        QTest::newRow(('v' + vN + " WA => WA " + pY).constData())
-            << positiveYear << westernAustralia << westernAustralia << dataStreamVersion;
-        QTest::newRow(('v' + vN + " HAWAII => WA " + negativeYear.toString().toLatin1()).constData())
-            << negativeYear << hawaii << westernAustralia << dataStreamVersion;
-        QTest::newRow(('v' + vN + " HAWAII => HAWAII " + pY).constData())
-            << positiveYear << hawaii << hawaii << dataStreamVersion;
+        QTest::addRow("v%d WA => HAWAII %d", version, 2012)
+            << 2012 << westernAustralia << hawaii << dataStreamVersion;
+        QTest::addRow("v%d WA => WA %d", version, 2012)
+            << 2012 << westernAustralia << westernAustralia << dataStreamVersion;
+        QTest::addRow("v%d HAWAII => WA %d", version, -2012)
+            << -2012 << hawaii << westernAustralia << dataStreamVersion;
+        QTest::addRow("v%d HAWAII => HAWAII %d", version, 2012)
+            << 2012 << hawaii << hawaii << dataStreamVersion;
     }
 }
 
 void tst_QDateTime::operator_insert_extract()
 {
-    QFETCH(QDateTime, dateTime);
-    QFETCH(QString, serialiseAs);
-    QFETCH(QString, deserialiseAs);
+    QFETCH(int, yearNumber);
+    QFETCH(QByteArray, serialiseAs);
+    QFETCH(QByteArray, deserialiseAs);
     QFETCH(QDataStream::Version, dataStreamVersion);
 
     // Start off in a certain timezone.
-    TimeZoneRollback useZone(serialiseAs.toLocal8Bit());
+    TimeZoneRollback useZone(serialiseAs);
+
+    // It is important that dateTime is created after the time zone shift
+    QDateTime dateTime(QDate(yearNumber, 8, 14), QTime(8, 0), Qt::LocalTime);
     QDateTime dateTimeAsUTC(dateTime.toUTC());
 
     QByteArray byteArray;
@@ -2062,7 +2158,7 @@ void tst_QDateTime::operator_insert_extract()
 
     // Ensure that a change in timezone between serialisation and deserialisation
     // still results in identical UTC-converted datetimes.
-    useZone.reset(deserialiseAs.toLocal8Bit());
+    useZone.reset(deserialiseAs);
     QDateTime expectedLocalTime(dateTimeAsUTC.toLocalTime());
     {
         // Deserialise whole QDateTime at once.
@@ -2134,23 +2230,23 @@ void tst_QDateTime::fromStringDateFormat_data()
     QTest::newRow("text date Year -4712") << QString::fromLatin1("Tue Jan 1 00:01:02 -4712")
         << Qt::TextDate << QDateTime(QDate(-4712, 1, 1), QTime(0, 1, 2, 0), Qt::LocalTime);
     QTest::newRow("text data0") << QString::fromLatin1("Thu Jan 1 00:00:00 1970")
-        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("text data1") << QString::fromLatin1("Thu Jan 2 12:34 1970")
         << Qt::TextDate << QDateTime(QDate(1970, 1, 2), QTime(12, 34, 0), Qt::LocalTime);
     QTest::newRow("text data2") << QString::fromLatin1("Thu Jan 1 00 1970")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text data3") << QString::fromLatin1("Thu Jan 1 00:00:00:00 1970")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text data4") << QString::fromLatin1("Thu 1. Jan 00:00:00 1970")
         << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("text data5") << QString::fromLatin1(" Thu   Jan   1    00:00:00    1970  ")
-        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("text data6") << QString::fromLatin1("Thu Jan 1 00:00:00")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text data7") << QString::fromLatin1("Thu Jan 1 1970 00:00:00")
-        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("text data8") << QString::fromLatin1("Thu Jan 1 00:12:34 1970 GMT+foo")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text data9") << QString::fromLatin1("Thu Jan 1 00:12:34 1970 GMT")
         << Qt::TextDate << QDateTime(QDate(1970, 1, 1), QTime(0, 12, 34), Qt::UTC);
     QTest::newRow("text data10") << QString::fromLatin1("Thu Jan 1 00:12:34 1970 GMT-0300")
@@ -2162,39 +2258,48 @@ void tst_QDateTime::fromStringDateFormat_data()
     QTest::newRow("text data13") << QString::fromLatin1("Thu Jan 1 1970 00:12:34 GMT+0100")
         << Qt::TextDate << QDateTime(QDate(1969, 12, 31), QTime(23, 12, 34), Qt::UTC);
     QTest::newRow("text empty") << QString::fromLatin1("")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text too many parts") << QString::fromLatin1("Thu Jan 1 00:12:34 1970 gmt +0100")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid month name") << QString::fromLatin1("Thu Jaz 1 1970 00:12:34")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid date") << QString::fromLatin1("Thu Jan 32 1970 00:12:34")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid day #1") << QString::fromLatin1("Thu Jan XX 1970 00:12:34")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid day #2") << QString::fromLatin1("Thu X. Jan 00:00:00 1970")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid day #3") << QString::fromLatin1("Thu 1 Jan 00:00:00 1970")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid year #1") << QString::fromLatin1("Thu 1. Jan 00:00:00 19X0")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid year #2") << QString::fromLatin1("Thu 1. Jan 19X0 00:00:00")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid hour") << QString::fromLatin1("Thu 1. Jan 1970 0X:00:00")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid minute") << QString::fromLatin1("Thu 1. Jan 1970 00:0X:00")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid second") << QString::fromLatin1("Thu 1. Jan 1970 00:00:0X")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid gmt specifier #1") << QString::fromLatin1("Thu 1. Jan 1970 00:00:00 DMT")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid gmt specifier #2") << QString::fromLatin1("Thu 1. Jan 1970 00:00:00 GMTx0200")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid gmt hour") << QString::fromLatin1("Thu 1. Jan 1970 00:00:00 GMT+0X00")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text invalid gmt minute") << QString::fromLatin1("Thu 1. Jan 1970 00:00:00 GMT+000X")
-        << Qt::TextDate << invalidDateTime();
+        << Qt::TextDate << QDateTime();
     QTest::newRow("text second fraction") << QString::fromLatin1("Mon 6. May 2013 01:02:03.456")
         << Qt::TextDate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 3, 456));
+    QTest::newRow("text max milli")
+        << QString::fromLatin1("Mon 6. May 2013 01:02:03.999499999")
+        << Qt::TextDate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 3, 999));
+    QTest::newRow("text milli wrap")
+        << QString::fromLatin1("Mon 6. May 2013 01:02:03.9995")
+        << Qt::TextDate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 4));
+    QTest::newRow("text last milli") // Special case, don't round up to invalid:
+        << QString::fromLatin1("Mon 6. May 2013 23:59:59.9999999999")
+        << Qt::TextDate << QDateTime(QDate(2013, 5, 6), QTime(23, 59, 59, 999));
 
     const QDateTime ref(QDate(1974, 12, 1), QTime(13, 2));
     QTest::newRow("day:,:month")
@@ -2204,8 +2309,7 @@ void tst_QDateTime::fromStringDateFormat_data()
 
     // Test Qt::ISODate format.
     QTest::newRow("trailing space") // QTBUG-80445
-        << QString("2000-01-02 03:04:05.678 ")
-        << Qt::ISODate << QDateTime(QDate(2000, 1, 2), QTime(3, 4, 5, 678));
+        << QString("2000-01-02 03:04:05.678 ") << Qt::ISODate << QDateTime();
 
     // Invalid spaces (but keeping field widths correct):
     QTest::newRow("space before millis")
@@ -2236,7 +2340,7 @@ void tst_QDateTime::fromStringDateFormat_data()
     // Spaces as separators:
     QTest::newRow("sec-milli space")
         << QString("2000-01-02 03:04:05 678") << Qt::ISODate
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("min-sec space")
         << QString("2000-01-02 03:04 05.678") << Qt::ISODate << QDateTime();
     QTest::newRow("hour-min space")
@@ -2271,7 +2375,7 @@ void tst_QDateTime::fromStringDateFormat_data()
         << Qt::ISODate << QDateTime(QDate(2005, 6, 28), QTime(7, 57, 30, 2), Qt::UTC);
     // No time specified - defaults to Qt::LocalTime.
     QTest::newRow("ISO data3") << QString::fromLatin1("2002-10-01")
-        << Qt::ISODate << QDateTime(QDate(2002, 10, 1), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2002, 10, 1), QTime(0, 0), Qt::LocalTime);
     // Excess digits in milliseconds, round correctly:
     QTest::newRow("ISO") << QString::fromLatin1("2005-06-28T07:57:30.0010000000Z")
         << Qt::ISODate << QDateTime(QDate(2005, 6, 28), QTime(7, 57, 30, 1), Qt::UTC);
@@ -2290,15 +2394,20 @@ void tst_QDateTime::fromStringDateFormat_data()
         << Qt::ISODate << QDateTime(QDate(2005, 6, 28), QTime(7, 57, 30, 110), Qt::LocalTime);
     // 24:00:00 Should be next day according to ISO 8601 section 4.2.3.
     QTest::newRow("ISO 24:00") << QString::fromLatin1("2012-06-04T24:00:00")
-        << Qt::ISODate << QDateTime(QDate(2012, 6, 5), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2012, 6, 5), QTime(0, 0), Qt::LocalTime);
+    QTest::newRow("ISO 24:00 in DST") // Only special if TZ=America/Sao_Paulo
+        << QString::fromLatin1("2008-10-18T24:00") << Qt::ISODate
+        << QDateTime(QDate(2008, 10, 19),
+                     QTime(QTimeZone::systemTimeZoneId() == "America/Sao_Paulo" ? 1 : 0, 0),
+                     Qt::LocalTime);
     QTest::newRow("ISO 24:00 end of month") << QString::fromLatin1("2012-06-30T24:00:00")
-        << Qt::ISODate << QDateTime(QDate(2012, 7, 1), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2012, 7, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("ISO 24:00 end of year") << QString::fromLatin1("2012-12-31T24:00:00")
-        << Qt::ISODate << QDateTime(QDate(2013, 1, 1), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2013, 1, 1), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("ISO 24:00, fract ms") << QString::fromLatin1("2012-01-01T24:00:00.000")
-        << Qt::ISODate << QDateTime(QDate(2012, 1, 2), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2012, 1, 2), QTime(0, 0), Qt::LocalTime);
     QTest::newRow("ISO 24:00 end of year, fract ms") << QString::fromLatin1("2012-12-31T24:00:00.000")
-        << Qt::ISODate << QDateTime(QDate(2013, 1, 1), QTime(0, 0, 0, 0), Qt::LocalTime);
+        << Qt::ISODate << QDateTime(QDate(2013, 1, 1), QTime(0, 0), Qt::LocalTime);
     // Test fractional seconds.
     QTest::newRow("ISO .0 of a second (period)") << QString::fromLatin1("2012-01-01T08:00:00.0")
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 0, 0), Qt::LocalTime);
@@ -2320,19 +2429,30 @@ void tst_QDateTime::fromStringDateFormat_data()
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 0, 333), Qt::LocalTime);
     QTest::newRow("ISO .00009 of a second (period)") << QString::fromLatin1("2012-01-01T08:00:00.00009")
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 0, 0), Qt::LocalTime);
-    QTest::newRow("ISO no fract specified") << QString::fromLatin1("2012-01-01T08:00:00.")
-        << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 0, 0), Qt::LocalTime);
+    QTest::newRow("ISO second fraction") << QString::fromLatin1("2013-05-06T01:02:03.456")
+        << Qt::ISODate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 3, 456));
+    QTest::newRow("ISO max milli")
+        << QString::fromLatin1("2013-05-06T01:02:03.999499999")
+        << Qt::ISODate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 3, 999));
+    QTest::newRow("ISO milli wrap")
+        << QString::fromLatin1("2013-05-06T01:02:03.9995")
+        << Qt::ISODate << QDateTime(QDate(2013, 5, 6), QTime(1, 2, 4));
+    QTest::newRow("ISO last milli") // Does round up and overflow into new day:
+        << QString::fromLatin1("2013-05-06T23:59:59.9999999999")
+        << Qt::ISODate << QDate(2013, 5, 7).startOfDay();
+    QTest::newRow("ISO no fraction specified")
+        << QString::fromLatin1("2012-01-01T08:00:00.") << Qt::ISODate << QDateTime();
     // Test invalid characters (should ignore invalid characters at end of string).
     QTest::newRow("ISO invalid character at end") << QString::fromLatin1("2012-01-01T08:00:00!")
-        << Qt::ISODate << invalidDateTime();
+        << Qt::ISODate << QDateTime();
     QTest::newRow("ISO invalid character at front") << QString::fromLatin1("!2012-01-01T08:00:00")
-        << Qt::ISODate << invalidDateTime();
+        << Qt::ISODate << QDateTime();
     QTest::newRow("ISO invalid character both ends") << QString::fromLatin1("!2012-01-01T08:00:00!")
-        << Qt::ISODate << invalidDateTime();
+        << Qt::ISODate << QDateTime();
     QTest::newRow("ISO invalid character at front, 2 at back") << QString::fromLatin1("!2012-01-01T08:00:00..")
-        << Qt::ISODate << invalidDateTime();
+        << Qt::ISODate << QDateTime();
     QTest::newRow("ISO invalid character 2 at front") << QString::fromLatin1("!!2012-01-01T08:00:00")
-        << Qt::ISODate << invalidDateTime();
+        << Qt::ISODate << QDateTime();
     // Test fractional minutes.
     QTest::newRow("ISO .0 of a minute (period)") << QString::fromLatin1("2012-01-01T08:00.0")
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 0, 0), Qt::LocalTime);
@@ -2346,11 +2466,14 @@ void tst_QDateTime::fromStringDateFormat_data()
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 48, 0), Qt::LocalTime);
     QTest::newRow("ISO .99999 of a minute (comma)") << QString::fromLatin1("2012-01-01T08:00,99999")
         << Qt::ISODate << QDateTime(QDate(2012, 1, 1), QTime(8, 0, 59, 999), Qt::LocalTime);
-    QTest::newRow("ISO empty") << QString::fromLatin1("") << Qt::ISODate << invalidDateTime();
-    QTest::newRow("ISO short") << QString::fromLatin1("2017-07-01T") << Qt::ISODate << invalidDateTime();
-    QTest::newRow("ISO zoned date") << QString::fromLatin1("2017-07-01Z") << Qt::ISODate << invalidDateTime();
-    QTest::newRow("ISO zoned empty time") << QString::fromLatin1("2017-07-01TZ") << Qt::ISODate << invalidDateTime();
-    QTest::newRow("ISO mis-punctuated") << QString::fromLatin1("2018/01/30 ") << Qt::ISODate << invalidDateTime();
+    QTest::newRow("ISO empty") << QString::fromLatin1("") << Qt::ISODate << QDateTime();
+    QTest::newRow("ISO short") << QString::fromLatin1("2017-07-01T") << Qt::ISODate << QDateTime();
+    QTest::newRow("ISO zoned date")
+        << QString::fromLatin1("2017-07-01Z") << Qt::ISODate << QDateTime();
+    QTest::newRow("ISO zoned empty time")
+        << QString::fromLatin1("2017-07-01TZ") << Qt::ISODate << QDateTime();
+    QTest::newRow("ISO mis-punctuated")
+        << QString::fromLatin1("2018/01/30 ") << Qt::ISODate << QDateTime();
 
     // Test Qt::RFC2822Date format (RFC 2822).
     QTest::newRow("RFC 2822 +0100") << QString::fromLatin1("13 Feb 1987 13:24:51 +0100")
@@ -2382,37 +2505,49 @@ void tst_QDateTime::fromStringDateFormat_data()
         << Qt::RFC2822Date << QDateTime(QDate(1970, 1, 1), QTime(0, 12, 34), Qt::UTC);
     // No time specified
     QTest::newRow("RFC 2822 date only") << QString::fromLatin1("01 Nov 2002")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 with day date only") << QString::fromLatin1("Fri, 01 Nov 2002")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
+
+    QTest::newRow("RFC 2822 malformed time (truncated)")
+        << QString::fromLatin1("01 Nov 2002 0:") << Qt::RFC2822Date << QDateTime();
+    QTest::newRow("RFC 2822 malformed time (hour)")
+        << QString::fromLatin1("01 Nov 2002 7:35:21") << Qt::RFC2822Date << QDateTime();
+    QTest::newRow("RFC 2822 malformed time (minute)")
+        << QString::fromLatin1("01 Nov 2002 07:5:21") << Qt::RFC2822Date << QDateTime();
+    QTest::newRow("RFC 2822 malformed time (second)")
+        << QString::fromLatin1("01 Nov 2002 07:35:1") << Qt::RFC2822Date << QDateTime();
+    QTest::newRow("RFC 2822 malformed time (fraction-second)")
+        << QString::fromLatin1("01 Nov 2002 07:35:15.200") << Qt::RFC2822Date << QDateTime();
+
     // Test invalid month, day, year
     QTest::newRow("RFC 2822 invalid month name") << QString::fromLatin1("13 Fev 1987 13:24:51 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid day") << QString::fromLatin1("36 Fev 1987 13:24:51 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid year") << QString::fromLatin1("13 Fev 0000 13:24:51 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     // Test invalid characters.
     QTest::newRow("RFC 2822 invalid character at end")
         << QString::fromLatin1("01 Jan 2012 08:00:00 +0100!")
         << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid character at front")
         << QString::fromLatin1("!01 Jan 2012 08:00:00 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid character both ends")
         << QString::fromLatin1("!01 Jan 2012 08:00:00 +0100!")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid character at front, 2 at back")
         << QString::fromLatin1("!01 Jan 2012 08:00:00 +0100..")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 2822 invalid character 2 at front")
         << QString::fromLatin1("!!01 Jan 2012 08:00:00 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     // The common date text used by the "invalid character" tests, just to be
     // sure *it's* not what's invalid:
     QTest::newRow("RFC 2822 (not invalid)")
         << QString::fromLatin1("01 Jan 2012 08:00:00 +0100")
-        << Qt::RFC2822Date << QDateTime(QDate(2012, 1, 1), QTime(7, 0, 0, 0), Qt::UTC);
+        << Qt::RFC2822Date << QDateTime(QDate(2012, 1, 1), QTime(7, 0), Qt::UTC);
 
     // Test Qt::RFC2822Date format (RFC 850 and 1036, permissive).
     QTest::newRow("RFC 850 and 1036 +0100") << QString::fromLatin1("Fri Feb 13 13:24:51 1987 +0100")
@@ -2432,29 +2567,29 @@ void tst_QDateTime::fromStringDateFormat_data()
     // No time specified
     QTest::newRow("RFC 850 and 1036 date only")
         << QString::fromLatin1("Fri Nov 01 2002")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     // Test invalid characters.
     QTest::newRow("RFC 850 and 1036 invalid character at end")
         << QString::fromLatin1("Sun Jan 01 08:00:00 2012 +0100!")
         << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 850 and 1036 invalid character at front")
         << QString::fromLatin1("!Sun Jan 01 08:00:00 2012 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 850 and 1036 invalid character both ends")
         << QString::fromLatin1("!Sun Jan 01 08:00:00 2012 +0100!")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 850 and 1036 invalid character at front, 2 at back")
         << QString::fromLatin1("!Sun Jan 01 08:00:00 2012 +0100..")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     QTest::newRow("RFC 850 and 1036 invalid character 2 at front")
         << QString::fromLatin1("!!Sun Jan 01 08:00:00 2012 +0100")
-        << Qt::RFC2822Date << invalidDateTime();
+        << Qt::RFC2822Date << QDateTime();
     // Again, check the text in the "invalid character" tests isn't the source of invalidity:
     QTest::newRow("RFC 850 and 1036 (not invalid)")
         << QString::fromLatin1("Sun Jan 01 08:00:00 2012 +0100")
-        << Qt::RFC2822Date << QDateTime(QDate(2012, 1, 1), QTime(7, 0, 0, 0), Qt::UTC);
+        << Qt::RFC2822Date << QDateTime(QDate(2012, 1, 1), QTime(7, 0), Qt::UTC);
 
-    QTest::newRow("RFC empty") << QString::fromLatin1("") << Qt::RFC2822Date << invalidDateTime();
+    QTest::newRow("RFC empty") << QString::fromLatin1("") << Qt::RFC2822Date << QDateTime();
 }
 
 void tst_QDateTime::fromStringDateFormat()
@@ -2474,24 +2609,35 @@ void tst_QDateTime::fromStringStringFormat_data()
     QTest::addColumn<QString>("format");
     QTest::addColumn<QDateTime>("expected");
 
-    QTest::newRow("data0") << QString("101010") << QString("dMyy") << QDateTime(QDate(1910, 10, 10), QTime());
-    QTest::newRow("data1") << QString("1020") << QString("sss") << invalidDateTime();
-    QTest::newRow("data2") << QString("1010") << QString("sss") << QDateTime(defDate(), QTime(0, 0, 10));
-    QTest::newRow("data3") << QString("10hello20") << QString("ss'hello'ss") << invalidDateTime();
-    QTest::newRow("data4") << QString("10") << QString("''") << invalidDateTime();
-    QTest::newRow("data5") << QString("10") << QString("'") << invalidDateTime();
-    QTest::newRow("data6") << QString("pm") << QString("ap") << QDateTime(defDate(), QTime(12, 0, 0));
-    QTest::newRow("data7") << QString("foo") << QString("ap") << invalidDateTime();
+    const QDate defDate(1900, 1, 1);
+    QTest::newRow("data0")
+        << QString("101010") << QString("dMyy") << QDate(1910, 10, 10).startOfDay();
+    QTest::newRow("data1") << QString("1020") << QString("sss") << QDateTime();
+    QTest::newRow("data2")
+        << QString("1010") << QString("sss") << QDateTime(defDate, QTime(0, 0, 10));
+    QTest::newRow("data3") << QString("10hello20") << QString("ss'hello'ss") << QDateTime();
+    QTest::newRow("data4") << QString("10") << QString("''") << QDateTime();
+    QTest::newRow("data5") << QString("10") << QString("'") << QDateTime();
+    QTest::newRow("data6") << QString("pm") << QString("ap") << QDateTime(defDate, QTime(12, 0));
+    QTest::newRow("data7") << QString("foo") << QString("ap") << QDateTime();
     // Day non-conflict should not hide earlier year conflict (1963-03-01 was a
     // Friday; asking for Thursday moves this, without conflict, to the 7th):
-    QTest::newRow("data8") << QString("77 03 1963 Thu") << QString("yy MM yyyy ddd") << invalidDateTime();
-    QTest::newRow("data9") << QString("101010") << QString("dMyy") << QDateTime(QDate(1910, 10, 10), QTime());
-    QTest::newRow("data10") << QString("101010") << QString("dMyy") << QDateTime(QDate(1910, 10, 10), QTime());
-    QTest::newRow("data11") << QString("10 Oct 10") << QString("dd MMM yy") << QDateTime(QDate(1910, 10, 10), QTime());
-    QTest::newRow("data12") << QString("Fri December 3 2004") << QString("ddd MMMM d yyyy") << QDateTime(QDate(2004, 12, 3), QTime());
-    QTest::newRow("data13") << QString("30.02.2004") << QString("dd.MM.yyyy") << invalidDateTime();
-    QTest::newRow("data14") << QString("32.01.2004") << QString("dd.MM.yyyy") << invalidDateTime();
-    QTest::newRow("data15") << QString("Thu January 2004") << QString("ddd MMMM yyyy") << QDateTime(QDate(2004, 1, 1), QTime());
+    QTest::newRow("data8")
+        << QString("77 03 1963 Thu") << QString("yy MM yyyy ddd") << QDateTime();
+    QTest::newRow("data9")
+        << QString("101010") << QString("dMyy") << QDate(1910, 10, 10).startOfDay();
+    QTest::newRow("data10")
+        << QString("101010") << QString("dMyy") << QDate(1910, 10, 10).startOfDay();
+    QTest::newRow("data11")
+        << QString("10 Oct 10") << QString("dd MMM yy") << QDate(1910, 10, 10).startOfDay();
+    QTest::newRow("data12")
+        << QString("Fri December 3 2004") << QString("ddd MMMM d yyyy")
+        << QDate(2004, 12, 3).startOfDay();
+    QTest::newRow("data13") << QString("30.02.2004") << QString("dd.MM.yyyy") << QDateTime();
+    QTest::newRow("data14") << QString("32.01.2004") << QString("dd.MM.yyyy") << QDateTime();
+    QTest::newRow("data15")
+        << QString("Thu January 2004") << QString("ddd MMMM yyyy")
+        << QDate(2004, 1, 1).startOfDay();
     QTest::newRow("data16") << QString("2005-06-28T07:57:30.001Z")
                             << QString("yyyy-MM-ddThh:mm:ss.zt")
                             << QDateTime(QDate(2005, 06, 28), QTime(07, 57, 30, 1), Qt::UTC);
@@ -2554,73 +2700,73 @@ void tst_QDateTime::fromStringStringFormat_data()
         << QDateTime(QDate(2008, 10, 13), QTime(11, 50), Qt::OffsetFromUTC, 3600);
     QTest::newRow("invalid-offset-from-utc:out-of-range")
         << QString("2001-09-15T09:33:01.001-50") << QString("yyyy-MM-ddThh:mm:ss.zt")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:single-digit-format")
         << QString("2001-09-15T09:33:01.001+5") << QString("yyyy-MM-ddThh:mm:ss.zt")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:three-digit-format")
         << QString("2001-09-15T09:33:01.001-701") << QString("yyyy-MM-ddThh:mm:ss.zt")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:three-digit-minutes")
         << QString("2001-09-15T09:33:01.001+11:570") << QString("yyyy-MM-ddThh:mm:ss.zt")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:single-digit-minutes")
         << QString("2001-09-15T09:33:01.001+11:5") << QString("yyyy-MM-ddThh:mm:ss.zt")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:invalid-sign-symbol")
         << QString("2001-09-15T09:33:01.001 ~11:30") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:symbol-in-hours")
         << QString("2001-09-15T09:33:01.001 UTC+o8:30") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:symbol-in-minutes")
         << QString("2001-09-15T09:33:01.001 UTC+08:3i") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:UTC+123")  // Invalid offset (UTC and 3 digit format)
         << QString("2001-09-15T09:33:01.001 UTC+123") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:UTC+00005")  // Invalid offset with leading zeroes
         << QString("2001-09-15T09:33:01.001 UTC+00005") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:three-digit-with-colon-delimiter")
         << QString("2008-10-13 +123:11.50") << QString("yyyy-MM-dd t:hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:double-colon-as-part-of-offset")
         << QString("2008-10-13 UTC+12::11.50") << QString("yyyy-MM-dd thh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:single-colon-as-part-of-offset")
         << QString("2008-10-13 UTC+12::11.50") << QString("yyyy-MM-dd t:hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:starts-with-colon")
         << QString("2008-10-13 UTC+:59 11.50") << QString("yyyy-MM-dd t hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:empty-offset")
         << QString("2008-10-13 UTC+ 11.50") << QString("yyyy-MM-dd t hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:time-section-instead-of-offset")
         << QString("2008-10-13 UTC+11.50") << QString("yyyy-MM-dd thh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:missing-minutes-if-colon")
         << QString("2008-10-13 +05: 11.50") << QString("yyyy-MM-dd t hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:1-digit-minutes-if-colon")
         << QString("2008-10-13 UTC+05:1 11.50") << QString("yyyy-MM-dd t hh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-time-spec:random-symbol")
         << QString("2001-09-15T09:33:01.001 $") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-time-spec:random-digit")
         << QString("2001-09-15T09:33:01.001 1") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:merged-with-time")
         << QString("2008-10-13 UTC+0111.50") << QString("yyyy-MM-dd thh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-offset-from-utc:with-colon-3-digit-merged-with-time")
         << QString("2008-10-13 UTC+01:011.50") << QString("yyyy-MM-dd thh.mm")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("invalid-time-spec:empty")
         << QString("2001-09-15T09:33:01.001 ") << QString("yyyy-MM-ddThh:mm:ss.z t")
-        << invalidDateTime();
+        << QDateTime();
 #if QT_CONFIG(timezone)
     QTimeZone southBrazil("America/Sao_Paulo");
     if (southBrazil.isValid()) {
@@ -2641,11 +2787,16 @@ void tst_QDateTime::fromStringStringFormat_data()
     QTest::newRow("broken-separator")
         << QStringLiteral("2018 wilful")
         << QStringLiteral("yyyy wilful long working block relief MM-ddThh:mm cruel blurb encore flux")
-        << invalidDateTime();
+        << QDateTime();
     QTest::newRow("broken-terminator")
         << QStringLiteral("2018 wilful long working block relief 12-19T21:09 cruel")
         << QStringLiteral("yyyy wilful long working block relief MM-ddThh:mm cruel blurb encore flux")
-        << invalidDateTime();
+        << QDateTime();
+
+    // test unicode
+    QTest::newRow("unicode handling") << QString(u8"2005🤣06🤣28T07🤣57🤣30.001Z")
+        << QString(u8"yyyy🤣MM🤣ddThh🤣mm🤣ss.zt")
+        << QDateTime(QDate(2005, 06, 28), QTime(07, 57, 30, 1), Qt::UTC);
 }
 
 void tst_QDateTime::fromStringStringFormat()
@@ -2712,35 +2863,35 @@ void tst_QDateTime::offsetFromUtc()
     QCOMPARE(QDateTime().offsetFromUtc(), 0);
 
     // Offset constructor
-    QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, 60 * 60);
+    QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0), Qt::OffsetFromUTC, 60 * 60);
     QCOMPARE(dt1.offsetFromUtc(), 60 * 60);
 #if QT_CONFIG(timezone)
     QVERIFY(dt1.timeZone().isValid());
 #endif
-    dt1 = QDateTime(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, -60 * 60);
+    dt1 = QDateTime(QDate(2013, 1, 1), QTime(1, 0), Qt::OffsetFromUTC, -60 * 60);
     QCOMPARE(dt1.offsetFromUtc(), -60 * 60);
 
     // UTC should be 0 offset
-    QDateTime dt2(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime dt2(QDate(2013, 1, 1), QTime(0, 0), Qt::UTC);
     QCOMPARE(dt2.offsetFromUtc(), 0);
 
     // LocalTime should vary
     if (zoneIsCET) {
         // Time definitely in Standard Time so 1 hour ahead
-        QDateTime dt3(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        QDateTime dt3(QDate(2013, 1, 1), QTime(0, 0), Qt::LocalTime);
         QCOMPARE(dt3.offsetFromUtc(), 1 * 60 * 60);
         // Time definitely in Daylight Time so 2 hours ahead
-        QDateTime dt4(QDate(2013, 6, 1), QTime(0, 0, 0), Qt::LocalTime);
+        QDateTime dt4(QDate(2013, 6, 1), QTime(0, 0), Qt::LocalTime);
         QCOMPARE(dt4.offsetFromUtc(), 2 * 60 * 60);
      } else {
          QSKIP("You must test using Central European (CET/CEST) time zone, e.g. TZ=Europe/Oslo");
      }
 
 #if QT_CONFIG(timezone)
-    QDateTime dt5(QDate(2013, 1, 1), QTime(0, 0, 0), QTimeZone("Pacific/Auckland"));
+    QDateTime dt5(QDate(2013, 1, 1), QTime(0, 0), QTimeZone("Pacific/Auckland"));
     QCOMPARE(dt5.offsetFromUtc(), 46800);
 
-    QDateTime dt6(QDate(2013, 6, 1), QTime(0, 0, 0), QTimeZone("Pacific/Auckland"));
+    QDateTime dt6(QDate(2013, 6, 1), QTime(0, 0), QTimeZone("Pacific/Auckland"));
     QCOMPARE(dt6.offsetFromUtc(), 43200);
 #endif
 }
@@ -2794,7 +2945,7 @@ void tst_QDateTime::setOffsetFromUtc()
     }
 
     // Check spec persists
-    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::OffsetFromUTC, 60 * 60);
+    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0), Qt::OffsetFromUTC, 60 * 60);
     dt1.setMSecsSinceEpoch(123456789);
     QCOMPARE(dt1.timeSpec(), Qt::OffsetFromUTC);
     QCOMPARE(dt1.offsetFromUtc(), 60 * 60);
@@ -2820,25 +2971,25 @@ void tst_QDateTime::setOffsetFromUtc()
 
 void tst_QDateTime::toOffsetFromUtc()
 {
-    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime dt1(QDate(2013, 1, 1), QTime(0, 0), Qt::UTC);
 
     QDateTime dt2 = dt1.toOffsetFromUtc(60 * 60);
     QCOMPARE(dt2, dt1);
     QCOMPARE(dt2.timeSpec(), Qt::OffsetFromUTC);
     QCOMPARE(dt2.date(), QDate(2013, 1, 1));
-    QCOMPARE(dt2.time(), QTime(1, 0, 0));
+    QCOMPARE(dt2.time(), QTime(1, 0));
 
     dt2 = dt1.toOffsetFromUtc(0);
     QCOMPARE(dt2, dt1);
     QCOMPARE(dt2.timeSpec(), Qt::UTC);
     QCOMPARE(dt2.date(), QDate(2013, 1, 1));
-    QCOMPARE(dt2.time(), QTime(0, 0, 0));
+    QCOMPARE(dt2.time(), QTime(0, 0));
 
     dt2 = dt1.toTimeSpec(Qt::OffsetFromUTC);
     QCOMPARE(dt2, dt1);
     QCOMPARE(dt2.timeSpec(), Qt::UTC);
     QCOMPARE(dt2.date(), QDate(2013, 1, 1));
-    QCOMPARE(dt2.time(), QTime(0, 0, 0));
+    QCOMPARE(dt2.time(), QTime(0, 0));
 }
 
 void tst_QDateTime::zoneAtTime_data()
@@ -2918,24 +3069,24 @@ void tst_QDateTime::zoneAtTime()
 
 void tst_QDateTime::timeZoneAbbreviation()
 {
-    QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, 60 * 60);
+    QDateTime dt1(QDate(2013, 1, 1), QTime(1, 0), Qt::OffsetFromUTC, 60 * 60);
     QCOMPARE(dt1.timeZoneAbbreviation(), QString("UTC+01:00"));
-    QDateTime dt2(QDate(2013, 1, 1), QTime(1, 0, 0), Qt::OffsetFromUTC, -60 * 60);
+    QDateTime dt2(QDate(2013, 1, 1), QTime(1, 0), Qt::OffsetFromUTC, -60 * 60);
     QCOMPARE(dt2.timeZoneAbbreviation(), QString("UTC-01:00"));
 
-    QDateTime dt3(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime dt3(QDate(2013, 1, 1), QTime(0, 0), Qt::UTC);
     QCOMPARE(dt3.timeZoneAbbreviation(), QString("UTC"));
 
     // LocalTime should vary
     if (zoneIsCET) {
         // Time definitely in Standard Time
-        QDateTime dt4(QDate(2013, 1, 1), QTime(0, 0, 0), Qt::LocalTime);
+        QDateTime dt4(QDate(2013, 1, 1), QTime(0, 0), Qt::LocalTime);
 #ifdef Q_OS_WIN
         QEXPECT_FAIL("", "Windows only reports long name (QTBUG-32759)", Continue);
 #endif
         QCOMPARE(dt4.timeZoneAbbreviation(), QStringLiteral("CET"));
         // Time definitely in Daylight Time
-        QDateTime dt5(QDate(2013, 6, 1), QTime(0, 0, 0), Qt::LocalTime);
+        QDateTime dt5(QDate(2013, 6, 1), QTime(0, 0), Qt::LocalTime);
 #ifdef Q_OS_WIN
         QEXPECT_FAIL("", "Windows only reports long name (QTBUG-32759)", Continue);
 #endif
@@ -2982,16 +3133,16 @@ void tst_QDateTime::getDate()
 
 void tst_QDateTime::fewDigitsInYear() const
 {
-    const QDateTime three(QDate(300, 10, 11), QTime());
+    const QDateTime three(QDate(300, 10, 11).startOfDay());
     QCOMPARE(three.toString(QLatin1String("yyyy-MM-dd")), QString::fromLatin1("0300-10-11"));
 
-    const QDateTime two(QDate(20, 10, 11), QTime());
+    const QDateTime two(QDate(20, 10, 11).startOfDay());
     QCOMPARE(two.toString(QLatin1String("yyyy-MM-dd")), QString::fromLatin1("0020-10-11"));
 
-    const QDateTime yyTwo(QDate(30, 10, 11), QTime());
+    const QDateTime yyTwo(QDate(30, 10, 11).startOfDay());
     QCOMPARE(yyTwo.toString(QLatin1String("yy-MM-dd")), QString::fromLatin1("30-10-11"));
 
-    const QDateTime yyOne(QDate(4, 10, 11), QTime());
+    const QDateTime yyOne(QDate(4, 10, 11).startOfDay());
     QCOMPARE(yyOne.toString(QLatin1String("yy-MM-dd")), QString::fromLatin1("04-10-11"));
 }
 
@@ -3029,7 +3180,7 @@ void tst_QDateTime::roundtripTextDate() const
 
 void tst_QDateTime::utcOffsetLessThan() const
 {
-    QDateTime dt1(QDate(2002, 10, 10), QTime(0, 0, 0));
+    QDateTime dt1(QDate(2002, 10, 10), QTime(0, 0));
     QDateTime dt2(dt1);
 
     dt1.setOffsetFromUtc(-(2 * 60 * 60)); // Minus two hours.
@@ -3043,20 +3194,20 @@ void tst_QDateTime::utcOffsetLessThan() const
 
 void tst_QDateTime::isDaylightTime() const
 {
-    QDateTime utc1(QDate(2012, 1, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime utc1(QDate(2012, 1, 1), QTime(0, 0), Qt::UTC);
     QVERIFY(!utc1.isDaylightTime());
-    QDateTime utc2(QDate(2012, 6, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime utc2(QDate(2012, 6, 1), QTime(0, 0), Qt::UTC);
     QVERIFY(!utc2.isDaylightTime());
 
-    QDateTime offset1(QDate(2012, 1, 1), QTime(0, 0, 0), Qt::OffsetFromUTC, 1 * 60 * 60);
+    QDateTime offset1(QDate(2012, 1, 1), QTime(0, 0), Qt::OffsetFromUTC, 1 * 60 * 60);
     QVERIFY(!offset1.isDaylightTime());
-    QDateTime offset2(QDate(2012, 6, 1), QTime(0, 0, 0), Qt::OffsetFromUTC, 1 * 60 * 60);
+    QDateTime offset2(QDate(2012, 6, 1), QTime(0, 0), Qt::OffsetFromUTC, 1 * 60 * 60);
     QVERIFY(!offset2.isDaylightTime());
 
     if (zoneIsCET) {
-        QDateTime cet1(QDate(2012, 1, 1), QTime(0, 0, 0));
+        QDateTime cet1(QDate(2012, 1, 1), QTime(0, 0));
         QVERIFY(!cet1.isDaylightTime());
-        QDateTime cet2(QDate(2012, 6, 1), QTime(0, 0, 0));
+        QDateTime cet2(QDate(2012, 6, 1), QTime(0, 0));
         QVERIFY(cet2.isDaylightTime());
     } else {
         QSKIP("You must test using Central European (CET/CEST) time zone, e.g. TZ=Europe/Oslo");
@@ -3085,15 +3236,15 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(before.time(), QTime(1, 59, 59, 999));
         QCOMPARE(before.toMSecsSinceEpoch(), daylight2012 - 1);
 
-        QDateTime missing(QDate(2012, 3, 25), QTime(2, 0, 0));
+        QDateTime missing(QDate(2012, 3, 25), QTime(2, 0));
         QVERIFY(!missing.isValid());
         QCOMPARE(missing.date(), QDate(2012, 3, 25));
-        QCOMPARE(missing.time(), QTime(2, 0, 0));
+        QCOMPARE(missing.time(), QTime(2, 0));
 
-        QDateTime after(QDate(2012, 3, 25), QTime(3, 0, 0));
+        QDateTime after(QDate(2012, 3, 25), QTime(3, 0));
         QVERIFY(after.isValid());
         QCOMPARE(after.date(), QDate(2012, 3, 25));
-        QCOMPARE(after.time(), QTime(3, 0, 0));
+        QCOMPARE(after.time(), QTime(3, 0));
         QCOMPARE(after.toMSecsSinceEpoch(), daylight2012);
 
         // Test round-tripping of msecs
@@ -3107,7 +3258,7 @@ void tst_QDateTime::daylightTransitions() const
         after.setMSecsSinceEpoch(daylight2012);
         QVERIFY(after.isValid());
         QCOMPARE(after.date(), QDate(2012, 3, 25));
-        QCOMPARE(after.time(), QTime(3, 0, 0));
+        QCOMPARE(after.time(), QTime(3, 0));
         QCOMPARE(after.toMSecsSinceEpoch(), daylight2012);
 
         // Test changing time spec re-validates the date/time
@@ -3115,43 +3266,43 @@ void tst_QDateTime::daylightTransitions() const
         QDateTime utc(QDate(2012, 3, 25), QTime(2, 00, 0), Qt::UTC);
         QVERIFY(utc.isValid());
         QCOMPARE(utc.date(), QDate(2012, 3, 25));
-        QCOMPARE(utc.time(), QTime(2, 0, 0));
+        QCOMPARE(utc.time(), QTime(2, 0));
         utc.setTimeSpec(Qt::LocalTime);
         QVERIFY(!utc.isValid());
         QCOMPARE(utc.date(), QDate(2012, 3, 25));
-        QCOMPARE(utc.time(), QTime(2, 0, 0));
+        QCOMPARE(utc.time(), QTime(2, 0));
         utc.setTimeSpec(Qt::UTC);
         QVERIFY(utc.isValid());
         QCOMPARE(utc.date(), QDate(2012, 3, 25));
-        QCOMPARE(utc.time(), QTime(2, 0, 0));
+        QCOMPARE(utc.time(), QTime(2, 0));
 
         // Test date maths, if result falls in missing hour then becomes next
         // hour (or is always invalid; mktime() may reject gap-times).
 
-        QDateTime test(QDate(2011, 3, 25), QTime(2, 0, 0));
+        QDateTime test(QDate(2011, 3, 25), QTime(2, 0));
         QVERIFY(test.isValid());
         test = test.addYears(1);
         const bool handled = test.isValid();
 #define CHECK_SPRING_FORWARD(test) \
             if (test.isValid()) { \
                 QCOMPARE(test.date(), QDate(2012, 3, 25)); \
-                QCOMPARE(test.time(), QTime(3, 0, 0)); \
+                QCOMPARE(test.time(), QTime(3, 0)); \
             } else { \
                 QVERIFY(!handled); \
             }
         CHECK_SPRING_FORWARD(test);
 
-        test = QDateTime(QDate(2012, 2, 25), QTime(2, 0, 0));
+        test = QDateTime(QDate(2012, 2, 25), QTime(2, 0));
         QVERIFY(test.isValid());
         test = test.addMonths(1);
         CHECK_SPRING_FORWARD(test);
 
-        test = QDateTime(QDate(2012, 3, 24), QTime(2, 0, 0));
+        test = QDateTime(QDate(2012, 3, 24), QTime(2, 0));
         QVERIFY(test.isValid());
         test = test.addDays(1);
         CHECK_SPRING_FORWARD(test);
 
-        test = QDateTime(QDate(2012, 3, 25), QTime(1, 0, 0));
+        test = QDateTime(QDate(2012, 3, 25), QTime(1, 0));
         QVERIFY(test.isValid());
         QCOMPARE(test.toMSecsSinceEpoch(), daylight2012 - msecsOneHour);
         test = test.addMSecs(msecsOneHour);
@@ -3165,10 +3316,10 @@ void tst_QDateTime::daylightTransitions() const
         // Test setting date and time in first and second occurrence will be valid
 
         // 1 hour before transition is 2:00:00 FirstOccurrence
-        QDateTime hourBefore(QDate(2012, 10, 28), QTime(2, 0, 0));
+        QDateTime hourBefore(QDate(2012, 10, 28), QTime(2, 0));
         QVERIFY(hourBefore.isValid());
         QCOMPARE(hourBefore.date(), QDate(2012, 10, 28));
-        QCOMPARE(hourBefore.time(), QTime(2, 0, 0));
+        QCOMPARE(hourBefore.time(), QTime(2, 0));
 #ifdef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3187,10 +3338,10 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(msecBefore.toMSecsSinceEpoch(), standard2012 - 1);
 
         // At transition is 2:00:00 SecondOccurrence
-        QDateTime atTran(QDate(2012, 10, 28), QTime(2, 0, 0));
+        QDateTime atTran(QDate(2012, 10, 28), QTime(2, 0));
         QVERIFY(atTran.isValid());
         QCOMPARE(atTran.date(), QDate(2012, 10, 28));
-        QCOMPARE(atTran.time(), QTime(2, 0, 0));
+        QCOMPARE(atTran.time(), QTime(2, 0));
 #ifndef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3209,10 +3360,10 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(afterTran.toMSecsSinceEpoch(), standard2012 + msecsOneHour - 1);
 
         // 1 hour after transition is 3:00:00 FirstOccurrence
-        QDateTime hourAfter(QDate(2012, 10, 28), QTime(3, 0, 0));
+        QDateTime hourAfter(QDate(2012, 10, 28), QTime(3, 0));
         QVERIFY(hourAfter.isValid());
         QCOMPARE(hourAfter.date(), QDate(2012, 10, 28));
-        QCOMPARE(hourAfter.time(), QTime(3, 0, 0));
+        QCOMPARE(hourAfter.time(), QTime(3, 0));
         QCOMPARE(hourAfter.toMSecsSinceEpoch(), standard2012 + msecsOneHour);
 
         // Test round-tripping of msecs
@@ -3221,7 +3372,7 @@ void tst_QDateTime::daylightTransitions() const
         hourBefore.setMSecsSinceEpoch(standard2012 - msecsOneHour);
         QVERIFY(hourBefore.isValid());
         QCOMPARE(hourBefore.date(), QDate(2012, 10, 28));
-        QCOMPARE(hourBefore.time(), QTime(2, 0, 0));
+        QCOMPARE(hourBefore.time(), QTime(2, 0));
         QCOMPARE(hourBefore.toMSecsSinceEpoch(), standard2012 - msecsOneHour);
 
         // 1 msec before transition is 2:59:59.999 FirstOccurrence
@@ -3235,7 +3386,7 @@ void tst_QDateTime::daylightTransitions() const
         atTran.setMSecsSinceEpoch(standard2012);
         QVERIFY(atTran.isValid());
         QCOMPARE(atTran.date(), QDate(2012, 10, 28));
-        QCOMPARE(atTran.time(), QTime(2, 0, 0));
+        QCOMPARE(atTran.time(), QTime(2, 0));
         QCOMPARE(atTran.toMSecsSinceEpoch(), standard2012);
 
         // 59:59.999 after transition is 2:59:59.999 SecondOccurrence
@@ -3249,17 +3400,17 @@ void tst_QDateTime::daylightTransitions() const
         hourAfter.setMSecsSinceEpoch(standard2012 + msecsOneHour);
         QVERIFY(hourAfter.isValid());
         QCOMPARE(hourAfter.date(), QDate(2012, 10, 28));
-        QCOMPARE(hourAfter.time(), QTime(3, 0, 0));
+        QCOMPARE(hourAfter.time(), QTime(3, 0));
         QCOMPARE(hourAfter.toMSecsSinceEpoch(), standard2012 + msecsOneHour);
 
         // Test date maths, result is always FirstOccurrence
 
         // Add year to get to tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 28), QTime(2, 0, 0));
+        test = QDateTime(QDate(2011, 10, 28), QTime(2, 0));
         test = test.addYears(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 #ifdef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3267,41 +3418,41 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 - msecsOneHour);
 
         // Add year to get to after tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 28), QTime(3, 0, 0));
+        test = QDateTime(QDate(2011, 10, 28), QTime(3, 0));
         test = test.addYears(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 + msecsOneHour);
 
         // Add year to tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0));
         test = test.addYears(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 30));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add year to tran SecondOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0)); // TODO SecondOccurrence
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0)); // TODO SecondOccurrence
         test = test.addYears(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 30));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add year to after tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0));
         test = test.addYears(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 30));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
 
 
         // Add month to get to tran FirstOccurrence
-        test = QDateTime(QDate(2012, 9, 28), QTime(2, 0, 0));
+        test = QDateTime(QDate(2012, 9, 28), QTime(2, 0));
         test = test.addMonths(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 #ifdef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3309,41 +3460,41 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 - msecsOneHour);
 
         // Add month to get to after tran FirstOccurrence
-        test = QDateTime(QDate(2012, 9, 28), QTime(3, 0, 0));
+        test = QDateTime(QDate(2012, 9, 28), QTime(3, 0));
         test = test.addMonths(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 + msecsOneHour);
 
         // Add month to tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0));
         test = test.addMonths(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 11, 30));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add month to tran SecondOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0)); // TODO SecondOccurrence
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0)); // TODO SecondOccurrence
         test = test.addMonths(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 11, 30));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add month to after tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0));
         test = test.addMonths(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 11, 30));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
 
 
         // Add day to get to tran FirstOccurrence
-        test = QDateTime(QDate(2012, 10, 27), QTime(2, 0, 0));
+        test = QDateTime(QDate(2012, 10, 27), QTime(2, 0));
         test = test.addDays(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 #ifdef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3351,45 +3502,45 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 - msecsOneHour);
 
         // Add day to get to after tran FirstOccurrence
-        test = QDateTime(QDate(2012, 10, 27), QTime(3, 0, 0));
+        test = QDateTime(QDate(2012, 10, 27), QTime(3, 0));
         test = test.addDays(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 + msecsOneHour);
 
         // Add day to tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0));
         test = test.addDays(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 10, 31));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add day to tran SecondOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0, 0)); // TODO SecondOccurrence
+        test = QDateTime(QDate(2011, 10, 30), QTime(2, 0)); // TODO SecondOccurrence
         test = test.addDays(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 10, 31));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 
         // Add day to after tran FirstOccurrence
-        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0, 0));
+        test = QDateTime(QDate(2011, 10, 30), QTime(3, 0));
         test = test.addDays(1);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2011, 10, 31));
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
 
 
         // Add hour to get to tran FirstOccurrence
-        test = QDateTime(QDate(2012, 10, 28), QTime(1, 0, 0));
+        test = QDateTime(QDate(2012, 10, 28), QTime(1, 0));
         test = test.addMSecs(msecsOneHour);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012 - msecsOneHour);
 
         // Add hour to tran FirstOccurrence to get to tran SecondOccurrence
-        test = QDateTime(QDate(2012, 10, 28), QTime(2, 0, 0));
+        test = QDateTime(QDate(2012, 10, 28), QTime(2, 0));
         test = test.addMSecs(msecsOneHour);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
@@ -3397,7 +3548,7 @@ void tst_QDateTime::daylightTransitions() const
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
 #endif // Q_OS_WIN
-        QCOMPARE(test.time(), QTime(2, 0, 0));
+        QCOMPARE(test.time(), QTime(2, 0));
 #ifdef Q_OS_WIN
         // Windows uses SecondOccurrence
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3405,7 +3556,7 @@ void tst_QDateTime::daylightTransitions() const
         QCOMPARE(test.toMSecsSinceEpoch(), standard2012);
 
         // Add hour to tran SecondOccurrence to get to after tran FirstOccurrence
-        test = QDateTime(QDate(2012, 10, 28), QTime(2, 0, 0)); // TODO SecondOccurrence
+        test = QDateTime(QDate(2012, 10, 28), QTime(2, 0)); // TODO SecondOccurrence
         test = test.addMSecs(msecsOneHour);
         QVERIFY(test.isValid());
         QCOMPARE(test.date(), QDate(2012, 10, 28));
@@ -3413,7 +3564,7 @@ void tst_QDateTime::daylightTransitions() const
         // Mac uses FirstOccurrence, Windows uses SecondOccurrence, Linux uses last calculation
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
 #endif // Q_OS_WIN
-        QCOMPARE(test.time(), QTime(3, 0, 0));
+        QCOMPARE(test.time(), QTime(3, 0));
 #if defined(Q_OS_DARWIN) || defined(Q_OS_QNX) || defined(Q_OS_ANDROID)
         // Mac uses FirstOccurrence, Windows uses SecondOccurrence, Linux uses last calculation
         QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
@@ -3430,23 +3581,23 @@ void tst_QDateTime::timeZones() const
 #if QT_CONFIG(timezone)
     QTimeZone invalidTz = QTimeZone("Vulcan/ShiKahr");
     QCOMPARE(invalidTz.isValid(), false);
-    QDateTime invalidDateTime = QDateTime(QDate(2000, 1, 1), QTime(0, 0, 0), invalidTz);
+    QDateTime invalidDateTime = QDateTime(QDate(2000, 1, 1), QTime(0, 0), invalidTz);
     QCOMPARE(invalidDateTime.isValid(), false);
     QCOMPARE(invalidDateTime.date(), QDate(2000, 1, 1));
-    QCOMPARE(invalidDateTime.time(), QTime(0, 0, 0));
+    QCOMPARE(invalidDateTime.time(), QTime(0, 0));
 
     QTimeZone nzTz = QTimeZone("Pacific/Auckland");
     QTimeZone nzTzOffset = QTimeZone(12 * 3600);
 
     // During Standard Time NZ is +12:00
-    QDateTime utcStd(QDate(2012, 6, 1), QTime(0, 0, 0), Qt::UTC);
-    QDateTime nzStd(QDate(2012, 6, 1), QTime(12, 0, 0), nzTz);
-    QDateTime nzStdOffset(QDate(2012, 6, 1), QTime(12, 0, 0), nzTzOffset);
+    QDateTime utcStd(QDate(2012, 6, 1), QTime(0, 0), Qt::UTC);
+    QDateTime nzStd(QDate(2012, 6, 1), QTime(12, 0), nzTz);
+    QDateTime nzStdOffset(QDate(2012, 6, 1), QTime(12, 0), nzTzOffset);
 
     QCOMPARE(nzStd.isValid(), true);
     QCOMPARE(nzStd.timeSpec(), Qt::TimeZone);
     QCOMPARE(nzStd.date(), QDate(2012, 6, 1));
-    QCOMPARE(nzStd.time(), QTime(12, 0, 0));
+    QCOMPARE(nzStd.time(), QTime(12, 0));
     QVERIFY(nzStd.timeZone() == nzTz);
     QCOMPARE(nzStd.timeZone().id(), QByteArray("Pacific/Auckland"));
     QCOMPARE(nzStd.offsetFromUtc(), 43200);
@@ -3456,7 +3607,7 @@ void tst_QDateTime::timeZones() const
     QCOMPARE(nzStdOffset.isValid(), true);
     QCOMPARE(nzStdOffset.timeSpec(), Qt::TimeZone);
     QCOMPARE(nzStdOffset.date(), QDate(2012, 6, 1));
-    QCOMPARE(nzStdOffset.time(), QTime(12, 0, 0));
+    QCOMPARE(nzStdOffset.time(), QTime(12, 0));
     QVERIFY(nzStdOffset.timeZone() == nzTzOffset);
     QCOMPARE(nzStdOffset.timeZone().id(), QByteArray("UTC+12:00"));
     QCOMPARE(nzStdOffset.offsetFromUtc(), 43200);
@@ -3464,12 +3615,12 @@ void tst_QDateTime::timeZones() const
     QCOMPARE(nzStdOffset.toMSecsSinceEpoch(), utcStd.toMSecsSinceEpoch());
 
     // During Daylight Time NZ is +13:00
-    QDateTime utcDst(QDate(2012, 1, 1), QTime(0, 0, 0), Qt::UTC);
-    QDateTime nzDst(QDate(2012, 1, 1), QTime(13, 0, 0), nzTz);
+    QDateTime utcDst(QDate(2012, 1, 1), QTime(0, 0), Qt::UTC);
+    QDateTime nzDst(QDate(2012, 1, 1), QTime(13, 0), nzTz);
 
     QCOMPARE(nzDst.isValid(), true);
     QCOMPARE(nzDst.date(), QDate(2012, 1, 1));
-    QCOMPARE(nzDst.time(), QTime(13, 0, 0));
+    QCOMPARE(nzDst.time(), QTime(13, 0));
     QCOMPARE(nzDst.offsetFromUtc(), 46800);
     QCOMPARE(nzDst.isDaylightTime(), true);
     QCOMPARE(nzDst.toMSecsSinceEpoch(), utcDst.toMSecsSinceEpoch());
@@ -3489,14 +3640,14 @@ void tst_QDateTime::timeZones() const
     QTimeZone ausTz = QTimeZone("Australia/Sydney");
     QDateTime aus = nzStd.toTimeZone(ausTz);
     QCOMPARE(aus.date(), QDate(2012, 6, 1));
-    QCOMPARE(aus.time(), QTime(10, 0, 0));
+    QCOMPARE(aus.time(), QTime(10, 0));
 
-    QDateTime dt1(QDate(2012, 6, 1), QTime(0, 0, 0), Qt::UTC);
+    QDateTime dt1(QDate(2012, 6, 1), QTime(0, 0), Qt::UTC);
     QCOMPARE(dt1.timeSpec(), Qt::UTC);
     dt1.setTimeZone(nzTz);
     QCOMPARE(dt1.timeSpec(), Qt::TimeZone);
     QCOMPARE(dt1.date(), QDate(2012, 6, 1));
-    QCOMPARE(dt1.time(), QTime(0, 0, 0));
+    QCOMPARE(dt1.time(), QTime(0, 0));
     QCOMPARE(dt1.timeZone(), nzTz);
 
     QDateTime dt2 = QDateTime::fromSecsSinceEpoch(1338465600, nzTz);
@@ -3512,7 +3663,7 @@ void tst_QDateTime::timeZones() const
     QCOMPARE(dt3.timeZone(), dt1.timeZone());
 
     // The start of year 1 should be *describable* in any zone (QTBUG-78051)
-    dt3 = QDateTime(QDate(1, 1, 1), QTime(0, 0, 0), ausTz);
+    dt3 = QDateTime(QDate(1, 1, 1), QTime(0, 0), ausTz);
     QVERIFY(dt3.isValid());
     // Likewise the end of year -1 (a.k.a. 1 BCE).
     dt3 = dt3.addMSecs(-1);
@@ -3548,26 +3699,26 @@ void tst_QDateTime::timeZones() const
     // - Test at tran = 03:00:00
     QDateTime atDst = QDateTime::fromMSecsSinceEpoch(stdToDstMSecs, cet);
     QCOMPARE(atDst.date(), QDate(2013, 3, 31));
-    QCOMPARE(atDst.time(), QTime(3, 0, 0));
+    QCOMPARE(atDst.time(), QTime(3, 0));
 
     // Test local to MSecs
     // - Test 1 msec before tran = 01:59:59.999
     beforeDst = QDateTime(QDate(2013, 3, 31), QTime(1, 59, 59, 999), cet);
     QCOMPARE(beforeDst.toMSecsSinceEpoch(), stdToDstMSecs - 1);
     // - Test at tran = 03:00:00
-    atDst = QDateTime(QDate(2013, 3, 31), QTime(3, 0, 0), cet);
+    atDst = QDateTime(QDate(2013, 3, 31), QTime(3, 0), cet);
     QCOMPARE(atDst.toMSecsSinceEpoch(), stdToDstMSecs);
     // - Test transition hole, setting 03:00:00 is valid
-    atDst = QDateTime(QDate(2013, 3, 31), QTime(3, 0, 0), cet);
+    atDst = QDateTime(QDate(2013, 3, 31), QTime(3, 0), cet);
     QVERIFY(atDst.isValid());
     QCOMPARE(atDst.date(), QDate(2013, 3, 31));
-    QCOMPARE(atDst.time(), QTime(3, 0, 0));
+    QCOMPARE(atDst.time(), QTime(3, 0));
     QCOMPARE(atDst.toMSecsSinceEpoch(), stdToDstMSecs);
     // - Test transition hole, setting 02:00:00 is invalid
-    atDst = QDateTime(QDate(2013, 3, 31), QTime(2, 0, 0), cet);
+    atDst = QDateTime(QDate(2013, 3, 31), QTime(2, 0), cet);
     QVERIFY(!atDst.isValid());
     QCOMPARE(atDst.date(), QDate(2013, 3, 31));
-    QCOMPARE(atDst.time(), QTime(2, 0, 0));
+    QCOMPARE(atDst.time(), QTime(2, 0));
     // - Test transition hole, setting 02:59:59.999 is invalid
     atDst = QDateTime(QDate(2013, 3, 31), QTime(2, 59, 59, 999), cet);
     QVERIFY(!atDst.isValid());
@@ -3581,7 +3732,7 @@ void tst_QDateTime::timeZones() const
     // - Test 1 hour before tran = 02:00:00 local first occurrence
     QDateTime hourBeforeStd = QDateTime::fromMSecsSinceEpoch(dstToStdMSecs - 3600000, cet);
     QCOMPARE(hourBeforeStd.date(), QDate(2013, 10, 27));
-    QCOMPARE(hourBeforeStd.time(), QTime(2, 0, 0));
+    QCOMPARE(hourBeforeStd.time(), QTime(2, 0));
     // - Test 1 msec before tran = 02:59:59.999 local first occurrence
     QDateTime msecBeforeStd = QDateTime::fromMSecsSinceEpoch(dstToStdMSecs - 1, cet);
     QCOMPARE(msecBeforeStd.date(), QDate(2013, 10, 27));
@@ -3589,7 +3740,7 @@ void tst_QDateTime::timeZones() const
     // - Test at tran = 03:00:00 local becomes 02:00:00 local second occurrence
     QDateTime atStd = QDateTime::fromMSecsSinceEpoch(dstToStdMSecs, cet);
     QCOMPARE(atStd.date(), QDate(2013, 10, 27));
-    QCOMPARE(atStd.time(), QTime(2, 0, 0));
+    QCOMPARE(atStd.time(), QTime(2, 0));
     // - Test 59 mins after tran = 02:59:59.999 local second occurrence
     QDateTime afterStd = QDateTime::fromMSecsSinceEpoch(dstToStdMSecs + 3600000 -1, cet);
     QCOMPARE(afterStd.date(), QDate(2013, 10, 27));
@@ -3601,7 +3752,7 @@ void tst_QDateTime::timeZones() const
 
     // Test local to MSecs
     // - Test first occurrence 02:00:00 = 1 hour before tran
-    hourBeforeStd = QDateTime(QDate(2013, 10, 27), QTime(2, 0, 0), cet);
+    hourBeforeStd = QDateTime(QDate(2013, 10, 27), QTime(2, 0), cet);
     QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
     QCOMPARE(hourBeforeStd.toMSecsSinceEpoch(), dstToStdMSecs - 3600000);
     // - Test first occurrence 02:59:59.999 = 1 msec before tran
@@ -3609,18 +3760,18 @@ void tst_QDateTime::timeZones() const
     QEXPECT_FAIL("", "QDateTime doesn't properly support Daylight Transitions", Continue);
     QCOMPARE(msecBeforeStd.toMSecsSinceEpoch(), dstToStdMSecs - 1);
     // - Test second occurrence 02:00:00 = at tran
-    atStd = QDateTime(QDate(2013, 10, 27), QTime(2, 0, 0), cet);
+    atStd = QDateTime(QDate(2013, 10, 27), QTime(2, 0), cet);
     QCOMPARE(atStd.toMSecsSinceEpoch(), dstToStdMSecs);
     // - Test second occurrence 03:00:00 = 59 mins after tran
     afterStd = QDateTime(QDate(2013, 10, 27), QTime(2, 59, 59, 999), cet);
     QCOMPARE(afterStd.toMSecsSinceEpoch(), dstToStdMSecs + 3600000 - 1);
     // - Test 03:00:00 = 1 hour after tran
-    hourAfterStd = QDateTime(QDate(2013, 10, 27), QTime(3, 0, 0), cet);
+    hourAfterStd = QDateTime(QDate(2013, 10, 27), QTime(3, 0), cet);
     QCOMPARE(hourAfterStd.toMSecsSinceEpoch(), dstToStdMSecs + 3600000);
 
     // Test Time Zone that has transitions but no future transitions afer a given date
     QTimeZone sgt("Asia/Singapore");
-    QDateTime future(QDate(2015, 1, 1), QTime(0, 0, 0), sgt);
+    QDateTime future(QDate(2015, 1, 1), QTime(0, 0), sgt);
     QVERIFY(future.isValid());
     QCOMPARE(future.offsetFromUtc(), 28800);
 #else
@@ -3709,6 +3860,21 @@ void tst_QDateTime::range() const
              int(QDateTime::YearRange::First));
     QCOMPARE(QDateTime::fromMSecsSinceEpoch(Bounds::max() - 1, Qt::UTC).date().year(),
              int(QDateTime::YearRange::Last));
+    constexpr qint64 millisPerDay = 24 * 3600 * 1000;
+    constexpr qint64 wholeDays = Bounds::max() / millisPerDay;
+    constexpr qint64 millisRemainder = Bounds::max() % millisPerDay;
+    QVERIFY(QDateTime(QDate(1970, 1, 1).addDays(wholeDays),
+                      QTime::fromMSecsSinceStartOfDay(millisRemainder),
+                      Qt::UTC).isValid());
+    QVERIFY(!QDateTime(QDate(1970, 1, 1).addDays(wholeDays),
+                       QTime::fromMSecsSinceStartOfDay(millisRemainder + 1),
+                       Qt::UTC).isValid());
+    QVERIFY(QDateTime(QDate(1970, 1, 1).addDays(-wholeDays - 1),
+                      QTime::fromMSecsSinceStartOfDay(3600 * 24000 - millisRemainder - 1),
+                      Qt::UTC).isValid());
+    QVERIFY(!QDateTime(QDate(1970, 1, 1).addDays(-wholeDays - 1),
+                       QTime::fromMSecsSinceStartOfDay(3600 * 24000 - millisRemainder - 2),
+                       Qt::UTC).isValid());
 }
 
 void tst_QDateTime::macTypes()

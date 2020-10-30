@@ -61,7 +61,6 @@ class QIODevice;
 class QSslError;
 class QSslKey;
 class QSslCertificateExtension;
-class QStringList;
 
 class QSslCertificate;
 // qHash is a friend, but we can't use default arguments for friends (§8.3.6.4)
@@ -104,14 +103,6 @@ public:
     inline bool operator!=(const QSslCertificate &other) const { return !operator==(other); }
 
     bool isNull() const;
-#if QT_DEPRECATED_SINCE(5,0)
-    QT_DEPRECATED inline bool isValid() const {
-        const QDateTime currentTime = QDateTime::currentDateTimeUtc();
-        return currentTime >= effectiveDate() &&
-               currentTime <= expiryDate() &&
-               !isBlacklisted();
-    }
-#endif
     bool isBlacklisted() const;
     bool isSelfSigned() const;
     void clear();

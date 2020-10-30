@@ -529,6 +529,13 @@ void QWindowPrivate::create(bool recursive, WId nativeHandle)
     if (q->parent())
         q->parent()->create();
 
+    // QPlatformWindow will poll geometry() during construction below. Set the
+    // screen here so that high-dpi scaling will use the correct scale factor.
+    if (q->isTopLevel()) {
+        if (QScreen *screen = screenForGeometry(geometry))
+            setTopLevelScreen(screen, false);
+    }
+
     QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
     platformWindow = nativeHandle ? platformIntegration->createForeignWindow(q, nativeHandle)
         : platformIntegration->createPlatformWindow(q);
@@ -1059,7 +1066,7 @@ void QWindow::lower()
     it will make the window resize so that its edge follows the mouse cursor.
 
     On platforms that support it, this method of resizing windows is preferred over
-    \c setGeometry, because it allows a more native look-and-feel of resizing windows, e.g.
+    \c setGeometry, because it allows a more native look and feel of resizing windows, e.g.
     letting the window manager snap this window against other windows, or special resizing
     behavior with animations when dragged to the edge of the screen.
 
@@ -1726,8 +1733,11 @@ void QWindow::setGeometry(const QRect &rect)
 
     d->positionPolicy = QWindowPrivate::WindowFrameExclusive;
     if (d->platformWindow) {
-        QRect nativeRect;
         QScreen *newScreen = d->screenForGeometry(rect);
+        if (newScreen && isTopLevel())
+            d->setTopLevelScreen(newScreen, true);
+
+        QRect nativeRect;
         if (newScreen && isTopLevel())
             nativeRect = QHighDpi::toNativePixels(rect, newScreen);
         else
@@ -1784,9 +1794,7 @@ QRect QWindow::geometry() const
     Q_D(const QWindow);
     if (d->platformWindow) {
         const auto nativeGeometry = d->platformWindow->geometry();
-        return isTopLevel()
-            ? QHighDpi::fromNativePixels(nativeGeometry, this)
-            : QHighDpi::fromNativeLocalPosition(nativeGeometry, this);
+        return QHighDpi::fromNativeWindowGeometry(nativeGeometry, this);
     }
     return d->geometry;
 }
@@ -1816,7 +1824,7 @@ QRect QWindow::frameGeometry() const
     Q_D(const QWindow);
     if (d->platformWindow) {
         QMargins m = frameMargins();
-        return QHighDpi::fromNativePixels(d->platformWindow->geometry(), this).adjusted(-m.left(), -m.top(), m.right(), m.bottom());
+        return QHighDpi::fromNativeWindowGeometry(d->platformWindow->geometry(), this).adjusted(-m.left(), -m.top(), m.right(), m.bottom());
     }
     return d->geometry;
 }
@@ -1833,7 +1841,7 @@ QPoint QWindow::framePosition() const
     Q_D(const QWindow);
     if (d->platformWindow) {
         QMargins margins = frameMargins();
-        return QHighDpi::fromNativePixels(d->platformWindow->geometry().topLeft(), this) - QPoint(margins.left(), margins.top());
+        return QHighDpi::fromNativeWindowGeometry(d->platformWindow->geometry().topLeft(), this) - QPoint(margins.left(), margins.top());
     }
     return d->geometry.topLeft();
 }
@@ -1851,7 +1859,7 @@ void QWindow::setFramePosition(const QPoint &point)
     d->positionPolicy = QWindowPrivate::WindowFrameInclusive;
     d->positionAutomatic = false;
     if (d->platformWindow) {
-        d->platformWindow->setGeometry(QHighDpi::toNativePixels(QRect(point, size()), this));
+        d->platformWindow->setGeometry(QHighDpi::toNativeWindowGeometry(QRect(point, size()), this));
     } else {
         d->geometry.moveTopLeft(point);
     }
@@ -2676,10 +2684,20 @@ QPointF QWindow::mapToGlobal(const QPointF &pos) const
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapToGlobalF(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
-    if (QHighDpiScaling::isActive())
-        return QHighDpiScaling::mapPositionToGlobal(pos, d->globalPosition(), this);
+    if (!QHighDpiScaling::isActive())
+        return pos + d->globalPosition();
 
-    return pos + QPointF(d->globalPosition());
+    // The normal pos + windowGlobalPos calculation may give a point which is outside
+    // screen geometry for windows which span multiple screens, due to the way QHighDpiScaling
+    // creates gaps between screens in the the device indendent cooordinate system.
+    //
+    // Map the position (and the window's global position) to native coordinates, perform
+    // the addition, and then map back to device independent coordinates.
+    QPointF nativeLocalPos = QHighDpi::toNativeLocalPosition(pos, this);
+    QPointF nativeWindowGlobalPos = QHighDpi::toNativeGlobalPosition(QPointF(d->globalPosition()), this);
+    QPointF nativeGlobalPos = nativeLocalPos + nativeWindowGlobalPos;
+    QPointF deviceIndependentGlobalPos = QHighDpi::fromNativeGlobalPosition(nativeGlobalPos, this);
+    return deviceIndependentGlobalPos;
 }
 
 /*!
@@ -2708,10 +2726,16 @@ QPointF QWindow::mapFromGlobal(const QPointF &pos) const
         return QHighDpi::fromNativeLocalPosition(d->platformWindow->mapFromGlobalF(QHighDpi::toNativeLocalPosition(pos, this)), this);
     }
 
-    if (QHighDpiScaling::isActive())
-        return QHighDpiScaling::mapPositionFromGlobal(pos, d->globalPosition(), this);
+    if (!QHighDpiScaling::isActive())
+        return pos - d->globalPosition();
 
-    return pos - QPointF(d->globalPosition());
+    // Calculate local position in the native coordinate system. (See comment for the
+    // correspinding mapToGlobal() code above).
+    QPointF nativeGlobalPos = QHighDpi::toNativeGlobalPosition(pos, this);
+    QPointF nativeWindowGlobalPos = QHighDpi::toNativeGlobalPosition(QPointF(d->globalPosition()), this);
+    QPointF nativeLocalPos = nativeGlobalPos - nativeWindowGlobalPos;
+    QPointF deviceIndependentLocalPos = QHighDpi::fromNativeLocalPosition(nativeLocalPos, this);
+    return deviceIndependentLocalPos;
 }
 
 /*!

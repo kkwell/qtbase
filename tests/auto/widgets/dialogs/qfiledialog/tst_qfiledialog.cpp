@@ -201,8 +201,8 @@ class MyAbstractItemDelegate : public QAbstractItemDelegate
 {
 public:
     MyAbstractItemDelegate() : QAbstractItemDelegate() {};
-    void paint(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const {}
-    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const { return QSize(); }
+    void paint(QPainter *, const QStyleOptionViewItem &, const QModelIndex &) const override {}
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override { return QSize(); }
 };
 
 // emitted any time the selection model emits current changed
@@ -365,7 +365,7 @@ void tst_QFiledialog::filterSelectedSignal()
 
 void tst_QFiledialog::args()
 {
-    QWidget *parent = 0;
+    QWidget *parent = nullptr;
     QString caption = "caption";
     QString directory = QDir::tempPath();
     QString filter = "*.mp3";

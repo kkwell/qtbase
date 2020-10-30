@@ -815,7 +815,7 @@ void tst_QPainter::drawLine()
                           qMin(line.y1(), line.y2())
                           + 2*offset + qAbs(line.dy()));
     { // clipped
-        const QRect clip = QRect(line.p1(), line.p2()).normalized();
+        const QRect clip = QRect::span(line.p1(), line.p2());
 
         pixmapClipped.fill(Qt::white);
         QPainter p(&pixmapClipped);
@@ -2634,17 +2634,17 @@ class DummyPaintEngine : public QPaintEngine, public QPaintDevice
 {
 public:
     DummyPaintEngine() : QPaintEngine(no_porter_duff()) {}
-    virtual bool begin(QPaintDevice *) { return true; }
-    virtual bool end() { return true; }
+    virtual bool begin(QPaintDevice *) override { return true; }
+    virtual bool end() override { return true; }
 
-    virtual void updateState(const QPaintEngineState &) {}
-    virtual void drawPixmap(const QRectF &, const QPixmap &, const QRectF &) {}
+    virtual void updateState(const QPaintEngineState &) override {}
+    virtual void drawPixmap(const QRectF &, const QPixmap &, const QRectF &) override {}
 
-    virtual Type type() const { return User; }
+    virtual Type type() const override { return User; }
 
-    virtual QPaintEngine *paintEngine() const { return (QPaintEngine *)this; }
+    virtual QPaintEngine *paintEngine() const override { return (QPaintEngine *)this; }
 
-    virtual int metric(PaintDeviceMetric metric) const { Q_UNUSED(metric); return 0; };
+    virtual int metric(PaintDeviceMetric metric) const override { Q_UNUSED(metric); return 0; };
 };
 
 static bool success;
@@ -2697,8 +2697,9 @@ void tst_QPainter::drawhelper_blend_color()
 class ViewportTestWidget : public QWidget
 {
 public:
-    ViewportTestWidget(QWidget *parent = 0) : QWidget(parent), hasPainted(false) {}
-    QSize sizeHint() const {
+    ViewportTestWidget(QWidget *parent = nullptr) : QWidget(parent), hasPainted(false) {}
+    QSize sizeHint() const override
+    {
         return QSize(100, 100);
     }
 
@@ -2706,7 +2707,8 @@ public:
     bool hasPainted;
 
 protected:
-    void paintEvent(QPaintEvent *) {
+    void paintEvent(QPaintEvent *) override
+    {
         hasPainted = true;
         QPainter p(this);
         viewport = p.viewport();
@@ -3253,11 +3255,6 @@ void tst_QPainter::imageScaling_task206785()
 
 #define FOR_EACH_NEIGHBOR_8 for (int dx = -1; dx <= 1; ++dx) for (int dy = -1; dy <= 1; ++dy) if (dx != 0 || dy != 0)
 #define FOR_EACH_NEIGHBOR_4 for (int dx = -1; dx <= 1; ++dx) for (int dy = -1; dy <= 1; ++dy) if ((dx == 0) != (dy == 0))
-
-size_t qHash(const QPoint &point)
-{
-    return qHash(qMakePair(point.x(), point.y()));
-}
 
 bool verifyOutlineFillConsistency(const QImage &img, QRgb outside, QRgb inside, QRgb outline)
 {
@@ -4451,7 +4448,7 @@ class TestProxy : public QGraphicsProxyWidget
 {
 public:
     TestProxy() : QGraphicsProxyWidget() {}
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override
     {
         QGraphicsProxyWidget::paint(painter, option, widget);
         deviceTransform = painter->deviceTransform();
@@ -4464,7 +4461,7 @@ class TestWidget : public QWidget
 Q_OBJECT
 public:
     TestWidget() : QWidget(), painted(false) {}
-    void paintEvent(QPaintEvent *)
+    void paintEvent(QPaintEvent *) override
     {
         QPainter p(this);
         deviceTransform = p.deviceTransform();
@@ -4645,7 +4642,7 @@ void tst_QPainter::drawPointScaled()
 class GradientProducer : public QThread
 {
 protected:
-    void run();
+    void run() override;
 };
 
 void GradientProducer::run()
@@ -4739,7 +4736,7 @@ void tst_QPainter::QTBUG38781_NoBrushAndQBitmap()
 class TextDrawerThread : public QThread
 {
 public:
-    void run();
+    void run() override;
     QImage rendering;
 };
 

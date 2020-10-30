@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(coloreditorfactory
+qt_add_executable(coloreditorfactory
     colorlisteditor.cpp colorlisteditor.h
     main.cpp
     window.cpp window.h
+)
+set_target_properties(coloreditorfactory PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(coloreditorfactory PUBLIC
     Qt::Core

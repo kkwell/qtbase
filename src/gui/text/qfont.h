@@ -50,7 +50,6 @@ QT_BEGIN_NAMESPACE
 
 
 class QFontPrivate;                                     /* don't touch */
-class QStringList;
 class QVariant;
 
 class Q_GUI_EXPORT QFont
@@ -253,8 +252,7 @@ public:
     bool operator<(const QFont &) const;
     operator QVariant() const;
     bool isCopyOf(const QFont &) const;
-    inline QFont &operator=(QFont &&other) noexcept
-    { qSwap(d, other.d); qSwap(resolve_mask, other.resolve_mask);  return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_PURE_SWAP(QFont)
 
     QString key() const;
 

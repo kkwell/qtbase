@@ -274,10 +274,10 @@ QDBusMessage QDBusMessagePrivate::makeLocal(const QDBusConnectionPrivate &conn,
     QVariantList::ConstIterator it = asSent.d_ptr->arguments.constBegin();
     QVariantList::ConstIterator end = asSent.d_ptr->arguments.constEnd();
     for ( ; it != end; ++it) {
-        int id = it->userType();
+        QMetaType id = it->metaType();
         const char *signature = QDBusMetaType::typeToSignature(id);
-        if ((id != QMetaType::QStringList && id != QMetaType::QByteArray &&
-             qstrlen(signature) != 1) || id == qMetaTypeId<QDBusVariant>()) {
+        if ((id.id() != QMetaType::QStringList && id.id() != QMetaType::QByteArray &&
+             qstrlen(signature) != 1) || id == QMetaType::fromType<QDBusVariant>()) {
             // yes, we are
             // we must marshall and demarshall again so as to create QDBusArgument
             // entries for the complex types
@@ -496,11 +496,7 @@ QDBusMessage QDBusMessage::createReply(const QVariantList &arguments) const
     Constructs a new DBus message representing an error reply message,
     with the given \a name and \a msg.
 */
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
 QDBusMessage QDBusMessage::createErrorReply(const QString &name, const QString &msg) const
-#else
-QDBusMessage QDBusMessage::createErrorReply(const QString name, const QString &msg) const
-#endif
 {
     QDBusMessage reply = QDBusMessage::createError(name, msg);
     if (d_ptr->msg)
@@ -774,7 +770,6 @@ bool QDBusMessage::isInteractiveAuthorizationAllowed() const
 */
 void QDBusMessage::setArguments(const QList<QVariant> &arguments)
 {
-    // FIXME: should we detach?
     d_ptr->arguments = arguments;
 }
 
@@ -794,7 +789,6 @@ QList<QVariant> QDBusMessage::arguments() const
 
 QDBusMessage &QDBusMessage::operator<<(const QVariant &arg)
 {
-    // FIXME: should we detach?
     d_ptr->arguments.append(arg);
     return *this;
 }

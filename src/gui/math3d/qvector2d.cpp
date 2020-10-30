@@ -52,36 +52,6 @@ QT_BEGIN_NAMESPACE
 static_assert(std::is_standard_layout<QVector2D>::value, "QVector2D is supposed to be standard layout");
 static_assert(sizeof(QVector2D) == sizeof(float) * 2, "QVector2D is not supposed to have padding at the end");
 
-// QVector2D used to be defined as class QVector2D { float x, y; };,
-// now instead it is defined as classs QVector2D { float v[2]; };.
-// Check that binary compatibility is preserved.
-// ### Qt 6: remove all of these checks.
-
-namespace {
-
-struct QVector2DOld
-{
-    float x, y;
-};
-
-struct QVector2DNew
-{
-    float v[2];
-};
-
-static_assert(std::is_standard_layout<QVector2DOld>::value, "Binary compatibility break in QVector2D");
-static_assert(std::is_standard_layout<QVector2DNew>::value, "Binary compatibility break in QVector2D");
-
-static_assert(sizeof(QVector2DOld) == sizeof(QVector2DNew), "Binary compatibility break in QVector2D");
-
-// requires a constexpr offsetof
-#if !defined(Q_CC_MSVC) || (_MSC_VER >= 1910)
-static_assert(offsetof(QVector2DOld, x) == offsetof(QVector2DNew, v) + sizeof(QVector2DNew::v[0]) * 0, "Binary compatibility break in QVector2D");
-static_assert(offsetof(QVector2DOld, y) == offsetof(QVector2DNew, v) + sizeof(QVector2DNew::v[0]) * 1, "Binary compatibility break in QVector2D");
-#endif
-
-} // anonymous namespace
-
 /*!
     \class QVector2D
     \brief The QVector2D class represents a vector or vertex in 2D space.
@@ -381,16 +351,14 @@ float QVector2D::dotProduct(const QVector2D& v1, const QVector2D& v2)
 }
 
 /*!
-    \fn bool operator==(const QVector2D &v1, const QVector2D &v2)
-    \relates QVector2D
+    \fn bool QVector2D::operator==(const QVector2D &v1, const QVector2D &v2)
 
     Returns \c true if \a v1 is equal to \a v2; otherwise returns \c false.
     This operator uses an exact floating-point comparison.
 */
 
 /*!
-    \fn bool operator!=(const QVector2D &v1, const QVector2D &v2)
-    \relates QVector2D
+    \fn bool QVector2D::operator!=(const QVector2D &v1, const QVector2D &v2)
 
     Returns \c true if \a v1 is not equal to \a v2; otherwise returns \c false.
     This operator uses an exact floating-point comparison.

@@ -137,6 +137,7 @@ SOURCES += \
     qgregoriancalendar.cpp \
     qhash.cpp \
     qiodevice.cpp \
+    qiterable.cpp \
     qjsonarray.cpp \
     qjsoncbor.cpp \
     qjsondocument.cpp \
@@ -144,11 +145,11 @@ SOURCES += \
     qjsonparser.cpp \
     qjsonvalue.cpp \
     qlibraryinfo.cpp \
-    qlist.cpp \
     qlocale.cpp \
     qlocale_tools.cpp \
     qlogging.cpp \
     qmalloc.cpp \
+    qmetacontainer.cpp \
     qmetatype.cpp \
     qnumeric.cpp \
     qregularexpression.cpp \
@@ -182,6 +183,7 @@ HEADERS += \
     qcborvalue.h \
     qcborvalue_p.h \
     qchar.h \
+    qcontainerinfo.h \
     qcryptographichash.h \
     qdatetime.h \
     qdatetime_p.h \
@@ -194,6 +196,7 @@ HEADERS += \
     qgregoriancalendar_p.h \
     qhash.h \
     qiodevice.h \
+    qiterable.h \
     qjson_p.h \
     qjsonarray.h \
     qjsondocument.h \
@@ -205,6 +208,7 @@ HEADERS += \
     qlocale.h \
     qlocale_tools_p.h \
     qmap.h \
+    qmetacontainer.h \
     qmetatype.h \
     qnumeric.h \
     qregularexpression.h \

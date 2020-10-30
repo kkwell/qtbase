@@ -61,7 +61,6 @@ QT_BEGIN_NAMESPACE
 class QColorSpace;
 class QColorTransform;
 class QIODevice;
-class QStringList;
 class QTransform;
 class QVariant;
 
@@ -116,13 +115,8 @@ public:
     QImage(int width, int height, Format format);
     QImage(uchar *data, int width, int height, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
     QImage(const uchar *data, int width, int height, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
-#if QT_VERSION >= QT_VERSION_CHECK(6,0,0)
     QImage(uchar *data, int width, int height, qsizetype bytesPerLine, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
     QImage(const uchar *data, int width, int height, qsizetype bytesPerLine, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
-#else
-    QImage(uchar *data, int width, int height, int bytesPerLine, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
-    QImage(const uchar *data, int width, int height, int bytesPerLine, Format format, QImageCleanupFunction cleanupFunction = nullptr, void *cleanupInfo = nullptr);
-#endif
 
 #ifndef QT_NO_IMAGEFORMAT_XPM
     explicit QImage(const char * const xpm[]);
@@ -131,13 +125,12 @@ public:
 
     QImage(const QImage &);
     inline QImage(QImage &&other) noexcept
-        : QPaintDevice(), d(nullptr)
-    { qSwap(d, other.d); }
+        : QPaintDevice(), d(qExchange(other.d, nullptr))
+    {}
     ~QImage();
 
     QImage &operator=(const QImage &);
-    inline QImage &operator=(QImage &&other) noexcept
-    { qSwap(d, other.d); return *this; }
+    QT_MOVE_ASSIGNMENT_OPERATOR_IMPL_VIA_MOVE_AND_SWAP(QImage)
     inline void swap(QImage &other) noexcept
     { qSwap(d, other.d); }
 
@@ -157,19 +150,23 @@ public:
 
     Format format() const;
 
-    Q_REQUIRED_RESULT Q_ALWAYS_INLINE QImage convertToFormat(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) const &
+    [[nodiscard]] Q_ALWAYS_INLINE QImage convertToFormat(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) const &
     { return convertToFormat_helper(f, flags); }
-    Q_REQUIRED_RESULT Q_ALWAYS_INLINE QImage convertToFormat(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) &&
+    [[nodiscard]] Q_ALWAYS_INLINE QImage convertToFormat(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) &&
     {
         if (convertToFormat_inplace(f, flags))
             return std::move(*this);
         else
             return convertToFormat_helper(f, flags);
     }
-    Q_REQUIRED_RESULT QImage convertToFormat(Format f, const QList<QRgb> &colorTable,
+    [[nodiscard]] QImage convertToFormat(Format f, const QList<QRgb> &colorTable,
                                              Qt::ImageConversionFlags flags = Qt::AutoColor) const;
     bool reinterpretAsFormat(Format f);
 
+    [[nodiscard]] QImage convertedTo(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) const &
+    { return convertToFormat(f, flags); }
+    [[nodiscard]] QImage convertedTo(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor) &&
+    { return convertToFormat(f, flags); }
     void convertTo(Format f, Qt::ImageConversionFlags flags = Qt::AutoColor);
 
     int width() const;
@@ -245,14 +242,18 @@ public:
     QImage scaledToHeight(int h, Qt::TransformationMode mode = Qt::FastTransformation) const;
     QImage transformed(const QTransform &matrix, Qt::TransformationMode mode = Qt::FastTransformation) const;
     static QTransform trueMatrix(const QTransform &, int w, int h);
-    QImage mirrored(bool horizontally = false, bool vertically = true) const &
+    [[nodiscard]] QImage mirrored(bool horizontally = false, bool vertically = true) const &
         { return mirrored_helper(horizontally, vertically); }
-    QImage &&mirrored(bool horizontally = false, bool vertically = true) &&
+    [[nodiscard]] QImage mirrored(bool horizontally = false, bool vertically = true) &&
         { mirrored_inplace(horizontally, vertically); return std::move(*this); }
-    QImage rgbSwapped() const &
+    [[nodiscard]] QImage rgbSwapped() const &
         { return rgbSwapped_helper(); }
-    QImage &&rgbSwapped() &&
+    [[nodiscard]] QImage rgbSwapped() &&
         { rgbSwapped_inplace(); return std::move(*this); }
+    void mirror(bool horizontally = false, bool vertically = true)
+        { mirrored_inplace(horizontally, vertically); }
+    void rgbSwap()
+        { rgbSwapped_inplace(); }
     void invertPixels(InvertMode = InvertRgb);
 
     QColorSpace colorSpace() const;

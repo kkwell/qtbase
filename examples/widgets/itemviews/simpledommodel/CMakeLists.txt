@@ -20,11 +20,15 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Xml)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(simpledommodel
+qt_add_executable(simpledommodel
     domitem.cpp domitem.h
     dommodel.cpp dommodel.h
     main.cpp
     mainwindow.cpp mainwindow.h
+)
+set_target_properties(simpledommodel PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(simpledommodel PUBLIC
     Qt::Core

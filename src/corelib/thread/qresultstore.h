@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -87,6 +87,8 @@ public:
     bool operator!=(const ResultIteratorBase &other) const;
     bool isVector() const;
     bool canIncrementVectorIndex() const;
+    bool isValid() const;
+
 protected:
     QMap<int, ResultItem>::const_iterator mapIterator;
     int m_vectorIndex;
@@ -139,6 +141,7 @@ public:
 protected:
     int insertResultItem(int index, ResultItem &resultItem);
     void insertResultItemIfValid(int index, ResultItem &resultItem);
+    bool containsValidResultItem(int index) const;
     void syncPendingResults();
     void syncResultCount();
     int updateInsertIndex(int index, int _count);
@@ -151,10 +154,27 @@ protected:
     QMap<int, ResultItem> pendingResults;
     int filteredResults;
 
+    template <typename T>
+    static void clear(QMap<int, ResultItem> &store)
+    {
+        QMap<int, ResultItem>::const_iterator mapIterator = store.constBegin();
+        while (mapIterator != store.constEnd()) {
+            if (mapIterator.value().isVector())
+                delete reinterpret_cast<const QList<T> *>(mapIterator.value().result);
+            else
+                delete reinterpret_cast<const T *>(mapIterator.value().result);
+            ++mapIterator;
+        }
+        store.clear();
+    }
+
 public:
     template <typename T>
     int addResult(int index, const T *result)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         if (result == nullptr)
             return addResult(index, static_cast<void *>(nullptr));
 
@@ -164,18 +184,27 @@ public:
     template <typename T>
     int moveResult(int index, T &&result)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         return addResult(index, static_cast<void *>(new T(std::move_if_noexcept(result))));
     }
 
     template<typename T>
     int addResults(int index, const QList<T> *results)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         return addResults(index, new QList<T>(*results), results->count(), results->count());
     }
 
     template<typename T>
     int addResults(int index, const QList<T> *results, int totalCount)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         if (m_filterMode == true && results->count() != totalCount && 0 == results->count())
             return addResults(index, nullptr, 0, totalCount);
 
@@ -184,12 +213,18 @@ public:
 
     int addCanceledResult(int index)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         return addResult(index, static_cast<void *>(nullptr));
     }
 
     template <typename T>
     int addCanceledResults(int index, int _count)
     {
+        if (containsValidResultItem(index)) // reject if already present
+            return -1;
+
         QList<T> empty;
         return addResults(index, &empty, _count);
     }
@@ -197,16 +232,11 @@ public:
     template <typename T>
     void clear()
     {
-        QMap<int, ResultItem>::const_iterator mapIterator = m_results.constBegin();
-        while (mapIterator != m_results.constEnd()) {
-            if (mapIterator.value().isVector())
-                delete reinterpret_cast<const QList<T> *>(mapIterator.value().result);
-            else
-                delete reinterpret_cast<const T *>(mapIterator.value().result);
-            ++mapIterator;
-        }
+        ResultStoreBase::clear<T>(m_results);
         resultCount = 0;
-        m_results.clear();
+        insertIndex = 0;
+        ResultStoreBase::clear<T>(pendingResults);
+        filteredResults = 0;
     }
 };
 

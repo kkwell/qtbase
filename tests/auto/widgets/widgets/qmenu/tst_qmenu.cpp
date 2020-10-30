@@ -299,7 +299,7 @@ void tst_QMenu::addActionsConnect()
     menu.addAction(icon, text, testFunction);
     menu.addAction(icon, text, &menu, testFunction);
 #ifndef QT_NO_SHORTCUT
-    const QKeySequence keySequence(Qt::CTRL + Qt::Key_C);
+    const QKeySequence keySequence(Qt::CTRL | Qt::Key_C);
     menu.addAction(text, &menu, SLOT(deleteLater()), keySequence);
     menu.addAction(text, &menu, &QMenu::deleteLater, keySequence);
     menu.addAction(text, testFunction, keySequence);
@@ -339,14 +339,14 @@ void tst_QMenu::mouseActivation()
     menubar.show();
 
 
-    QTest::mouseClick(&menubar, Qt::LeftButton, 0, menubar.actionGeometry(action).center(), 300);
+    QTest::mouseClick(&menubar, Qt::LeftButton, {}, menubar.actionGeometry(action).center(), 300);
     QVERIFY(submenu.isVisible());
-    QTest::mouseClick(&submenu, Qt::LeftButton, 0, QPoint(5, 5), 300);
+    QTest::mouseClick(&submenu, Qt::LeftButton, {}, QPoint(5, 5), 300);
     QVERIFY(!submenu.isVisible());
 
-    QTest::mouseClick(&menubar, Qt::LeftButton, 0, menubar.actionGeometry(action).center(), 300);
+    QTest::mouseClick(&menubar, Qt::LeftButton, {}, menubar.actionGeometry(action).center(), 300);
     QVERIFY(submenu.isVisible());
-    QTest::mouseClick(&submenu, Qt::RightButton, 0, QPoint(5, 5), 300);
+    QTest::mouseClick(&submenu, Qt::RightButton, {}, QPoint(5, 5), 300);
     QVERIFY(submenu.isVisible());
 #endif
 }
@@ -534,7 +534,7 @@ void tst_QMenu::statusTip()
     QRect rect1 = tb.actionGeometry(&a);
     QToolButton *btn = qobject_cast<QToolButton*>(tb.childAt(rect1.center()));
 
-    QVERIFY(btn != NULL);
+    QVERIFY(btn != nullptr);
 
     //because showMenu calls QMenu::exec, we need to use a singleshot
     //to continue the test
@@ -979,7 +979,7 @@ class Menu258920 : public QMenu
 {
     Q_OBJECT
 public slots:
-    void paintEvent(QPaintEvent *e)
+    void paintEvent(QPaintEvent *e) override
     {
         QMenu::paintEvent(e);
         painted = true;
@@ -1035,7 +1035,7 @@ void tst_QMenu::deleteActionInTriggered()
 class PopulateOnAboutToShowTestMenu : public QMenu {
     Q_OBJECT
 public:
-    explicit PopulateOnAboutToShowTestMenu(QWidget *parent = 0);
+    explicit PopulateOnAboutToShowTestMenu(QWidget *parent = nullptr);
 
 public slots:
     void populateMenu();
@@ -1410,7 +1410,7 @@ void tst_QMenu::widgetActionTriggerClosesMenu()
         }
 
     protected:
-        QWidget *createWidget(QWidget *parent)
+        QWidget *createWidget(QWidget *parent) override
         {
             QPushButton *button = new QPushButton(QLatin1String("Button"), parent);
             connect(button, &QPushButton::clicked, this, &QAction::trigger);

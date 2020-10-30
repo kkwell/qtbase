@@ -213,19 +213,58 @@ void tst_QApplication::staticSetup()
     QVERIFY(style);
     QApplication::setStyle(style);
 
-    bool palette_changed = false;
     QPalette pal;
     QApplication::setPalette(pal);
-
-    /*QFont font;
-    QApplication::setFont(font);*/
+    QFont font;
+    QApplication::setFont(font);
 
     int argc = 0;
     QApplication app(argc, nullptr);
-    QObject::connect(&app, &QApplication::paletteChanged, [&palette_changed]{ palette_changed = true; });
-    QVERIFY(!palette_changed);
+
+    class EventWatcher : public QObject
+    {
+    public:
+        int palette_changed = 0;
+        int font_changed = 0;
+
+        EventWatcher()
+        {
+            qApp->installEventFilter(this);
+QT_WARNING_PUSH QT_WARNING_DISABLE_DEPRECATED
+            QObject::connect(qApp, &QApplication::paletteChanged, [&]{ ++palette_changed; });
+            QObject::connect(qApp, &QApplication::fontChanged, [&]{ ++font_changed; });
+QT_WARNING_POP
+        }
+
+    protected:
+        bool eventFilter(QObject *, QEvent *event) override
+        {
+            switch (event->type()) {
+            case QEvent::ApplicationPaletteChange:
+                ++palette_changed;
+                break;
+            case QEvent::ApplicationFontChange:
+                ++font_changed;
+                break;
+            default:
+                break;
+            }
+
+            return false;
+        }
+    };
+
+    EventWatcher watcher;
+
+    QCOMPARE(watcher.palette_changed, 0);
+    QCOMPARE(watcher.font_changed, 0);
     qApp->setPalette(QPalette(Qt::red));
-    QVERIFY(palette_changed);
+
+    font.setBold(!font.bold());
+    qApp->setFont(font);
+    QApplication::processEvents();
+    QCOMPARE(watcher.palette_changed, 2);
+    QCOMPARE(watcher.font_changed, 2);
 }
 
 
@@ -675,7 +714,7 @@ void tst_QApplication::quitOnLastWindowClosed()
     bool quitApplicationTriggered = false;
     auto quitSlot = [&quitApplicationTriggered] () {
         quitApplicationTriggered = true;
-        QCoreApplication::quit();
+        QCoreApplication::exit();
     };
 
     {
@@ -911,7 +950,7 @@ void tst_QApplication::libraryPaths()
         int argc = 1;
         QApplication app(argc, &argv0);
         QString appDirPath = QCoreApplication::applicationDirPath();
-        QString installPathPlugins =  QLibraryInfo::location(QLibraryInfo::PluginsPath);
+        QString installPathPlugins =  QLibraryInfo::path(QLibraryInfo::PluginsPath);
 
         QStringList actual = QApplication::libraryPaths();
         actual.sort();
@@ -939,7 +978,7 @@ void tst_QApplication::libraryPaths()
         // this test doesn't work if KDE 4 is installed
         QCOMPARE(count, 1); // before creating QApplication, only the PluginsPath is in the libraryPaths()
 #endif
-        QString installPathPlugins =  QLibraryInfo::location(QLibraryInfo::PluginsPath);
+        QString installPathPlugins =  QLibraryInfo::path(QLibraryInfo::PluginsPath);
         QApplication::addLibraryPath(installPathPlugins);
         qCDebug(lcTests) << "installPathPlugins" << installPathPlugins;
         qCDebug(lcTests) << "After adding plugins path:" << QApplication::libraryPaths();
@@ -963,7 +1002,7 @@ void tst_QApplication::libraryPaths()
 
         qCDebug(lcTests) << "Initial library path:" << QCoreApplication::libraryPaths();
         int count = QCoreApplication::libraryPaths().count();
-        QString installPathPlugins =  QLibraryInfo::location(QLibraryInfo::PluginsPath);
+        QString installPathPlugins =  QLibraryInfo::path(QLibraryInfo::PluginsPath);
         QCoreApplication::addLibraryPath(installPathPlugins);
         qCDebug(lcTests) << "installPathPlugins" << installPathPlugins;
         qCDebug(lcTests) << "After adding plugins path:" << QCoreApplication::libraryPaths();
@@ -1024,7 +1063,7 @@ void tst_QApplication::libraryPaths_qt_plugin_path_2()
         // library path list should contain the default plus the one valid path
         QStringList expected =
             QStringList()
-            << QLibraryInfo::location(QLibraryInfo::PluginsPath)
+            << QLibraryInfo::path(QLibraryInfo::PluginsPath)
             << QDir(QCoreApplication::applicationDirPath()).canonicalPath()
             << QDir(QDir::fromNativeSeparators(QString::fromLatin1(validPath))).canonicalPath();
 
@@ -1045,7 +1084,7 @@ void tst_QApplication::libraryPaths_qt_plugin_path_2()
         // library path list should contain the default
         QStringList expected =
             QStringList()
-            << QLibraryInfo::location(QLibraryInfo::PluginsPath)
+            << QLibraryInfo::path(QLibraryInfo::PluginsPath)
             << QCoreApplication::applicationDirPath();
         QVERIFY(isPathListIncluded(QCoreApplication::libraryPaths(), expected));
 
@@ -1807,7 +1846,7 @@ class CustomStyle : public QProxyStyle
 public:
     CustomStyle() : QProxyStyle("Windows") { Q_ASSERT(!polished); }
     ~CustomStyle() { polished = 0; }
-    void polish(QPalette &palette)
+    void polish(QPalette &palette) override
     {
         polished++;
         palette.setColor(QPalette::Active, QPalette::Link, Qt::red);
@@ -1822,7 +1861,7 @@ class CustomStylePlugin : public QStylePlugin
     Q_OBJECT
     Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QStyleFactoryInterface" FILE "customstyle.json")
 public:
-    QStyle *create(const QString &) { return new CustomStyle; }
+    QStyle *create(const QString &) override { return new CustomStyle; }
 };
 
 Q_IMPORT_PLUGIN(CustomStylePlugin)
@@ -2415,14 +2454,15 @@ void tst_QApplication::staticFunctions()
     QApplication::setStyle(QStringLiteral("blub"));
     QApplication::allWidgets();
     QApplication::topLevelWidgets();
-    QApplication::desktop();
     QApplication::activePopupWidget();
+    QTest::ignoreMessage(QtWarningMsg, "Must construct a QGuiApplication first.");
     QApplication::activeModalWidget();
     QApplication::focusWidget();
     QApplication::activeWindow();
     QApplication::setActiveWindow(nullptr);
     QApplication::widgetAt(QPoint(0, 0));
     QApplication::topLevelAt(QPoint(0, 0));
+    QTest::ignoreMessage(QtWarningMsg, "Must construct a QApplication first.");
     QApplication::isEffectEnabled(Qt::UI_General);
     QApplication::setEffectEnabled(Qt::UI_General, false);
 }

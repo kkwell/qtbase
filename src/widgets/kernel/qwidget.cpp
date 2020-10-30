@@ -121,7 +121,7 @@
 
 QT_BEGIN_NAMESPACE
 
-using namespace QPlatformInterface::Private;
+using namespace QNativeInterface::Private;
 
 Q_LOGGING_CATEGORY(lcWidgetPainting, "qt.widgets.painting", QtWarningMsg);
 
@@ -390,7 +390,7 @@ void QWidget::setAutoFillBackground(bool enabled)
     A widget that is not embedded in a parent widget is called a window.
     Usually, windows have a frame and a title bar, although it is also possible
     to create windows without such decoration using suitable
-    \l{Qt::WindowFlags}{window flags}). In Qt, QMainWindow and the various
+    \l{Qt::WindowFlags}{window flags}. In Qt, QMainWindow and the various
     subclasses of QDialog are the most common window types.
 
     Every widget's constructor accepts one or two standard arguments:
@@ -5072,7 +5072,7 @@ QPixmap QWidget::grab(const QRect &rectangle)
     if (!r.intersects(rect()))
         return QPixmap();
 
-    const qreal dpr = devicePixelRatioF();
+    const qreal dpr = devicePixelRatio();
     QPixmap res((QSizeF(r.size()) * dpr).toSize());
     res.setDevicePixelRatio(dpr);
     if (!d->isOpaque)
@@ -5237,7 +5237,7 @@ void QWidgetPrivate::render_helper(QPainter *painter, const QPoint &targetOffset
         if (size.isNull())
             return;
 
-        const qreal pixmapDevicePixelRatio = painter->device()->devicePixelRatioF();
+        const qreal pixmapDevicePixelRatio = painter->device()->devicePixelRatio();
         QPixmap pixmap(size * pixmapDevicePixelRatio);
         pixmap.setDevicePixelRatio(pixmapDevicePixelRatio);
 
@@ -5308,7 +5308,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
             QWidgetPaintContext context(pdev, rgn, offset, flags, sharedPainter, repaintManager);
             sourced->context = &context;
             if (!sharedPainter) {
-                setSystemClip(pdev->paintEngine(), pdev->devicePixelRatioF(), rgn.translated(offset));
+                setSystemClip(pdev->paintEngine(), pdev->devicePixelRatio(), rgn.translated(offset));
                 QPainter p(pdev);
                 p.translate(offset);
                 context.painter = &p;
@@ -5322,7 +5322,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
                 }
                 sharedPainter->save();
                 sharedPainter->translate(offset);
-                setSystemClip(sharedPainter->paintEngine(), sharedPainter->device()->devicePixelRatioF(), rgn.translated(offset));
+                setSystemClip(sharedPainter->paintEngine(), sharedPainter->device()->devicePixelRatio(), rgn.translated(offset));
                 graphicsEffect->draw(sharedPainter);
                 setSystemClip(sharedPainter->paintEngine(), 1, QRegion());
                 sharedPainter->restore();
@@ -5362,7 +5362,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
                 setRedirected(pdev, -offset);
 
                 if (sharedPainter)
-                    setSystemClip(pdev->paintEngine(), pdev->devicePixelRatioF(), toBePainted);
+                    setSystemClip(pdev->paintEngine(), pdev->devicePixelRatio(), toBePainted);
                 else
                     paintEngine->d_func()->systemRect = q->data->crect;
 
@@ -5380,7 +5380,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
                 }
 
                 if (!sharedPainter)
-                    setSystemClip(pdev->paintEngine(), pdev->devicePixelRatioF(), toBePainted.translated(offset));
+                    setSystemClip(pdev->paintEngine(), pdev->devicePixelRatio(), toBePainted.translated(offset));
 
                 if (!onScreen && !asRoot && !isOpaque && q->testAttribute(Qt::WA_TintedBackground)) {
 #ifndef QT_NO_OPENGL
@@ -5388,7 +5388,7 @@ void QWidgetPrivate::drawWidget(QPaintDevice *pdev, const QRegion &rgn, const QP
 #endif
                     QPainter p(q);
                     QColor tint = q->palette().window().color();
-                    tint.setAlphaF(qreal(.6));
+                    tint.setAlphaF(.6f);
                     p.fillRect(toBePainted.boundingRect(), tint);
 #ifndef QT_NO_OPENGL
                     endBackingStorePainting();
@@ -5687,7 +5687,7 @@ QPixmap QWidgetEffectSourcePrivate::pixmap(Qt::CoordinateSystem system, QPoint *
 
     qreal dpr(1.0);
     if (const auto *paintDevice = context->painter->device())
-        dpr = paintDevice->devicePixelRatioF();
+        dpr = paintDevice->devicePixelRatio();
     else
         qWarning("QWidgetEffectSourcePrivate::pixmap: Painter not active");
     QPixmap pixmap(effectRect.size() * dpr);
@@ -8756,7 +8756,7 @@ bool QWidget::event(QEvent *event)
             QCoreApplication::sendEvent(const_cast<QWidget *>(this), &tip);
         }
 #endif
-        enterEvent(event);
+        enterEvent(static_cast<QEnterEvent*>(event));
         break;
 
     case QEvent::Leave:
@@ -9402,7 +9402,7 @@ void QWidget::focusOutEvent(QFocusEvent *)
 }
 
 /*!
-    \fn void QWidget::enterEvent(QEvent *event)
+    \fn void QWidget::enterEvent(QEnterEvent *event)
 
     This event handler can be reimplemented in a subclass to receive
     widget enter events which are passed in the \a event parameter.
@@ -9413,11 +9413,9 @@ void QWidget::focusOutEvent(QFocusEvent *)
     \sa leaveEvent(), mouseMoveEvent(), event()
 */
 
-void QWidget::enterEvent(QEvent *)
+void QWidget::enterEvent(QEnterEvent *)
 {
 }
-
-// ### Qt 6: void QWidget::enterEvent(QEnterEvent *).
 
 /*!
     \fn void QWidget::leaveEvent(QEvent *event)
@@ -10955,21 +10953,9 @@ void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on)
             // reset modality type to NonModal when clearing WA_ShowModal
             data->window_modality = Qt::NonModal;
         } else if (data->window_modality == Qt::NonModal) {
-            // determine the modality type if it hasn't been set prior
-            // to setting WA_ShowModal. set the default to WindowModal
-            // if we are the child of a group leader; otherwise use
+            // If modality hasn't been set prior to setting WA_ShowModal, use
             // ApplicationModal.
-            QWidget *w = parentWidget();
-            if (w)
-                w = w->window();
-            while (w && !w->testAttribute(Qt::WA_GroupLeader)) {
-                w = w->parentWidget();
-                if (w)
-                    w = w->window();
-            }
-            data->window_modality = (w && w->testAttribute(Qt::WA_GroupLeader))
-                                    ? Qt::WindowModal
-                                    : Qt::ApplicationModal;
+            data->window_modality = Qt::ApplicationModal;
             // Some window managers do not allow us to enter modality after the
             // window is visible.The window must be hidden before changing the
             // windowModality property and then reshown.
@@ -11371,7 +11357,7 @@ QString QWidget::accessibleName() const
   \brief the widget's description as seen by assistive technologies
 
   The accessible description of a widget should convey what a widget does.
-  While the \l accessibleName should be a short and consise string (e.g. \gui{Save}),
+  While the \l accessibleName should be a short and concise string (e.g. \gui{Save}),
   the description should give more context, such as \gui{Saves the current document}.
 
   This property has to be \l{Internationalization with Qt}{localized}.
@@ -12844,7 +12830,7 @@ QDebug operator<<(QDebug debug, const QWidget *widget)
                                        frameGeometry.bottom() - geometry.bottom());
                 debug << ", margins=" << margins;
             }
-            debug << ", devicePixelRatio=" << widget->devicePixelRatioF();
+            debug << ", devicePixelRatio=" << widget->devicePixelRatio();
             if (const WId wid = widget->internalWinId())
                 debug << ", winId=0x" << Qt::hex << wid << Qt::dec;
         }

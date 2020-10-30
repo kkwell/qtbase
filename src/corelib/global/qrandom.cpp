@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2019 Intel Corporation.
+** Copyright (C) 2020 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -181,7 +181,8 @@ struct QRandomGenerator::SystemGenerator
 
     // For std::mersenne_twister_engine implementations that use something
     // other than quint32 (unsigned int) to fill their buffers.
-    template <typename T> void generate(T *begin, T *end)
+    template<typename T>
+    void generate(T *begin, T *end)
     {
         static_assert(sizeof(T) >= sizeof(quint32));
         if (sizeof(T) == sizeof(quint32)) {
@@ -414,7 +415,8 @@ struct QRandomGenerator::SystemAndGlobalGenerators
         new (&rng->storage.engine()) RandomEngine(self()->sys);
     }
 
-    struct PRNGLocker {
+    struct PRNGLocker
+    {
         const bool locked;
         PRNGLocker(const QRandomGenerator *that)
             : locked(that == globalNoInit())
@@ -691,12 +693,11 @@ inline QRandomGenerator::SystemGenerator &QRandomGenerator::SystemGenerator::sel
 */
 
 /*!
-    \fn bool operator!=(const QRandomGenerator &rng1, const QRandomGenerator &rng2)
-    \relates QRandomGenerator
+    \fn bool QRandomGenerator::operator!=(const QRandomGenerator &rng1, const QRandomGenerator &rng2)
 
-    Returns true if the two the two engines \a rng1 and \a rng2 are at
+    Returns \c true if the two the two engines \a rng1 and \a rng2 are at
     different states or if one of them is reading from the operating system
-    facilities and the other is not, false otherwise.
+    facilities and the other is not, \c false otherwise.
 */
 
 /*!
@@ -876,7 +877,8 @@ inline QRandomGenerator::SystemGenerator &QRandomGenerator::SystemGenerator::sel
     \a highest (exclusive). The same result may also be obtained by using
     \l{http://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution}{\c std::uniform_int_distribution}
     with parameters 0 and \c{highest - 1}. That class can also be used to obtain
-    quantities larger than 32 bits.
+    quantities larger than 32 bits; for 64 bits, the 64-bit bounded() overload
+    can be used too.
 
     For example, to obtain a value between 0 and 255 (inclusive), one would write:
 
@@ -900,6 +902,45 @@ inline QRandomGenerator::SystemGenerator &QRandomGenerator::SystemGenerator::sel
 
     Note that this function cannot be used to obtain values in the full 32-bit
     range of int. Instead, use generate() and cast to int.
+
+    \sa generate(), generate64(), generateDouble()
+ */
+
+/*!
+    \fn quint64 QRandomGenerator::bounded(quint64 highest)
+    \overload
+
+    Generates one random 64-bit quantity in the range between 0 (inclusive) and
+    \a highest (exclusive). The same result may also be obtained by using
+    \l{http://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution}{\c std::uniform_int_distribution<quint64>}
+    with parameters 0 and \c{highest - 1}.
+
+    Note that this function cannot be used to obtain values in the full 64-bit
+    range of \c{quint64}. Instead, use generate64().
+
+    \note This function is implemented as a loop, which depends on the random
+    value obtained. On the long run, on average it should loop just under 2
+    times, but if the random generator is defective, this function may take
+    considerably longer to execute.
+
+    \sa generate(), generate64(), generateDouble()
+ */
+
+/*!
+    \fn qint64 QRandomGenerator::bounded(qint64 highest)
+    \overload
+
+    Generates one random 64-bit quantity in the range between 0 (inclusive) and
+    \a highest (exclusive). \a highest must be positive.
+
+    Note that this function cannot be used to obtain values in the full 64-bit
+    range of \c{qint64}. Instead, use generate64() and cast to qint64 or instead
+    use the unsigned version of this function.
+
+    \note This function is implemented as a loop, which depends on the random
+    value obtained. On the long run, on average it should loop just under 2
+    times, but if the random generator is defective, this function may take
+    considerably longer to execute.
 
     \sa generate(), generate64(), generateDouble()
  */
@@ -940,6 +981,60 @@ inline QRandomGenerator::SystemGenerator &QRandomGenerator::SystemGenerator::sel
     range of int. Instead, use generate() and cast to int.
 
     \sa generate(), generate64(), generateDouble()
+ */
+
+/*!
+    \fn quint64 QRandomGenerator::bounded(quint64 lowest, quint64 highest)
+    \overload
+
+    Generates one random 64-bit quantity in the range between \a lowest
+    (inclusive) and \a highest (exclusive). The \a highest parameter must be
+    greater than \a lowest.
+
+    The same result may also be obtained by using
+    \l{http://en.cppreference.com/w/cpp/numeric/random/uniform_int_distribution}{\c std::uniform_int_distribution<quint64>}
+    with parameters \a lowest and \c{\a highest - 1}.
+
+    Note that this function cannot be used to obtain values in the full 64-bit
+    range of \c{quint64}. Instead, use generate64().
+
+    \note This function is implemented as a loop, which depends on the random
+    value obtained. On the long run, on average it should loop just under 2
+    times, but if the random generator is defective, this function may take
+    considerably longer to execute.
+
+    \sa generate(), generate64(), generateDouble()
+ */
+
+/*!
+    \fn qint64 QRandomGenerator::bounded(qint64 lowest, qint64 highest)
+    \overload
+
+    Generates one random 64-bit quantity in the range between \a lowest
+    (inclusive) and \a highest (exclusive), both of which may be negative, but
+    \a highest must be greater than \a lowest.
+
+    Note that this function cannot be used to obtain values in the full 64-bit
+    range of \c{qint64}. Instead, use generate64() and cast to qint64.
+
+    \note This function is implemented as a loop, which depends on the random
+    value obtained. On the long run, on average it should loop just under 2
+    times, but if the random generator is defective, this function may take
+    considerably longer to execute.
+
+    \sa generate(), generate64(), generateDouble()
+ */
+
+/*!
+    \fn qint64 QRandomGenerator::bounded(int lowest, qint64 highest)
+    \fn qint64 QRandomGenerator::bounded(qint64 lowest, int highest)
+    \fn quint64 QRandomGenerator::bounded(unsigned lowest, quint64 highest)
+    \fn quint64 QRandomGenerator::bounded(quint64 lowest, unsigned highest)
+    \overload
+
+    This function exists to help with overload resolution when the types of the
+    parameters don't exactly match. They will promote the smaller type to the
+    type of the larger one and call the correct overload.
  */
 
 /*!
@@ -1177,22 +1272,32 @@ bool operator==(const QRandomGenerator &rng1, const QRandomGenerator &rng2)
 /*!
     \internal
 
-    Fills the range pointed by \a buffer and \a bufferEnd with 32-bit random
-    values. The buffer must be correctly aligned.
+    Fills the range pointed by \a buffer with \a count 32-bit random values.
+    The buffer must be correctly aligned.
+
+    Returns the value of the first two 32-bit entries as a \c{quint64}.
  */
-void QRandomGenerator::_fillRange(void *buffer, void *bufferEnd)
+quint64 QRandomGenerator::_fillRange(void *buffer, qptrdiff count)
 {
     // Verify that the pointers are properly aligned for 32-bit
     Q_ASSERT(quintptr(buffer) % sizeof(quint32) == 0);
-    Q_ASSERT(quintptr(bufferEnd) % sizeof(quint32) == 0);
-    quint32 *begin = static_cast<quint32 *>(buffer);
-    quint32 *end = static_cast<quint32 *>(bufferEnd);
+    Q_ASSERT(count >= 0);
+    Q_ASSERT(buffer || count <= 2);
 
-    if (type == SystemRNG || Q_UNLIKELY(uint(qt_randomdevice_control.loadAcquire()) & (UseSystemRNG|SetRandomData)))
-        return SystemGenerator::self().generate(begin, end);
+    quint64 dummy;
+    quint32 *begin = static_cast<quint32 *>(buffer ? buffer : &dummy);
+    quint32 *end = begin + count;
 
-    SystemAndGlobalGenerators::PRNGLocker lock(this);
-    std::generate(begin, end, [this]() { return storage.engine()(); });
+    if (type == SystemRNG || Q_UNLIKELY(uint(qt_randomdevice_control.loadAcquire()) & (UseSystemRNG|SetRandomData))) {
+        SystemGenerator::self().generate(begin, end);
+    } else {
+        SystemAndGlobalGenerators::PRNGLocker lock(this);
+        std::generate(begin, end, [this]() { return storage.engine()(); });
+    }
+
+    if (end - begin == 1)
+        return *begin;
+    return begin[0] | (quint64(begin[1]) << 32);
 }
 
 namespace {

@@ -65,22 +65,22 @@ public:
     QPointer<QScreen> screen;
 };
 
-// ----------------- QPlatformInterface -----------------
+// ----------------- QNativeInterface -----------------
 
-namespace QPlatformInterface::Private {
+namespace QNativeInterface::Private {
 
-#if QT_CONFIG(xcb)
+#if QT_CONFIG(xcb) || defined(Q_CLANG_QDOC)
 struct Q_GUI_EXPORT QXcbScreen
 {
-    QT_DECLARE_PLATFORM_INTERFACE(QXcbScreen)
+    QT_DECLARE_NATIVE_INTERFACE(QXcbScreen)
     virtual int virtualDesktopNumber() const = 0;
 };
 #endif
 
-#if QT_CONFIG(vsp2)
+#if QT_CONFIG(vsp2) || defined(Q_CLANG_QDOC)
 struct Q_GUI_EXPORT QVsp2Screen
 {
-    QT_DECLARE_PLATFORM_INTERFACE(QVsp2Screen)
+    QT_DECLARE_NATIVE_INTERFACE(QVsp2Screen)
     virtual int addLayer(int dmabufFd, const QSize &size, const QPoint &position, uint drmPixelFormat, uint bytesPerLine) = 0;
     virtual void setLayerBuffer(int id, int dmabufFd) = 0;
     virtual void setLayerPosition(int id, const QPoint &position) = 0;
@@ -90,7 +90,7 @@ struct Q_GUI_EXPORT QVsp2Screen
 };
 #endif
 
-} // QPlatformInterface::Private
+} // QNativeInterface::Private
 
 QT_END_NAMESPACE
 

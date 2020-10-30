@@ -368,7 +368,7 @@ void QDateTimeEdit::setCalendar(QCalendar calendar)
   minimumTime properties to the date and time parts of this property,
   respectively. When setting this property, the \l maximumDateTime is adjusted,
   if necessary, to ensure that the range remains valid. Otherwise, changing this
-  property preserves the \l minimumDateTime property.
+  property preserves the \l maximumDateTime property.
 
   This property can only be set to a valid QDateTime value. The earliest
   date-time that setMinimumDateTime() accepts is the start of 100 CE. The
@@ -2037,13 +2037,14 @@ QDateTime QDateTimeEditPrivate::validateAndInterpret(QString &input, int &positi
     }
 
     StateNode tmp = parse(input, position, value.toDateTime(), fixup);
+    // Take note of any corrections imposed during parsing:
+    input = m_text;
     // Impose this widget's spec:
     tmp.value = tmp.value.toTimeSpec(spec);
     // ... but that might turn a valid datetime into an invalid one:
     if (!tmp.value.isValid() && tmp.state == Acceptable)
         tmp.state = Intermediate;
 
-    input = tmp.input;
     position += tmp.padded;
     state = QValidator::State(int(tmp.state));
     if (state == QValidator::Acceptable) {
@@ -2107,18 +2108,10 @@ QDateTime QDateTimeEditPrivate::stepBy(int sectionIndex, int steps, bool test) c
     int pos = edit->cursorPosition();
     const SectionNode sn = sectionNode(sectionIndex);
 
-    int val;
     // to make sure it behaves reasonably when typing something and then stepping in non-tracking mode
-    if (!test && pendingEmit) {
-        if (q->validate(str, pos) != QValidator::Acceptable) {
-            v = value.toDateTime();
-        } else {
-            v = q->dateTimeFromText(str);
-        }
-        val = getDigit(v, sectionIndex);
-    } else {
-        val = getDigit(v, sectionIndex);
-    }
+    if (!test && pendingEmit && q->validate(str, pos) == QValidator::Acceptable)
+        v = q->dateTimeFromText(str);
+    int val = getDigit(v, sectionIndex);
 
     val += steps;
 

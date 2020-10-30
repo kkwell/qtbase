@@ -381,12 +381,12 @@ void tst_QGridLayout::setMinAndMaxSize()
 class SizeHinter : public QWidget
 {
 public:
-    SizeHinter(const QSize &s, QWidget *parent = 0)
+    SizeHinter(const QSize &s, QWidget *parent = nullptr)
         : QWidget(parent), sh(s) { }
-    SizeHinter(int w, int h, QWidget *parent = 0)
+    SizeHinter(int w, int h, QWidget *parent = nullptr)
         : QWidget(parent), sh(QSize(w,h)) {}
     void setSizeHint(QSize s) { sh = s; }
-    QSize sizeHint() const { return sh; }
+    QSize sizeHint() const override { return sh; }
 private:
     QSize sh;
 };
@@ -452,7 +452,7 @@ public:
     }
 
     virtual int pixelMetric(PixelMetric metric, const QStyleOption * option = nullptr,
-                            const QWidget * widget = nullptr ) const;
+                            const QWidget * widget = nullptr ) const override;
 
     int spacing = 6;
     int margin = 9;
@@ -489,7 +489,7 @@ typedef QList<QPoint> PointList;
 class SizeHinterFrame : public QLabel
 {
 public:
-    SizeHinterFrame(QWidget *parent = 0)
+    SizeHinterFrame(QWidget *parent = nullptr)
     : QLabel(parent)
     {
         init(-1);
@@ -508,11 +508,11 @@ public:
     }
 
     void setSizeHint(const QSize &s) { sh = s; }
-    QSize sizeHint() const { return sh; }
+    QSize sizeHint() const override { return sh; }
     void setMinimumSizeHint(const QSize &s) { msh = s; }
-    QSize minimumSizeHint() const { return msh; }
+    QSize minimumSizeHint() const override { return msh; }
 
-    virtual int heightForWidth(int width) const;
+    virtual int heightForWidth(int width) const override;
 
     void setNumberOfPixels(int numPixels) {
         m_numPixels = numPixels;
@@ -900,10 +900,10 @@ public:
         reimplementSubelementRect = false;
     }
 
-    virtual int pixelMetric(PixelMetric metric, const QStyleOption * option = 0,
-                            const QWidget * widget = 0 ) const;
+    virtual int pixelMetric(PixelMetric metric, const QStyleOption * option = nullptr,
+                            const QWidget * widget = nullptr ) const override;
     virtual QRect subElementRect(SubElement sr, const QStyleOption *opt,
-                                const QWidget *widget) const;
+                                const QWidget *widget) const override;
 
     int hspacing;
     int vspacing;
@@ -912,8 +912,8 @@ public:
     int layoutSpacing(QSizePolicy::ControlType control1,
                       QSizePolicy::ControlType control2,
                       Qt::Orientation orientation,
-                      const QStyleOption *option = 0,
-                      const QWidget *widget = 0) const;
+                      const QStyleOption *option = nullptr,
+                      const QWidget *widget = nullptr) const override;
 
 };
 
@@ -945,8 +945,8 @@ QRect CustomLayoutStyle::subElementRect(SubElement sr, const QStyleOption *opt,
 int CustomLayoutStyle::layoutSpacing(QSizePolicy::ControlType control1,
                                 QSizePolicy::ControlType control2,
                                 Qt::Orientation orientation,
-                                const QStyleOption * /*option = 0*/,
-                                const QWidget * /*widget = 0*/) const
+                                const QStyleOption * /*option = nullptr*/,
+                                const QWidget * /*widget = nullptr*/) const
 {
     if (orientation == Qt::Horizontal) {
         switch (CT2(control1, control2)) {
@@ -966,8 +966,8 @@ int CustomLayoutStyle::layoutSpacing(QSizePolicy::ControlType control1,
     }
 }
 
-int CustomLayoutStyle::pixelMetric(PixelMetric metric, const QStyleOption * option /*= 0*/,
-                                   const QWidget * widget /*= 0*/ ) const
+int CustomLayoutStyle::pixelMetric(PixelMetric metric, const QStyleOption * option /*= nullptr*/,
+                                   const QWidget * widget /*= nullptr*/ ) const
 {
     switch (metric) {
         case PM_LayoutLeftMargin:

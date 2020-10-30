@@ -56,7 +56,6 @@ SOURCES += \
         tools/qfreelist.cpp \
         tools/qhash.cpp \
         tools/qline.cpp \
-        tools/qlist.cpp \
         tools/qpoint.cpp \
         tools/qmargins.cpp \
         tools/qmessageauthenticationcode.cpp \
@@ -68,9 +67,6 @@ SOURCES += \
         tools/qsharedpointer.cpp \
         tools/qsize.cpp \
         tools/qversionnumber.cpp
-
-msvc: NO_PCH_SOURCES += tools/qvector_msvc.cpp
-false: SOURCES += $$NO_PCH_SOURCES # Hack for QtCreator
 
 qtConfig(system-zlib) {
     include($$PWD/../../3rdparty/zlib_dependency.pri)

@@ -38,10 +38,10 @@ class InsertCommand : public QUndoCommand
 {
 public:
     InsertCommand(QString *str, int idx, const QString &text,
-                    QUndoCommand *parent = 0);
+                    QUndoCommand *parent = nullptr);
 
-    virtual void undo();
-    virtual void redo();
+    virtual void undo() override;
+    virtual void redo() override;
 
 private:
     QString *m_str;
@@ -52,10 +52,10 @@ private:
 class RemoveCommand : public QUndoCommand
 {
 public:
-    RemoveCommand(QString *str, int idx, int len, QUndoCommand *parent = 0);
+    RemoveCommand(QString *str, int idx, int len, QUndoCommand *parent = nullptr);
 
-    virtual void undo();
-    virtual void redo();
+    virtual void undo() override;
+    virtual void redo() override;
 
 private:
     QString *m_str;
@@ -66,12 +66,12 @@ private:
 class AppendCommand : public QUndoCommand
 {
 public:
-    AppendCommand(QString *str, const QString &text, QUndoCommand *parent = 0);
+    AppendCommand(QString *str, const QString &text, QUndoCommand *parent = nullptr);
 
-    virtual void undo();
-    virtual void redo();
-    virtual int id() const;
-    virtual bool mergeWith(const QUndoCommand *other);
+    virtual void undo() override;
+    virtual void redo() override;
+    virtual int id() const override;
+    virtual bool mergeWith(const QUndoCommand *other) override;
 
     bool merged;
 
@@ -592,7 +592,7 @@ void tst_QUndoGroup::commandTextFormat()
 #if !QT_CONFIG(process)
     QSKIP("No QProcess available");
 #else
-    QString binDir = QLibraryInfo::location(QLibraryInfo::BinariesPath);
+    QString binDir = QLibraryInfo::path(QLibraryInfo::BinariesPath);
 
     if (QProcess::execute(binDir + "/lrelease -version") != 0)
         QSKIP("lrelease is missing or broken");

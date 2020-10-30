@@ -166,7 +166,7 @@ public:
         pos.rx() += buttonSize.width() + spacing;
         ButtonItem *qi = new ButtonItem("Quit", QRect(pos, buttonSize),
                                         QColor(Qt::red).lighter(), this);
-        qi->setShortcut(Qt::CTRL + Qt::Key_Q);
+        qi->setShortcut(Qt::CTRL | Qt::Key_Q);
         connect(qi, &ButtonItem::clicked, qApp, &QCoreApplication::quit);
         addItem(qi);
 
@@ -207,9 +207,6 @@ static inline bool isOptionSet(int argc, char *argv[], const char *option)
 
 int main(int argc, char *argv[])
 {
-    // Check for no scaling before QApplication is instantiated.
-    if (isOptionSet(argc, argv, "-s"))
-        QCoreApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
     QCoreApplication::setApplicationVersion(QLatin1String(QT_VERSION_STR));
     QGuiApplication::setApplicationDisplayName("Foreign Window Embedding Tester");
 

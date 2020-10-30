@@ -18,8 +18,12 @@ set(INSTALL_EXAMPLEDIR "${INSTALL_EXAMPLESDIR}/network/download")
 find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Network)
 
-add_executable(download
+qt_add_executable(download
     main.cpp
+)
+set_target_properties(download PROPERTIES
+    WIN32_EXECUTABLE FALSE
+    MACOSX_BUNDLE FALSE
 )
 target_link_libraries(download PUBLIC
     Qt::Core

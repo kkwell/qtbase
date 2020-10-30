@@ -20,11 +20,15 @@ find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Network)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(securesocketclient
+qt_add_executable(securesocketclient
     certificateinfo.cpp certificateinfo.h certificateinfo.ui
     main.cpp
     sslclient.cpp sslclient.h sslclient.ui
     sslerrors.ui
+)
+set_target_properties(securesocketclient PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(securesocketclient PUBLIC
     Qt::Core

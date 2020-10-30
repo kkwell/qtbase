@@ -408,7 +408,7 @@ QFileDialog::~QFileDialog()
 
     For instance:
 
-    \snippet filedialogurls.cpp 0
+    \snippet filedialogurls/filedialogurls.cpp 0
 
     The file dialog will then look like this:
 
@@ -3287,7 +3287,7 @@ void QFileDialogPrivate::createMenuActions()
 
     QAction *goHomeAction =  new QAction(q);
 #ifndef QT_NO_SHORTCUT
-    goHomeAction->setShortcut(Qt::CTRL + Qt::Key_H + Qt::SHIFT);
+    goHomeAction->setShortcut(Qt::CTRL | Qt::SHIFT | Qt::Key_H);
 #endif
     QObject::connect(goHomeAction, SIGNAL(triggered()), q, SLOT(_q_goHome()));
     q->addAction(goHomeAction);

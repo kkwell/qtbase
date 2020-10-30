@@ -163,12 +163,12 @@ void tst_QTextBrowser::forwardButton()
 
     QVERIFY(!forwardEmissions.isEmpty());
     QVariant val = forwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(!val.toBool());
 
     QVERIFY(!backwardEmissions.isEmpty());
     val = backwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(!val.toBool());
 
     QVERIFY(browser->historyTitle(-1).isEmpty());
@@ -181,12 +181,12 @@ void tst_QTextBrowser::forwardButton()
 
     QVERIFY(!forwardEmissions.isEmpty());
     val = forwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(!val.toBool());
 
     QVERIFY(!backwardEmissions.isEmpty());
     val = backwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(val.toBool());
 
     QCOMPARE(browser->historyTitle(-1), QString("Page With BG"));
@@ -197,12 +197,12 @@ void tst_QTextBrowser::forwardButton()
 
     QVERIFY(!forwardEmissions.isEmpty());
     val = forwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(val.toBool());
 
     QVERIFY(!backwardEmissions.isEmpty());
     val = backwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(!val.toBool());
 
     QVERIFY(browser->historyTitle(-1).isEmpty());
@@ -213,12 +213,12 @@ void tst_QTextBrowser::forwardButton()
 
     QVERIFY(!forwardEmissions.isEmpty());
     val = forwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(!val.toBool());
 
     QVERIFY(!backwardEmissions.isEmpty());
     val = backwardEmissions.takeLast()[0];
-    QCOMPARE(val.type(), QVariant::Bool);
+    QCOMPARE(val.userType(), QMetaType::Bool);
     QVERIFY(val.toBool());
 }
 
@@ -483,7 +483,8 @@ void tst_QTextBrowser::anchorsWithSelfBuiltHtml()
 class HelpBrowser : public QTextBrowser
 {
 public:
-    virtual QVariant loadResource(int /*type*/, const QUrl &name) {
+    virtual QVariant loadResource(int /*type*/, const QUrl &name) override
+    {
         QString url = name.toString();
         if(url == "qhelp://docs/index.html") {
             return "index";
@@ -545,7 +546,7 @@ void tst_QTextBrowser::loadResourceOnRelativeLocalFiles()
     QVERIFY(!browser->toPlainText().isEmpty());
     QVariant v = browser->loadResource(QTextDocument::HtmlResource, QUrl("../anchor.html"));
     QVERIFY(v.isValid());
-    QCOMPARE(v.type(), QVariant::ByteArray);
+    QCOMPARE(v.userType(), QMetaType::QByteArray);
     QVERIFY(!v.toByteArray().isEmpty());
 }
 

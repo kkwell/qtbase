@@ -123,7 +123,6 @@ def map_tests(test: str) -> Optional[str]:
         "spe": "TEST_subarch_spe",
         "vsx": "TEST_subarch_vsx",
         "openssl11": '(OPENSSL_VERSION VERSION_GREATER_EQUAL "1.1.0")',
-        "reduce_exports": "CMAKE_CXX_COMPILE_OPTIONS_VISIBILITY",
         "libinput_axis_api": "ON",
         "xlib": "X11_FOUND",
         "wayland-scanner": "WaylandScanner_FOUND",
@@ -284,6 +283,8 @@ def map_condition(condition):
 
     # Turn foo != "bar" into (NOT foo STREQUAL 'bar')
     condition = re.sub(r"([^ ]+)\s*!=\s*('.*?')", "(! \\1 == \\2)", condition)
+    # Turn foo != 156 into (NOT foo EQUAL 156)
+    condition = re.sub(r"([^ ]+)\s*!=\s*([0-9]?)", "(! \\1 EQUAL \\2)", condition)
 
     condition = condition.replace("!", "NOT ")
     condition = condition.replace("&&", " AND ")
@@ -420,7 +421,6 @@ def parseInput(ctx, sinput, data, cm_fh):
         "c++std",
         "ccache",
         "commercial",
-        "compile-examples",
         "confirm-license",
         "dbus",
         "dbus-runtime",
@@ -913,7 +913,22 @@ def get_feature_mapping():
             "condition": "NOT QT_FEATURE_icu AND QT_FEATURE_textcodec AND NOT WIN32 AND NOT QNX AND NOT ANDROID AND NOT APPLE AND WrapIconv_FOUND",
         },
         "incredibuild_xge": None,
-        "ltcg": {"autoDetect": "1", "condition": "CMAKE_INTERPROCEDURAL_OPTIMIZATION"},
+        "ltcg": {
+            "autoDetect": "ON",
+            "cmakePrelude": """set(__qt_ltcg_detected FALSE)
+if(CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+    set(__qt_ltcg_detected TRUE)
+else()
+    foreach(config ${CMAKE_BUILD_TYPE} ${CMAKE_CONFIGURATION_TYPES})
+        if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_${config})
+            set(__qt_ltcg_detected TRUE)
+            break()
+        endif()
+    endforeach()
+endif()""",
+            "condition": "__qt_ltcg_detected",
+            "cmakeEpilogue": "unset(__qt_ltcg_detected)"
+        },
         "msvc_mp": None,
         "simulator_and_device": {"condition": "UIKIT AND NOT QT_UIKIT_SDK"},
         "pkg-config": {"condition": "PKG_CONFIG_FOUND"},
@@ -935,6 +950,9 @@ def get_feature_mapping():
                     "value": "\\\"${QT_COORD_TYPE}\\\"",
                 },
             ],
+        },
+        "reduce_exports": {
+            "condition": "NOT MSVC",
         },
         "release": None,
         "release_tools": None,
@@ -1000,6 +1018,8 @@ def parseFeature(ctx, feature, data, cm_fh):
     enable = map_condition(mapping.get("enable", data.get("enable", "")))
     disable = map_condition(mapping.get("disable", data.get("disable", "")))
     emitIf = map_condition(mapping.get("emitIf", data.get("emitIf", "")))
+    cmakePrelude = mapping.get("cmakePrelude", None)
+    cmakeEpilogue = mapping.get("cmakeEpilogue", None)
 
     for k in [k for k in data.keys() if k not in handled]:
         print(f"    XXXX UNHANDLED KEY {k} in feature description")
@@ -1069,9 +1089,15 @@ def parseFeature(ctx, feature, data, cm_fh):
         labelAppend="",
         superFeature=None,
         autoDetect="",
+        cmakePrelude=None,
+        cmakeEpilogue=None,
     ):
         if comment:
             cm_fh.write(f"# {comment}\n")
+
+        if cmakePrelude is not None:
+            cm_fh.write(cmakePrelude)
+            cm_fh.write("\n")
 
         cm_fh.write(f'qt_feature("{name}"')
         if publicFeature:
@@ -1095,11 +1121,16 @@ def parseFeature(ctx, feature, data, cm_fh):
         cm_fh.write(lineify("EMIT_IF", emitIf, quote=False))
         cm_fh.write(")\n")
 
+        if cmakeEpilogue is not None:
+            cm_fh.write(cmakeEpilogue)
+            cm_fh.write("\n")
+
     # Write qt_feature() calls before any qt_feature_definition() calls
 
     # Default internal feature case.
     featureCalls = {}
-    featureCalls[feature] = {"name": feature, "labelAppend": "", "autoDetect": autoDetect}
+    featureCalls[feature] = {"name": feature, "labelAppend": "", "autoDetect": autoDetect,
+                             "cmakePrelude": cmakePrelude, "cmakeEpilogue": cmakeEpilogue}
 
     # Go over all outputs to compute the number of features that have to be declared
     for o in output:

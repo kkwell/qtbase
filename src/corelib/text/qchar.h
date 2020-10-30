@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2019 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -56,23 +56,30 @@ public:
     constexpr inline char toLatin1() const noexcept { return ch; }
     constexpr inline char16_t unicode() const noexcept { return char16_t(uchar(ch)); }
 
+    friend constexpr inline bool operator==(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch == rhs.ch; }
+    friend constexpr inline bool operator!=(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch != rhs.ch; }
+    friend constexpr inline bool operator<=(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch <= rhs.ch; }
+    friend constexpr inline bool operator>=(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch >= rhs.ch; }
+    friend constexpr inline bool operator< (QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch <  rhs.ch; }
+    friend constexpr inline bool operator> (QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.ch >  rhs.ch; }
+
+    friend constexpr inline bool operator==(char lhs, QLatin1Char rhs) noexcept { return lhs == rhs.toLatin1(); }
+    friend constexpr inline bool operator!=(char lhs, QLatin1Char rhs) noexcept { return lhs != rhs.toLatin1(); }
+    friend constexpr inline bool operator<=(char lhs, QLatin1Char rhs) noexcept { return lhs <= rhs.toLatin1(); }
+    friend constexpr inline bool operator>=(char lhs, QLatin1Char rhs) noexcept { return lhs >= rhs.toLatin1(); }
+    friend constexpr inline bool operator< (char lhs, QLatin1Char rhs) noexcept { return lhs <  rhs.toLatin1(); }
+    friend constexpr inline bool operator> (char lhs, QLatin1Char rhs) noexcept { return lhs >  rhs.toLatin1(); }
+
+    friend constexpr inline bool operator==(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() == rhs; }
+    friend constexpr inline bool operator!=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() != rhs; }
+    friend constexpr inline bool operator<=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() <= rhs; }
+    friend constexpr inline bool operator>=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() >= rhs; }
+    friend constexpr inline bool operator< (QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() <  rhs; }
+    friend constexpr inline bool operator> (QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() >  rhs; }
+
 private:
     char ch;
 };
-
-constexpr inline bool operator==(char lhs, QLatin1Char rhs) noexcept { return lhs == rhs.toLatin1(); }
-constexpr inline bool operator!=(char lhs, QLatin1Char rhs) noexcept { return lhs != rhs.toLatin1(); }
-constexpr inline bool operator<=(char lhs, QLatin1Char rhs) noexcept { return lhs <= rhs.toLatin1(); }
-constexpr inline bool operator>=(char lhs, QLatin1Char rhs) noexcept { return lhs >= rhs.toLatin1(); }
-constexpr inline bool operator< (char lhs, QLatin1Char rhs) noexcept { return lhs <  rhs.toLatin1(); }
-constexpr inline bool operator> (char lhs, QLatin1Char rhs) noexcept { return lhs >  rhs.toLatin1(); }
-
-constexpr inline bool operator==(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() == rhs; }
-constexpr inline bool operator!=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() != rhs; }
-constexpr inline bool operator<=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() <= rhs; }
-constexpr inline bool operator>=(QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() >= rhs; }
-constexpr inline bool operator< (QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() <  rhs; }
-constexpr inline bool operator> (QLatin1Char lhs, char rhs) noexcept { return lhs.toLatin1() >  rhs; }
 
 class Q_CORE_EXPORT QChar {
 public:
@@ -94,30 +101,28 @@ public:
         LastValidCodePoint = 0x10ffff
     };
 
-    constexpr QChar() noexcept : ucs(0) {}
-    constexpr QChar(ushort rc) noexcept : ucs(rc) {}
-    constexpr QChar(uchar c, uchar r) noexcept : ucs(char16_t((r << 8) | c)) {}
-    constexpr QChar(short rc) noexcept : ucs(char16_t(rc)) {}
-    constexpr QChar(uint rc) noexcept : ucs(char16_t(rc & 0xffff)) {}
-    constexpr QChar(int rc) noexcept : ucs(char16_t(rc & 0xffff)) {}
-    constexpr QChar(SpecialCharacter s) noexcept : ucs(char16_t(s)) {} // implicit
-    constexpr QChar(QLatin1Char ch) noexcept : ucs(ch.unicode()) {} // implicit
-#if defined(Q_COMPILER_UNICODE_STRINGS)
-    constexpr QChar(char16_t ch) noexcept : ucs(ch) {} // implicit
-#endif
+    constexpr Q_IMPLICIT QChar() noexcept : ucs(0) {}
+    constexpr Q_IMPLICIT QChar(ushort rc) noexcept : ucs(rc) {}
+    constexpr Q_IMPLICIT QChar(uchar c, uchar r) noexcept : ucs(char16_t((r << 8) | c)) {}
+    constexpr Q_IMPLICIT QChar(short rc) noexcept : ucs(char16_t(rc)) {}
+    constexpr Q_IMPLICIT QChar(uint rc) noexcept : ucs(char16_t(rc & 0xffff)) {}
+    constexpr Q_IMPLICIT QChar(int rc) noexcept : ucs(char16_t(rc & 0xffff)) {}
+    constexpr Q_IMPLICIT QChar(SpecialCharacter s) noexcept : ucs(char16_t(s)) {} // implicit
+    constexpr Q_IMPLICIT QChar(QLatin1Char ch) noexcept : ucs(ch.unicode()) {} // implicit
+    constexpr Q_IMPLICIT QChar(char16_t ch) noexcept : ucs(ch) {} // implicit
 #if defined(Q_OS_WIN)
     static_assert(sizeof(wchar_t) == sizeof(char16_t));
 #endif
 #if defined(Q_OS_WIN) || defined(Q_CLANG_QDOC)
 #   if !defined(_WCHAR_T_DEFINED) || defined(_NATIVE_WCHAR_T_DEFINED)
-    constexpr QChar(wchar_t ch) noexcept : ucs(char16_t(ch)) {} // implicit
+    constexpr Q_IMPLICIT QChar(wchar_t ch) noexcept : ucs(char16_t(ch)) {} // implicit
 #   endif
 #endif
 
 #ifndef QT_NO_CAST_FROM_ASCII
-    QT_ASCII_CAST_WARN constexpr QChar(char c) noexcept : ucs(uchar(c)) { }
+    QT_ASCII_CAST_WARN constexpr Q_IMPLICIT QChar(char c) noexcept : ucs(uchar(c)) { }
 #ifndef QT_RESTRICTED_CAST_FROM_ASCII
-    QT_ASCII_CAST_WARN constexpr QChar(uchar c) noexcept : ucs(c) { }
+    QT_ASCII_CAST_WARN constexpr Q_IMPLICIT QChar(uchar c) noexcept : ucs(c) { }
 #endif
 #endif
 
@@ -504,11 +509,11 @@ public:
     }
     static constexpr inline bool isHighSurrogate(char32_t ucs4) noexcept
     {
-        return ((ucs4 & 0xfffffc00) == 0xd800);
+        return (ucs4 & 0xfffffc00) == 0xd800; // 0xd800 + up to 1023 (0x3ff)
     }
     static constexpr inline bool isLowSurrogate(char32_t ucs4) noexcept
     {
-        return ((ucs4 & 0xfffffc00) == 0xdc00);
+        return (ucs4 & 0xfffffc00) == 0xdc00; // 0xdc00 + up to 1023 (0x3ff)
     }
     static constexpr inline bool isSurrogate(char32_t ucs4) noexcept
     {
@@ -520,6 +525,8 @@ public:
     }
     static constexpr inline char32_t surrogateToUcs4(char16_t high, char16_t low) noexcept
     {
+        // 0x010000 through 0x10ffff, provided params are actual high, low surrogates.
+        // 0x010000 + ((high - 0xd800) << 10) + (low - 0xdc00), optimized:
         return (char32_t(high)<<10) + low - 0x35fdc00;
     }
     static constexpr inline char32_t surrogateToUcs4(QChar high, QChar low) noexcept
@@ -590,6 +597,29 @@ public:
     static constexpr inline bool isTitleCase(char32_t ucs4) noexcept Q_DECL_CONST_FUNCTION
     { return ucs4 > 127 && QChar::category(ucs4) == Letter_Titlecase; }
 
+    friend constexpr inline bool operator==(QChar c1, QChar c2) noexcept { return c1.ucs == c2.ucs; }
+    friend constexpr inline bool operator< (QChar c1, QChar c2) noexcept { return c1.ucs <  c2.ucs; }
+
+    friend constexpr inline bool operator!=(QChar c1, QChar c2) noexcept { return !operator==(c1, c2); }
+    friend constexpr inline bool operator>=(QChar c1, QChar c2) noexcept { return !operator< (c1, c2); }
+    friend constexpr inline bool operator> (QChar c1, QChar c2) noexcept { return  operator< (c2, c1); }
+    friend constexpr inline bool operator<=(QChar c1, QChar c2) noexcept { return !operator< (c2, c1); }
+
+    friend constexpr inline bool operator==(QChar lhs, std::nullptr_t) noexcept { return lhs.isNull(); }
+    friend constexpr inline bool operator< (QChar,     std::nullptr_t) noexcept { return false; }
+    friend constexpr inline bool operator==(std::nullptr_t, QChar rhs) noexcept { return rhs.isNull(); }
+    friend constexpr inline bool operator< (std::nullptr_t, QChar rhs) noexcept { return !rhs.isNull(); }
+
+    friend constexpr inline bool operator!=(QChar lhs, std::nullptr_t) noexcept { return !operator==(lhs, nullptr); }
+    friend constexpr inline bool operator>=(QChar lhs, std::nullptr_t) noexcept { return !operator< (lhs, nullptr); }
+    friend constexpr inline bool operator> (QChar lhs, std::nullptr_t) noexcept { return  operator< (nullptr, lhs); }
+    friend constexpr inline bool operator<=(QChar lhs, std::nullptr_t) noexcept { return !operator< (nullptr, lhs); }
+
+    friend constexpr inline bool operator!=(std::nullptr_t, QChar rhs) noexcept { return !operator==(nullptr, rhs); }
+    friend constexpr inline bool operator>=(std::nullptr_t, QChar rhs) noexcept { return !operator< (nullptr, rhs); }
+    friend constexpr inline bool operator> (std::nullptr_t, QChar rhs) noexcept { return  operator< (rhs, nullptr); }
+    friend constexpr inline bool operator<=(std::nullptr_t, QChar rhs) noexcept { return !operator< (rhs, nullptr); }
+
 private:
     static bool QT_FASTCALL isSpace_helper(char32_t ucs4) noexcept Q_DECL_CONST_FUNCTION;
     static bool QT_FASTCALL isLetter_helper(char32_t ucs4) noexcept Q_DECL_CONST_FUNCTION;
@@ -601,36 +631,10 @@ private:
     QChar(uchar c) noexcept;
 #endif
 
-    friend constexpr bool operator==(QChar, QChar) noexcept;
-    friend constexpr bool operator< (QChar, QChar) noexcept;
     char16_t ucs;
 };
 
 Q_DECLARE_TYPEINFO(QChar, Q_MOVABLE_TYPE);
-
-constexpr inline bool operator==(QChar c1, QChar c2) noexcept { return c1.ucs == c2.ucs; }
-constexpr inline bool operator< (QChar c1, QChar c2) noexcept { return c1.ucs <  c2.ucs; }
-
-constexpr inline bool operator!=(QChar c1, QChar c2) noexcept { return !operator==(c1, c2); }
-constexpr inline bool operator>=(QChar c1, QChar c2) noexcept { return !operator< (c1, c2); }
-constexpr inline bool operator> (QChar c1, QChar c2) noexcept { return  operator< (c2, c1); }
-constexpr inline bool operator<=(QChar c1, QChar c2) noexcept { return !operator< (c2, c1); }
-
-
-constexpr inline bool operator==(QChar lhs, std::nullptr_t) noexcept { return lhs.isNull(); }
-constexpr inline bool operator< (QChar,     std::nullptr_t) noexcept { return false; }
-constexpr inline bool operator==(std::nullptr_t, QChar rhs) noexcept { return rhs.isNull(); }
-constexpr inline bool operator< (std::nullptr_t, QChar rhs) noexcept { return !rhs.isNull(); }
-
-constexpr inline bool operator!=(QChar lhs, std::nullptr_t) noexcept { return !operator==(lhs, nullptr); }
-constexpr inline bool operator>=(QChar lhs, std::nullptr_t) noexcept { return !operator< (lhs, nullptr); }
-constexpr inline bool operator> (QChar lhs, std::nullptr_t) noexcept { return  operator< (nullptr, lhs); }
-constexpr inline bool operator<=(QChar lhs, std::nullptr_t) noexcept { return !operator< (nullptr, lhs); }
-
-constexpr inline bool operator!=(std::nullptr_t, QChar rhs) noexcept { return !operator==(nullptr, rhs); }
-constexpr inline bool operator>=(std::nullptr_t, QChar rhs) noexcept { return !operator< (nullptr, rhs); }
-constexpr inline bool operator> (std::nullptr_t, QChar rhs) noexcept { return  operator< (rhs, nullptr); }
-constexpr inline bool operator<=(std::nullptr_t, QChar rhs) noexcept { return !operator< (rhs, nullptr); }
 
 #ifndef QT_NO_DATASTREAM
 Q_CORE_EXPORT QDataStream &operator<<(QDataStream &, QChar);

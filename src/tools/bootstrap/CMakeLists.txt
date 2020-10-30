@@ -9,7 +9,7 @@
 # libraries.
 add_library(Bootstrap STATIC)
 # special case end
-qt_extend_target(Bootstrap
+qt_internal_extend_target(Bootstrap
     SOURCES
         ../../3rdparty/pcre2/src/config.h
         ../../3rdparty/pcre2/src/pcre2.h
@@ -76,6 +76,8 @@ qt_extend_target(Bootstrap
         ../../corelib/io/qurlrecode.cpp
         ../../corelib/kernel/qcoreapplication.cpp
         ../../corelib/kernel/qcoreglobaldata.cpp
+        ../../corelib/kernel/qiterable.cpp
+        ../../corelib/kernel/qmetacontainer.cpp
         ../../corelib/kernel/qmetatype.cpp
         ../../corelib/kernel/qsharedmemory.cpp
         ../../corelib/kernel/qsystemerror.cpp
@@ -125,7 +127,6 @@ qt_extend_target(Bootstrap
         ../../corelib/tools/qsize.cpp
         ../../corelib/tools/qversionnumber.cpp
         ../../xml/dom/qdom.cpp
-        ../../xml/sax/qxml.cpp
     DEFINES
         HAVE_CONFIG_H
         PCRE2_CODE_UNIT_WIDTH=16
@@ -162,7 +163,7 @@ qt_extend_target(Bootstrap
 ## Scopes:
 #####################################################################
 
-qt_extend_target(Bootstrap CONDITION UNIX
+qt_internal_extend_target(Bootstrap CONDITION UNIX
     SOURCES
         ../../corelib/io/qfilesystemengine_unix.cpp
         ../../corelib/io/qfilesystemiterator_unix.cpp
@@ -176,7 +177,7 @@ qt_extend_target(Bootstrap CONDITION UNIX
         ../../corelib/kernel/qsystemsemaphore_unix.cpp
 )
 
-qt_extend_target(Bootstrap CONDITION WIN32
+qt_internal_extend_target(Bootstrap CONDITION WIN32
     SOURCES
         ../../corelib/global/qoperatingsystemversion_win.cpp
         ../../corelib/io/qfilesystemengine_win.cpp
@@ -198,7 +199,7 @@ qt_extend_target(Bootstrap CONDITION WIN32
         user32
 )
 
-qt_extend_target(Bootstrap CONDITION APPLE
+qt_internal_extend_target(Bootstrap CONDITION APPLE
     SOURCES
         ../../corelib/global/qoperatingsystemversion_darwin.mm
         ../../corelib/kernel/qcore_foundation.mm
@@ -208,24 +209,24 @@ qt_extend_target(Bootstrap CONDITION APPLE
         ${FWFoundation}
 )
 
-qt_extend_target(Bootstrap CONDITION MACOS
+qt_internal_extend_target(Bootstrap CONDITION MACOS
     SOURCES
         ../../corelib/io/qstandardpaths_mac.mm
     LIBRARIES
         ${FWCoreServices}
 )
 
-qt_extend_target(Bootstrap CONDITION UIKIT
+qt_internal_extend_target(Bootstrap CONDITION UIKIT
     LIBRARIES
         ${FWUIKit}
 )
 
-qt_extend_target(Bootstrap CONDITION UNIX AND NOT MACOS
+qt_internal_extend_target(Bootstrap CONDITION UNIX AND NOT MACOS
     SOURCES
         ../../corelib/io/qstandardpaths_unix.cpp
 )
 
-qt_extend_target(Bootstrap CONDITION CMAKE_CROSSCOMPILING OR NOT QT_FEATURE_system_zlib
+qt_internal_extend_target(Bootstrap CONDITION CMAKE_CROSSCOMPILING OR NOT QT_FEATURE_system_zlib
     SOURCES
         ../../3rdparty/zlib/src/adler32.c
         ../../3rdparty/zlib/src/compress.c
@@ -246,12 +247,12 @@ qt_extend_target(Bootstrap CONDITION CMAKE_CROSSCOMPILING OR NOT QT_FEATURE_syst
         ../../3rdparty/zlib/src
 )
 
-qt_extend_target(Bootstrap CONDITION QT_FEATURE_system_zlib AND NOT CMAKE_CROSSCOMPILING
+qt_internal_extend_target(Bootstrap CONDITION QT_FEATURE_system_zlib AND NOT CMAKE_CROSSCOMPILING
     LIBRARIES
         ZLIB::ZLIB
 )
 
-qt_extend_target(Bootstrap CONDITION MINGW AND WIN32
+qt_internal_extend_target(Bootstrap CONDITION MINGW AND WIN32
     PUBLIC_LIBRARIES
         uuid
 )

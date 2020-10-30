@@ -98,18 +98,20 @@ void tst_QDialog::getSetCheck()
 class ToolDialog : public QDialog
 {
 public:
-    ToolDialog(QWidget *parent = 0)
+    ToolDialog(QWidget *parent = nullptr)
         : QDialog(parent, Qt::Tool), mWasActive(false), mWasModalWindow(false), tId(-1) {}
 
     bool wasActive() const { return mWasActive; }
     bool wasModalWindow() const { return mWasModalWindow; }
 
-    int exec() {
+    int exec() override
+    {
         tId = startTimer(300);
         return QDialog::exec();
     }
 protected:
-    void timerEvent(QTimerEvent *event) {
+    void timerEvent(QTimerEvent *event) override
+    {
         if (tId == event->timerId()) {
             killTimer(tId);
             mWasActive = isActiveWindow();
@@ -321,7 +323,7 @@ void tst_QDialog::toolDialogPosition()
     dialog.move(QPoint(100,100));
     const QPoint beforeShowPosition = dialog.pos();
     dialog.show();
-    const int fuzz = int(dialog.devicePixelRatioF());
+    const int fuzz = int(dialog.devicePixelRatio());
     const QPoint afterShowPosition = dialog.pos();
     QVERIFY2(HighDpi::fuzzyCompare(afterShowPosition, beforeShowPosition, fuzz),
              HighDpi::msgPointMismatch(afterShowPosition, beforeShowPosition).constData());
@@ -414,7 +416,7 @@ class TestRejectDialog : public QDialog
 {
     public:
         TestRejectDialog() : cancelReject(false), called(0) {}
-        void reject()
+        void reject() override
         {
             called++;
             if (!cancelReject)

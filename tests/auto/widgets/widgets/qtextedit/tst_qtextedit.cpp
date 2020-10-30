@@ -334,18 +334,18 @@ public:
     inline QtTestDocumentLayout(QTextEdit *edit, QTextDocument *doc, int &itCount)
         : QAbstractTextDocumentLayout(doc), useBiggerSize(false), ed(edit), iterationCounter(itCount) {}
 
-    virtual void draw(QPainter *, const QAbstractTextDocumentLayout::PaintContext &)  {}
+    virtual void draw(QPainter *, const QAbstractTextDocumentLayout::PaintContext &) override {}
 
-    virtual int hitTest(const QPointF &, Qt::HitTestAccuracy ) const { return 0; }
+    virtual int hitTest(const QPointF &, Qt::HitTestAccuracy ) const override { return 0; }
 
-    virtual void documentChanged(int, int, int) {}
+    virtual void documentChanged(int, int, int) override {}
 
-    virtual int pageCount() const { return 1; }
+    virtual int pageCount() const override { return 1; }
 
-    virtual QSizeF documentSize() const { return usedSize; }
+    virtual QSizeF documentSize() const override { return usedSize; }
 
-    virtual QRectF frameBoundingRect(QTextFrame *) const { return QRectF(); }
-    virtual QRectF blockBoundingRect(const QTextBlock &) const { return QRectF(); }
+    virtual QRectF frameBoundingRect(QTextFrame *) const override { return QRectF(); }
+    virtual QRectF blockBoundingRect(const QTextBlock &) const override { return QRectF(); }
 
     bool useBiggerSize;
     QSize usedSize;
@@ -1444,15 +1444,15 @@ public:
     mutable int canInsertCallCount;
     mutable int insertCallCount;
 
-    virtual QMimeData *createMimeDataFromSelection() const {
+    virtual QMimeData *createMimeDataFromSelection() const override {
         createMimeDataCallCount++;
         return QTextEdit::createMimeDataFromSelection();
     }
-    virtual bool canInsertFromMimeData(const QMimeData *source) const {
+    virtual bool canInsertFromMimeData(const QMimeData *source) const override {
         canInsertCallCount++;
         return QTextEdit::canInsertFromMimeData(source);
     }
-    virtual void insertFromMimeData(const QMimeData *source) {
+    virtual void insertFromMimeData(const QMimeData *source) override {
         insertCallCount++;
         QTextEdit::insertFromMimeData(source);
     }
@@ -1604,7 +1604,7 @@ public:
     bool resizeEventCalled;
 
 protected:
-    virtual void resizeEvent(QResizeEvent *e)
+    virtual void resizeEvent(QResizeEvent *e) override
     {
         QTextEdit::resizeEvent(e);
         setHtml("<img src=qtextbrowser-resizeevent.png width=" + QString::number(size().width()) + "><br>Size is " + QString::number(size().width()) + " x " + QString::number(size().height()));
@@ -2005,7 +2005,8 @@ void tst_QTextEdit::fullWidthSelection()
 
     // enable full-width-selection for our test widget.
     class FullWidthStyle : public QCommonStyle {
-        int styleHint(StyleHint stylehint, const QStyleOption *opt, const QWidget *widget, QStyleHintReturn *returnData) const {
+        int styleHint(StyleHint stylehint, const QStyleOption *opt, const QWidget *widget, QStyleHintReturn *returnData) const override
+        {
             if (stylehint == QStyle::SH_RichText_FullWidthSelection)
                 return 1;
             return QCommonStyle::styleHint(stylehint, opt, widget, returnData);
@@ -2544,7 +2545,7 @@ void tst_QTextEdit::inputMethodCursorRect()
     ed->moveCursor(QTextCursor::End);
     const QRectF cursorRect = ed->cursorRect();
     const QVariant cursorRectV = ed->inputMethodQuery(Qt::ImCursorRectangle);
-    QCOMPARE(cursorRectV.type(), QVariant::RectF);
+    QCOMPARE(cursorRectV.userType(), QMetaType::QRectF);
     QCOMPARE(cursorRectV.toRect(), cursorRect.toRect());
 }
 
@@ -2565,7 +2566,7 @@ void tst_QTextEdit::highlightLongLine()
     class NumHighlighter : public QSyntaxHighlighter {
     public:
         explicit NumHighlighter(QTextDocument*doc) : QSyntaxHighlighter(doc) {};
-        virtual void highlightBlock(const QString& text) {
+        virtual void highlightBlock(const QString& text) override {
             // odd number in bold
             QTextCharFormat format;
             format.setFontWeight(QFont::Bold);
@@ -2641,10 +2642,10 @@ void tst_QTextEdit::findWithRegularExpressionReturnsFalseIfNoMoreResults()
 class TextEdit : public QTextEdit
 {
 public:
-    TextEdit(QWidget *parent = 0)
+    TextEdit(QWidget *parent = nullptr)
         : QTextEdit(parent)
     {}
-    void wheelEvent(QWheelEvent *event)
+    void wheelEvent(QWheelEvent *event) override
     {
         QTextEdit::wheelEvent(event);
     }
@@ -2703,12 +2704,12 @@ namespace {
         }
 
 
-        QPaintEngine *paintEngine () const
+        QPaintEngine *paintEngine () const override
         {
             return m_paintEngine;
         }
 
-        int metric (QPaintDevice::PaintDeviceMetric metric) const {
+        int metric (QPaintDevice::PaintDeviceMetric metric) const override {
             switch (metric) {
             case QPaintDevice::PdmWidth:
             case QPaintDevice::PdmHeight:

@@ -80,11 +80,6 @@
 
 QT_USE_NAMESPACE
 
-static QWindow *qt_getWindow(const QWidget *widget)
-{
-    return widget ? widget->window()->windowHandle() : 0;
-}
-
 @interface QT_MANGLE_NAMESPACE(QIndeterminateProgressIndicator) : NSProgressIndicator
 
 @property (readonly, nonatomic) NSInteger animators;
@@ -494,38 +489,11 @@ static bool setupSlider(NSSlider *slider, const QStyleOptionSlider *sl)
         slider.numberOfTickMarks = 0;
     }
 
+    // Ensure the values set above are reflected when asking
+    // the cell for its metrics and to draw itself.
+    [slider layoutSubtreeIfNeeded];
+
     return true;
-}
-
-static void fixStaleGeometry(NSSlider *slider)
-{
-    // If it's later fixed in AppKit, this function is not needed.
-    // On macOS Mojave we suddenly have NSSliderCell with a cached
-    // (and stale) geometry, thus its -drawKnob, -drawBarInside:flipped:,
-    // -drawTickMarks fail to render the slider properly. Setting the number
-    // of tickmarks triggers an update in geometry.
-
-    Q_ASSERT(slider);
-
-    if (QOperatingSystemVersion::current() < QOperatingSystemVersion::MacOSMojave)
-        return;
-
-    NSSliderCell *cell = slider.cell;
-    const NSRect barRect = [cell barRectFlipped:NO];
-    const NSSize sliderSize = slider.frame.size;
-    CGFloat difference = 0.;
-    if (slider.vertical)
-        difference = std::abs(sliderSize.height - barRect.size.height);
-    else
-        difference = std::abs(sliderSize.width - barRect.size.width);
-
-    if (difference > 6.) {
-        // Stale ...
-        const auto nOfTicks = slider.numberOfTickMarks;
-        // Non-zero, different from nOfTicks to force update
-        slider.numberOfTickMarks = nOfTicks + 10;
-        slider.numberOfTickMarks = nOfTicks;
-    }
 }
 
 static bool isInMacUnifiedToolbarArea(QWindow *window, int windowY)
@@ -1501,7 +1469,7 @@ QStyleHelper::WidgetSizePolicy QMacStylePrivate::aquaSizeConstrain(const QStyleO
     if (guess_size)
         ret = qt_aqua_guess_size(widg, large, small, mini);
 
-    QSize *sz = 0;
+    QSize *sz = nullptr;
     if (ret == QStyleHelper::SizeSmall)
         sz = &small;
     else if (ret == QStyleHelper::SizeLarge)
@@ -2572,7 +2540,7 @@ QPalette QMacStyle::standardPalette() const
 {
     auto platformTheme = QGuiApplicationPrivate::platformTheme();
     auto styleNames = platformTheme->themeHint(QPlatformTheme::StyleNames);
-    if (styleNames.toStringList().contains("macos"))
+    if (styleNames.toStringList().contains("macOS"))
         return QPalette(); // Inherit everything from theme
     else
         return QStyle::standardPalette();
@@ -2828,9 +2796,6 @@ int QMacStyle::styleHint(StyleHint sh, const QStyleOption *opt, const QWidget *w
     case SH_MessageBox_TextInteractionFlags:
         ret = Qt::TextSelectableByMouse | Qt::LinksAccessibleByMouse | Qt::TextSelectableByKeyboard;
         break;
-    case SH_SpellCheckUnderlineStyle:
-        ret = QTextCharFormat::DashUnderline;
-        break;
     case SH_MessageBox_CenterButtons:
         ret = false;
         break;
@@ -2956,7 +2921,8 @@ QPixmap QMacStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOpt
             size = 64;
             break;
     }
-    return icon.pixmap(qt_getWindow(widget), QSize(size, size));
+    qreal dpr = widget ? widget->devicePixelRatio() : qApp->devicePixelRatio();
+    return icon.pixmap(QSize(size, size), dpr);
 }
 
 void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p,
@@ -3547,7 +3513,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                 if (opt->state & State_Enabled)
                     mode = QIcon::Normal;
                 int iconExtent = proxy()->pixelMetric(PM_SmallIconSize);
-                QPixmap pixmap = header->icon.pixmap(window, QSize(iconExtent, iconExtent), mode);
+                QPixmap pixmap = header->icon.pixmap(QSize(iconExtent, iconExtent), p->device()->devicePixelRatio(), mode);
 
                 QRect pixr = header->rect;
                 pixr.setY(header->rect.center().y() - (pixmap.height() / pixmap.devicePixelRatio() - 1) / 2);
@@ -3598,8 +3564,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                                                                             : QIcon::Disabled;
                         QIcon::State iconState = (tb->state & State_On) ? QIcon::On
                                                                          : QIcon::Off;
-                        QPixmap pixmap = tb->icon.pixmap(window,
-                                                         tb->rect.size().boundedTo(tb->iconSize),
+                        QPixmap pixmap = tb->icon.pixmap(tb->rect.size().boundedTo(tb->iconSize), p->device()->devicePixelRatio(),
                                                          iconMode, iconState);
 
                         // Draw the text if it's needed.
@@ -3797,7 +3762,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     QIcon::State state = QIcon::Off;
                     if (btn.state & State_On)
                         state = QIcon::On;
-                    QPixmap pixmap = btn.icon.pixmap(window, btn.iconSize, mode, state);
+                    QPixmap pixmap = btn.icon.pixmap(btn.iconSize, p->device()->devicePixelRatio(), mode, state);
                     int pixmapWidth = pixmap.width() / pixmap.devicePixelRatio();
                     int pixmapHeight = pixmap.height() / pixmap.devicePixelRatio();
                     contentW += pixmapWidth + QMacStylePrivate::PushButtonContentPadding;
@@ -3875,16 +3840,11 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             // inFrame:withView:], -[drawRect:] or anything in between. Besides,
             // there's no public API do draw the pressed state, AFAICS. We'll use
             // a push NSButton instead and clip the CGContext.
-            // NOTE/TODO: this is not true. On 10.13 NSSegmentedControl works with
-            // some (black?) magic/magic dances, on 10.14 it simply works (was
-            // it fixed in AppKit?). But, indeed, we cannot make a tab 'pressed'
-            // with NSSegmentedControl (only selected), so we stay with buttons
-            // (mixing buttons and NSSegmentedControl for such a simple thing
-            // is too much work).
 
             const auto cs = d->effectiveAquaSizeConstrain(opt, w);
             // Extra hacks to get the proper pressed appreance when not selected or selected and inactive
             const bool needsInactiveHack = (!isActive && isSelected);
+            const bool isBigSurOrAbove = QOperatingSystemVersion::current() >= QOperatingSystemVersion::MacOSBigSur;
             const auto ct = !needsInactiveHack && (isSelected || tp == QStyleOptionTab::OnlyOneTab) ?
                     QMacStylePrivate::Button_PushButton :
                     QMacStylePrivate::Button_PopupButton;
@@ -3893,6 +3853,12 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             auto *pb = static_cast<NSButton *>(d->cocoaControl(cw));
 
             auto vOffset = isPopupButton ? 1 : 2;
+            if (isBigSurOrAbove) {
+                // Make it 1, otherwise, offset is very visible compared
+                // to selected tab (which is not a popup button).
+                vOffset = 1;
+            }
+
             if (tabDirection == QMacStylePrivate::East)
                 vOffset -= 1;
             const auto outerAdjust = isPopupButton ? 1 : 4;
@@ -3909,9 +3875,22 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     frameRect = frameRect.adjusted(-innerAdjust, 0, outerAdjust, 0);
                 else
                     frameRect = frameRect.adjusted(-outerAdjust, 0, innerAdjust, 0);
+
+                if (isSelected && isBigSurOrAbove) {
+                    // 1 pixed of 'roundness' is still visible on the right
+                    // (the left is OK, it's rounded).
+                    frameRect = frameRect.adjusted(0, 0, 1, 0);
+                }
+
                 break;
             case QStyleOptionTab::Middle:
                 frameRect = frameRect.adjusted(-innerAdjust, 0, innerAdjust, 0);
+
+                if (isSelected && isBigSurOrAbove) {
+                    // 1 pixel of 'roundness' is still visible on both
+                    // sides - left and right.
+                    frameRect = frameRect.adjusted(-1, 0, 1, 0);
+                }
                 break;
             case QStyleOptionTab::End:
                 // Pressed state hack: tweak adjustments in preparation for flip below
@@ -3919,6 +3898,11 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     frameRect = frameRect.adjusted(-innerAdjust, 0, outerAdjust, 0);
                 else
                     frameRect = frameRect.adjusted(-outerAdjust, 0, innerAdjust, 0);
+
+                if (isSelected && isBigSurOrAbove) {
+                    // 1 pixel of 'roundness' is still visible on the left.
+                    frameRect = frameRect.adjusted(-1, 0, 0, 0);
+                }
                 break;
             case QStyleOptionTab::OnlyOneTab:
                 frameRect = frameRect.adjusted(-outerAdjust, 0, outerAdjust, 0);
@@ -3966,7 +3950,10 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                 NSPopUpArrowPosition oldPosition = NSPopUpArrowAtCenter;
                 NSPopUpButtonCell *pbCell = nil;
                 auto rAdjusted = r;
-                if (isPopupButton && tp == QStyleOptionTab::OnlyOneTab) {
+                if (isPopupButton && (tp == QStyleOptionTab::OnlyOneTab || isBigSurOrAbove)) {
+                    // Note: starting from macOS BigSur NSPopupButton has this
+                    // arrow 'button' in a different place and it became
+                    // quite visible 'in between' inactive tabs.
                     pbCell = static_cast<NSPopUpButtonCell *>(pb.cell);
                     oldPosition = pbCell.arrowPosition;
                     pbCell.arrowPosition = NSPopUpNoArrow;
@@ -3974,6 +3961,12 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                         // NSPopUpButton in this state is smaller.
                         rAdjusted.origin.x -= 3;
                         rAdjusted.size.width += 6;
+                        if (isBigSurOrAbove) {
+                            rAdjusted.origin.y -= 1;
+                            rAdjusted.size.height += 1;
+                            if (tp == QStyleOptionTab::End)
+                                rAdjusted.origin.x -= 2;
+                        }
                     }
                 }
 
@@ -3985,7 +3978,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
 
             if (needsInactiveHack) {
                 // First, render tab as non-selected tab on a pixamp
-                const qreal pixelRatio = p->device()->devicePixelRatioF();
+                const qreal pixelRatio = p->device()->devicePixelRatio();
                 QImage tabPixmap(opt->rect.size() * pixelRatio, QImage::Format_ARGB32_Premultiplied);
                 tabPixmap.setDevicePixelRatio(pixelRatio);
                 tabPixmap.fill(Qt::transparent);
@@ -4261,7 +4254,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                     iconSize = comboBox->iconSize();
                 }
 #endif
-                QPixmap pixmap = mi->icon.pixmap(window, iconSize, mode);
+                QPixmap pixmap = mi->icon.pixmap(iconSize, p->device()->devicePixelRatio(), mode);
                 int pixw = pixmap.width() / pixmap.devicePixelRatio();
                 int pixh = pixmap.height() / pixmap.devicePixelRatio();
                 QRect cr(xpos, mi->rect.y(), checkcol, mi->rect.height());
@@ -4369,7 +4362,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
                 drawItemPixmap(p, mi->rect,
                                   Qt::AlignCenter | Qt::TextHideMnemonic | Qt::TextDontClip
                                   | Qt::TextSingleLine,
-                                  mi->icon.pixmap(window, QSize(iconExtent, iconExtent),
+                                  mi->icon.pixmap(QSize(iconExtent, iconExtent), p->device()->devicePixelRatio(),
                           (mi->state & State_Enabled) ? QIcon::Normal : QIcon::Disabled));
             } else {
                 drawItemText(p, mi->rect,
@@ -4387,7 +4380,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
     case CE_ProgressBarContents:
         if (const QStyleOptionProgressBar *pb = qstyleoption_cast<const QStyleOptionProgressBar *>(opt)) {
             const bool isIndeterminate = (pb->minimum == 0 && pb->maximum == 0);
-            const bool vertical = pb->orientation == Qt::Vertical;
+            const bool vertical = !(pb->state & QStyle::State_Horizontal);
             const bool inverted = pb->invertedAppearance;
             bool reverse = (!vertical && (pb->direction == Qt::RightToLeft));
             if (inverted)
@@ -5336,7 +5329,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
 
             CGPoint pressPoint;
             if (isPressed) {
-                const CGRect knobRect = [slider.cell knobRectFlipped:NO];
+                const CGRect knobRect = [slider.cell knobRectFlipped:slider.isFlipped];
                 pressPoint.x = CGRectGetMidX(knobRect);
                 pressPoint.y = CGRectGetMidY(knobRect);
                 [slider.cell startTrackingAt:pressPoint inView:slider];
@@ -5385,8 +5378,6 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                 } else
 #endif
                 {
-                    if (!hasDoubleTicks)
-                        fixStaleGeometry(slider);
                     NSSliderCell *cell = slider.cell;
 
                     const int numberOfTickMarks = slider.numberOfTickMarks;
@@ -5394,7 +5385,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                     if (hasDoubleTicks)
                         slider.numberOfTickMarks = 0;
 
-                    const CGRect barRect = [cell barRectFlipped:hasTicks];
+                    const CGRect barRect = [cell barRectFlipped:slider.isFlipped];
                     if (drawBar) {
                         if (!isHorizontal && !sl->upsideDown && (hasDoubleTicks || !hasTicks)) {
                             // The logic behind verticalFlip and upsideDown is the twisted one.
@@ -5578,7 +5569,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
             QPainterPath outerFramePath = d->windowPanelPath(outerFrameRect);
             p->fillPath(outerFramePath, opt->palette.dark());
 
-            const auto frameAdjust = 1.0 / p->device()->devicePixelRatioF();
+            const auto frameAdjust = 1.0 / p->device()->devicePixelRatio();
             const auto innerFrameRect = outerFrameRect.adjusted(frameAdjust, frameAdjust, -frameAdjust, 0);
             QPainterPath innerFramePath = d->windowPanelPath(innerFrameRect);
             if (isActive) {
@@ -5624,7 +5615,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
                     const auto iconPos = tr.x() - titlebar->icon.actualSize(iconSize).width() - qRound(titleBarIconTitleSpacing);
                     // Only render the icon if it'll be fully visible
                     if (iconPos < tr.right() - titleBarIconTitleSpacing)
-                        p->drawPixmap(iconPos, tr.y(), titlebar->icon.pixmap(window, iconSize, QIcon::Normal));
+                        p->drawPixmap(iconPos, tr.y(), titlebar->icon.pixmap(iconSize, QIcon::Normal));
                 }
 
                 if (!titlebar->text.isEmpty())
@@ -5781,8 +5772,8 @@ QStyle::SubControl QMacStyle::hitTestComplexControl(ComplexControl cc,
                 break;
 
             NSSliderCell *cell = slider.cell;
-            const auto barRect = QRectF::fromCGRect([cell barRectFlipped:hasTicks]);
-            const auto knobRect = QRectF::fromCGRect([cell knobRectFlipped:NO]);
+            const auto barRect = QRectF::fromCGRect([cell barRectFlipped:slider.isFlipped]);
+            const auto knobRect = QRectF::fromCGRect([cell knobRectFlipped:slider.isFlipped]);
             if (knobRect.contains(pt)) {
                 sc = SC_SliderHandle;
             } else if (barRect.contains(pt)) {
@@ -5886,7 +5877,7 @@ QRect QMacStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *op
 
             NSSliderCell *cell = slider.cell;
             if (sc == SC_SliderHandle) {
-                ret = QRectF::fromCGRect([cell knobRectFlipped:NO]).toRect();
+                ret = QRectF::fromCGRect([cell knobRectFlipped:slider.isFlipped]).toRect();
                 if (isHorizontal) {
                     ret.setTop(sl->rect.top());
                     ret.setBottom(sl->rect.bottom());
@@ -5895,7 +5886,7 @@ QRect QMacStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *op
                     ret.setRight(sl->rect.right());
                 }
             } else if (sc == SC_SliderGroove) {
-                ret = QRectF::fromCGRect([cell barRectFlipped:hasTicks]).toRect();
+                ret = QRectF::fromCGRect([cell barRectFlipped:slider.isFlipped]).toRect();
             } else if (hasTicks && sc == SC_SliderTickmarks) {
                 const auto tickMarkRect = QRectF::fromCGRect([cell rectOfTickMarkAtIndex:0]);
                 if (isHorizontal)
@@ -6526,7 +6517,7 @@ bool QMacStyle::event(QEvent *e)
 {
     Q_D(QMacStyle);
     if(e->type() == QEvent::FocusIn) {
-        QWidget *f = 0;
+        QWidget *f = nullptr;
         QWidget *focusWidget = QApplication::focusWidget();
 #if QT_CONFIG(graphicsview)
         if (QGraphicsView *graphicsView = qobject_cast<QGraphicsView *>(focusWidget)) {

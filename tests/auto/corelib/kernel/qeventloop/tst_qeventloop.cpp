@@ -77,7 +77,7 @@ signals:
     void checkPoint();
 public:
     QEventLoop *eventLoop;
-    void run();
+    void run() override;
 };
 
 void EventLoopThread::run()
@@ -86,7 +86,7 @@ void EventLoopThread::run()
     emit checkPoint();
     (void) eventLoop->exec();
     delete eventLoop;
-    eventLoop = 0;
+    eventLoop = nullptr;
 }
 
 class MultipleExecThread : public QThread
@@ -101,7 +101,7 @@ public:
     volatile int result2;
     MultipleExecThread() : result1(0xdead), result2(0xbeef) {}
 
-    void run()
+    void run() override
     {
         QMutexLocker locker(&mutex);
         // this exec should work
@@ -126,7 +126,7 @@ public:
 class StartStopEvent: public QEvent
 {
 public:
-    explicit StartStopEvent(int type, QEventLoop *loop = 0)
+    explicit StartStopEvent(int type, QEventLoop *loop = nullptr)
         : QEvent(Type(type)), el(loop)
     { }
 
@@ -180,7 +180,7 @@ private slots:
     void testQuitLock();
 
 protected:
-    void customEvent(QEvent *e);
+    void customEvent(QEvent *e) override;
 };
 
 void tst_QEventLoop::processEvents()
@@ -446,7 +446,7 @@ class SocketTestThread : public QThread
     Q_OBJECT
 public:
     SocketTestThread():QThread(0),testResult(false){};
-    void run()
+    void run() override
     {
         SocketEventsTester *tester = new SocketEventsTester();
         if (tester->init())
@@ -489,7 +489,7 @@ public:
         : QObject(), gotTimerEvent(-1)
     { }
 
-    void timerEvent(QTimerEvent *event)
+    void timerEvent(QTimerEvent *event) override
     {
         gotTimerEvent = event->timerId();
     }
@@ -546,7 +546,7 @@ namespace DeliverInDefinedOrder {
         }
         int lastReceived[NbEventQueue];
         int count;
-        virtual void customEvent(QEvent* e) {
+        virtual void customEvent(QEvent* e) override {
             QVERIFY(e->type() >= QEvent::User);
             QVERIFY(e->type() < QEvent::User + 5);
             uint idx = e->type() - QEvent::User;
@@ -602,12 +602,12 @@ class JobObject : public QObject
     Q_OBJECT
 public:
 
-    explicit JobObject(QEventLoop *loop, QObject *parent = 0)
+    explicit JobObject(QEventLoop *loop, QObject *parent = nullptr)
         : QObject(parent), locker(loop)
     {
     }
 
-    explicit JobObject(QObject *parent = 0)
+    explicit JobObject(QObject *parent = nullptr)
         : QObject(parent)
     {
     }

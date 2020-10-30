@@ -72,20 +72,16 @@ class Q_CORE_EXPORT QEventDispatcherWin32 : public QAbstractEventDispatcher
     Q_OBJECT
     Q_DECLARE_PRIVATE(QEventDispatcherWin32)
 
-protected:
-    void createInternalHwnd();
-
 public:
-    explicit QEventDispatcherWin32(QObject *parent = 0);
+    explicit QEventDispatcherWin32(QObject *parent = nullptr);
     ~QEventDispatcherWin32();
 
     bool QT_ENSURE_STACK_ALIGNED_FOR_SSE processEvents(QEventLoop::ProcessEventsFlags flags) override;
-    bool hasPendingEvents() override;
 
     void registerSocketNotifier(QSocketNotifier *notifier) override;
     void unregisterSocketNotifier(QSocketNotifier *notifier) override;
 
-    void registerTimer(int timerId, int interval, Qt::TimerType timerType, QObject *object) override;
+    void registerTimer(int timerId, qint64 interval, Qt::TimerType timerType, QObject *object) override;
     bool unregisterTimer(int timerId) override;
     bool unregisterTimers(QObject *object) override;
     QList<TimerInfo> registeredTimers(QObject *object) const override;
@@ -98,7 +94,6 @@ public:
 
     void wakeUp() override;
     void interrupt() override;
-    void flush() override;
 
     void startingUp() override;
     void closingDown() override;
@@ -108,7 +103,7 @@ public:
     HWND internalHwnd();
 
 protected:
-    QEventDispatcherWin32(QEventDispatcherWin32Private &dd, QObject *parent = 0);
+    QEventDispatcherWin32(QEventDispatcherWin32Private &dd, QObject *parent = nullptr);
     virtual void sendPostedEvents();
     void doUnregisterSocketNotifier(QSocketNotifier *notifier);
     void doUnregisterEventNotifier(QWinEventNotifier *notifier);
@@ -136,7 +131,7 @@ typedef QHash<int, QSockFd> QSFDict;
 struct WinTimerInfo {                           // internal timer info
     QObject *dispatcher;
     int timerId;
-    int interval;
+    qint64 interval;
     Qt::TimerType timerType;
     quint64 timeout;                            // - when to actually fire
     QObject *obj;                               // - object to receive events
@@ -162,8 +157,6 @@ public:
     QEventDispatcherWin32Private();
     ~QEventDispatcherWin32Private();
     static QEventDispatcherWin32Private *get(QEventDispatcherWin32 *q) { return q->d_func(); }
-
-    DWORD threadId;
 
     QAtomicInt interrupt;
 

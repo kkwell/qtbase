@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Contact: https://www.qt.io/licensing/
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -98,7 +98,6 @@ public:
         { return (tl == other.tl && br == other.br); }
     inline bool operator!=(const QItemSelectionRange &other) const
         { return !operator==(other); }
-    bool operator<(const QItemSelectionRange &other) const;
 
     inline bool isValid() const
     {
@@ -168,7 +167,6 @@ public:
     Q_INVOKABLE QModelIndexList selectedColumns(int row = 0) const;
     const QItemSelection selection() const;
 
-    // ### Qt 6: Merge these two as "QAbstractItemModel *model() const"
     const QAbstractItemModel *model() const;
     QAbstractItemModel *model();
 

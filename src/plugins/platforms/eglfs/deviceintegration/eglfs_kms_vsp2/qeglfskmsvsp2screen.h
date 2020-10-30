@@ -42,7 +42,7 @@
 #ifndef QEGLFSKMSVSP2SCREEN_H
 #define QEGLFSKMSVSP2SCREEN_H
 
-#include "qeglfskmsscreen.h"
+#include "qeglfskmsscreen_p.h"
 #include "qvsp2blendingdevice.h"
 #include <QtCore/QMutex>
 
@@ -53,7 +53,7 @@
 QT_BEGIN_NAMESPACE
 
 class QEglFSKmsVsp2Screen : public QEglFSKmsScreen
-    , public QPlatformInterface::Private::QVsp2Screen
+    , public QNativeInterface::Private::QVsp2Screen
 {
 public:
     QEglFSKmsVsp2Screen(QEglFSKmsDevice *device, const QKmsOutput &output);

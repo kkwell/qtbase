@@ -19,10 +19,14 @@ find_package(Qt6 COMPONENTS Core)
 find_package(Qt6 COMPONENTS Gui)
 find_package(Qt6 COMPONENTS Widgets)
 
-add_qt_gui_executable(styles
+qt_add_executable(styles
     main.cpp
     norwegianwoodstyle.cpp norwegianwoodstyle.h
     widgetgallery.cpp widgetgallery.h
+)
+set_target_properties(styles PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    MACOSX_BUNDLE TRUE
 )
 target_link_libraries(styles PUBLIC
     Qt::Core

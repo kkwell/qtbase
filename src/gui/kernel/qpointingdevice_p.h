@@ -51,14 +51,17 @@
 // We mean it.
 //
 
+#include <QtGui/private/qevent_p.h>
+#include <QtGui/qpointingdevice.h>
 #include <QtGui/private/qtguiglobal_p.h>
 #include <QtGui/private/qinputdevice_p.h>
-#include <QtGui/qpointingdevice.h>
+#include <QtCore/private/qflatmap_p.h>
 
 QT_BEGIN_NAMESPACE
 
 class Q_GUI_EXPORT QPointingDevicePrivate : public QInputDevicePrivate
 {
+    Q_DECLARE_PUBLIC(QPointingDevice)
 public:
     QPointingDevicePrivate(const QString &name, qint64 id, QInputDevice::DeviceType type,
                            QPointingDevice::PointerType pType, QPointingDevice::Capabilities caps,
@@ -71,9 +74,36 @@ public:
         pointerType(pType)
     {
         pointingDeviceType = true;
+        activePoints.reserve(maxPoints);
     }
 
-    void * extra = nullptr; // QPA plugins can store platform-specific stuff here
+    void sendTouchCancelEvent(QTouchEvent *cancelEvent);
+
+    /*! \internal
+        This struct (stored in activePoints) holds persistent state between event deliveries.
+    */
+    struct EventPointData {
+        QEventPoint eventPoint;
+        QPointer<QObject> exclusiveGrabber;
+        QList<QPointer <QObject> > passiveGrabbers;
+    };
+    EventPointData *queryPointById(int id) const;
+    EventPointData *pointById(int id) const;
+    void removePointById(int id);
+    QObject *firstActiveTarget() const;
+    QWindow *firstActiveWindow() const;
+
+    QObject *firstPointExclusiveGrabber() const;
+    void setExclusiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *exclusiveGrabber);
+    bool removeExclusiveGrabber(const QPointerEvent *event, const QObject *grabber);
+    bool addPassiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *grabber);
+    bool removePassiveGrabber(const QPointerEvent *event, const QEventPoint &point, QObject *grabber);
+    void clearPassiveGrabbers(const QPointerEvent *event, const QEventPoint &point);
+    void removeGrabber(QObject *grabber, bool cancel = false);
+
+    using EventPointMap = QFlatMap<int, EventPointData>;
+    mutable EventPointMap activePoints;
+
     QPointingDeviceUniqueId uniqueId;
     quint32 toolId = 0;         // only for Wacom tablets
     qint8 maximumTouchPoints = 0;

@@ -25,7 +25,6 @@ HEADERS += \
 	kernel/qstandardgestures_p.h \
 	kernel/qgesturerecognizer.h \
 	kernel/qgesturemanager_p.h \
-        kernel/qdesktopwidget_p.h \
         kernel/qwidgetwindow_p.h \
         kernel/qwindowcontainer_p.h \
         kernel/qtestsupport_widgets.h
@@ -45,7 +44,6 @@ SOURCES += \
 	kernel/qstandardgestures.cpp \
 	kernel/qgesturerecognizer.cpp \
 	kernel/qgesturemanager.cpp \
-        kernel/qdesktopwidget.cpp \
         kernel/qwidgetsvariant.cpp \
         kernel/qwidgetwindow.cpp \
         kernel/qwindowcontainer.cpp \
@@ -60,7 +58,10 @@ macx: {
 qtConfig(action) {
     HEADERS += kernel/qaction_widgets_p.h \
                kernel/qwidgetaction.h \
-               kernel/qwidgetaction_p.h
+               kernel/qwidgetaction_p.h \
+               kernel/qaction.h \
+               kernel/qactiongroup.h
+
     SOURCES += kernel/qaction_widgets.cpp \
                kernel/qwidgetaction.cpp
 }
@@ -71,6 +72,7 @@ qtConfig(formlayout) {
 }
 
 qtConfig(shortcut) {
+    HEADERS += kernel/qshortcut.h
     SOURCES += kernel/qshortcut_widgets.cpp
 }
 

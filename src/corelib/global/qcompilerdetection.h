@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2016 The Qt Company Ltd.
+** Copyright (C) 2020 The Qt Company Ltd.
 ** Copyright (C) 2016 Intel Corporation.
 ** Contact: https://www.qt.io/licensing/
 **
@@ -991,6 +991,8 @@
 
 #ifdef Q_COMPILER_UNICODE_STRINGS
 #  define Q_STDLIB_UNICODE_STRINGS
+#elif defined(__cplusplus)
+#  error "Qt6 requires Unicode string support in both the compiler and the standard library"
 #endif
 
 #ifdef __cplusplus
@@ -1135,17 +1137,25 @@
 #  define Q_REQUIRED_RESULT [[nodiscard]]
 #endif
 
+#if __has_cpp_attribute(maybe_unused)
+#  undef Q_DECL_UNUSED
+#  define Q_DECL_UNUSED [[maybe_unused]]
+#endif
+
+#if __has_cpp_attribute(deprecated)
+#  ifdef Q_DECL_DEPRECATED
+#    undef Q_DECL_DEPRECATED
+#  endif
+#  ifdef Q_DECL_DEPRECATED_X
+#    undef Q_DECL_DEPRECATED_X
+#  endif
+#  define Q_DECL_DEPRECATED [[deprecated]]
+#  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+#endif
+
 #if defined(__cpp_enumerator_attributes) && __cpp_enumerator_attributes >= 201411
-#if defined(Q_CC_MSVC)
-// Can't mark enum values as __declspec(deprecated) with MSVC, also can't move
-// everything to [[deprecated]] because MSVC gives a compilation error when marking
-// friend methods of a class as [[deprecated("text")]], breaking qstring.h
-#  define Q_DECL_ENUMERATOR_DEPRECATED [[deprecated]]
-#  define Q_DECL_ENUMERATOR_DEPRECATED_X(x) [[deprecated(x)]]
-#else
 #  define Q_DECL_ENUMERATOR_DEPRECATED Q_DECL_DEPRECATED
 #  define Q_DECL_ENUMERATOR_DEPRECATED_X(x) Q_DECL_DEPRECATED_X(x)
-#endif
 #endif
 
 /*

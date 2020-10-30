@@ -106,33 +106,6 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \class QStaticPlugin
-    \inmodule QtCore
-    \since 5.2
-
-    \brief QStaticPlugin is a struct containing a reference to a
-    static plugin instance together with its meta data.
-
-    \sa QPluginLoader, {How to Create Qt Plugins}
-*/
-
-/*!
-    \fn QObject *QStaticPlugin::instance()
-
-    Returns the plugin instance.
-
-    \sa QPluginLoader::staticInstances()
-*/
-
-/*!
-    \fn const char *QStaticPlugin::rawMetaData()
-
-    Returns the raw meta data for the plugin.
-
-    \sa metaData(), Q_PLUGIN_METADATA()
-*/
-
-/*!
     Constructs a plugin loader with the given \a parent.
 */
 QPluginLoader::QPluginLoader(QObject *parent)
@@ -238,7 +211,6 @@ bool QPluginLoader::load()
     return d->loadPlugin();
 }
 
-
 /*!
     Unloads the plugin and returns \c true if the plugin could be
     unloaded; otherwise returns \c false.
@@ -261,7 +233,7 @@ bool QPluginLoader::unload()
         did_load = false;
         return d->unload();
     }
-    if (d)  // Ouch
+    if (d) // Ouch
         d->errorString = tr("The plugin was not loaded.");
     return false;
 }
@@ -374,7 +346,7 @@ void QPluginLoader::setFileName(const QString &fileName)
 #else
     if (qt_debug_component()) {
         qWarning("Cannot load %s into a statically linked Qt library.",
-            (const char*)QFile::encodeName(fileName));
+                 (const char *)QFile::encodeName(fileName));
     }
     Q_UNUSED(fileName);
 #endif
@@ -476,9 +448,33 @@ QList<QStaticPlugin> QPluginLoader::staticPlugins()
 }
 
 /*!
+    \class QStaticPlugin
+    \inmodule QtCore
+    \since 5.2
+
+    \brief QStaticPlugin is a struct containing a reference to a
+    static plugin instance together with its meta data.
+
+    \sa QPluginLoader, {How to Create Qt Plugins}
+*/
+
+/*!
+    \fn QStaticPlugin::QStaticPlugin(QtPluginInstanceFunction i, QtPluginMetaDataFunction m)
+    \internal
+*/
+
+/*!
+    \fn QObject *QStaticPlugin::instance()
+
+    Returns the plugin instance.
+
+    \sa QPluginLoader::staticInstances()
+*/
+
+/*!
     Returns a the meta data for the plugin as a QJsonObject.
 
-    \sa rawMetaData()
+    \sa Q_PLUGIN_METADATA()
 */
 QJsonObject QStaticPlugin::metaData() const
 {

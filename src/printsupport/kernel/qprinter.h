@@ -61,7 +61,6 @@ class QPaintEngine;
 class QPrintEngine;
 class QPrinterInfo;
 class QPageSize;
-class QPageMargins;
 
 class Q_PRINTSUPPORT_EXPORT QPrinter : public QPagedPaintDevice
 {
@@ -74,11 +73,6 @@ public:
     ~QPrinter();
 
     int devType() const override;
-
-    enum Orientation { Portrait, Landscape };
-
-    // ### Qt6 Remove in favor of QPage::PageSize
-    typedef PageSize PaperSize;
 
     enum PageOrder   { FirstPageFirst,
                        LastPageFirst };
@@ -155,36 +149,6 @@ public:
     void setCreator(const QString &);
     QString creator() const;
 
-#ifdef Q_CLANG_QDOC
-    // ### Qt6 Remove when these are made virtual in QPagedPaintDevice
-    bool setPageLayout(const QPageLayout &pageLayout);
-    bool setPageSize(const QPageSize &pageSize);
-    bool setPageOrientation(QPageLayout::Orientation orientation);
-    bool setPageMargins(const QMarginsF &margins);
-    bool setPageMargins(const QMarginsF &margins, QPageLayout::Unit units);
-    QPageLayout pageLayout() const;
-#else
-    using QPagedPaintDevice::setPageSize;
-    using QPagedPaintDevice::setPageMargins;
-#endif
-
-    void setOrientation(Orientation);
-    Orientation orientation() const;
-
-    void setPageSize(PageSize) override;
-    PageSize pageSize() const;
-
-    void setPageSizeMM(const QSizeF &size) override;
-
-    void setPaperSize(PaperSize);
-    PaperSize paperSize() const;
-
-    void setPaperSize(const QSizeF &paperSize, Unit unit);
-    QSizeF paperSize(Unit unit) const;
-
-    void setPaperName(const QString &paperName);
-    QString paperName() const;
-
     void setPageOrder(PageOrder);
     PageOrder pageOrder() const;
 
@@ -199,11 +163,6 @@ public:
 
     void setFullPage(bool);
     bool fullPage() const;
-
-    void setNumCopies(int);
-    int numCopies() const;
-
-    int actualNumCopies() const;
 
     void setCopyCount(int);
     int copyCount() const;
@@ -224,14 +183,6 @@ public:
     void setFontEmbeddingEnabled(bool enable);
     bool fontEmbeddingEnabled() const;
 
-    void setDoubleSidedPrinting(bool enable);
-    bool doubleSidedPrinting() const;
-
-    void setWinPageSize(int winPageSize);
-    int winPageSize() const;
-
-    QRect paperRect() const;
-    QRect pageRect() const;
     QRectF paperRect(Unit) const;
     QRectF pageRect(Unit) const;
 
@@ -254,11 +205,6 @@ public:
 
     void setPrintRange(PrintRange range);
     PrintRange printRange() const;
-
-    void setMargins(const Margins &m) override;
-
-    void setPageMargins(qreal left, qreal top, qreal right, qreal bottom, Unit unit);
-    void getPageMargins(qreal *left, qreal *top, qreal *right, qreal *bottom, Unit unit) const;
 
 protected:
     int metric(PaintDeviceMetric) const override;

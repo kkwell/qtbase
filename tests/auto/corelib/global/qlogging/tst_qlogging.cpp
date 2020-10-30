@@ -80,15 +80,6 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
     s_message = msg;
 }
 
-void customMsgHandler(QtMsgType type, const char *msg)
-{
-    s_type = type;
-    s_file = 0;
-    s_line = 0;
-    s_function = 0;
-    s_message = QString::fromLocal8Bit(msg);
-}
-
 tst_qmessagehandler::tst_qmessagehandler()
 {
     // ensure it's unset, otherwise we'll have trouble
@@ -746,18 +737,17 @@ void tst_qmessagehandler::qMessagePattern_data()
     QTest::newRow("time-process") << "<%{time process}>%{message}" << true << (QList<QByteArray>()
             << "<     ");
 
+#ifdef QT_CMAKE_BUILD
+#define BACKTRACE_HELPER_NAME "qlogging_helper"
+#else
+#define BACKTRACE_HELPER_NAME "helper"
+#endif
+
 #ifdef __GLIBC__
 #ifdef QT_NAMESPACE
 #define QT_NAMESPACE_STR QT_STRINGIFY(QT_NAMESPACE::)
 #else
 #define QT_NAMESPACE_STR ""
-#endif
-
-
-#ifdef QT_CMAKE_BUILD
-#define BACKTRACE_HELPER_NAME "qlogging_helper"
-#else
-#define BACKTRACE_HELPER_NAME "helper"
 #endif
 
 #ifndef QT_NO_DEBUG
